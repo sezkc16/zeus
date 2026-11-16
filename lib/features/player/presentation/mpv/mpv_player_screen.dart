@@ -1506,16 +1506,24 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       },
     );
 
-    // iOS mpv PiP (+28): when the viewer turned it on, the player runs
-    // the software renderer — GPU work is not allowed while the app is
-    // backgrounded, and PiP runs while backgrounded — with
-    // `hwdec: videotoolbox-copy` (hardware decode, software render) so
-    // the forked media_kit_video tap can feed the PiP window. Off by
+    // iOS mpv PiP (+28): when the viewer turned it on AND the PiP mode is
+    // mpv, the player runs the software renderer — GPU work is not allowed
+    // while the app is backgrounded, and PiP runs while backgrounded —
+    // with `hwdec: videotoolbox-copy` (hardware decode, software render)
+    // so the forked media_kit_video tap can feed the PiP window. Off by
     // default: the software renderer loses the shaders, HDR looks washed
     // out, and 4K is heavy. Takes effect on the next play, like the
     // engine choice.
+    //
+    // The mode matters here: iOS mode means the system's own PiP, which
+    // the libVLC engine already uses and the mpv engine cannot — mpv
+    // renders into a Flutter texture, not an AVPlayer — so in iOS mode
+    // this player stays on the hardware renderer and its PiP button stays
+    // hidden (see [_pipAvailable]).
     _iosMpvPipEnabled =
-        defaultTargetPlatform == TargetPlatform.iOS && settings.iosMpvPip;
+        defaultTargetPlatform == TargetPlatform.iOS &&
+        settings.iosMpvPip &&
+        settings.pipMode == PipMode.mpv;
     // The stats overlay (+34): on while the QoE-log developer option is
     // on — see [_showMpvStatsOverlay]. Read here, at setup, so the
     // first play can arm its refresh timer.

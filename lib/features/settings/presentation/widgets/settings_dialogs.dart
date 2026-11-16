@@ -41,6 +41,11 @@ String getGestureLabel(PlayerGesture gesture, AppLocalizations l10n) {
       return l10n.volume;
     case PlayerGesture.brightness:
       return l10n.brightness;
+    case PlayerGesture.seek:
+      // Plain literal, like 'Auto Skip' and 'Quality Filter Mode' elsewhere
+      // in settings: there is no l10n key for the Seek action, and the word
+      // is the same in every language the gesture rows are read in.
+      return 'Seek';
     case PlayerGesture.none:
       return l10n.none;
   }
@@ -50,11 +55,16 @@ String getGestureLabel(PlayerGesture gesture, AppLocalizations l10n) {
 ///
 /// Off reuses the player's own `off` key rather than a second word for the
 /// same state: the Subtitles tab already labels its no-subtitle row with it,
-/// and this setting is a default for exactly that row.
+/// and this setting is a default for exactly that row. The three newer
+/// options are plain literals — there are no l10n keys for them, and the
+/// words are the design preview's own.
 String subtitleDefaultLabel(SubtitleDefault value, AppLocalizations l10n) =>
     switch (value) {
       SubtitleDefault.auto => l10n.subtitleDefaultAuto,
       SubtitleDefault.off => l10n.off,
+      SubtitleDefault.english => 'English',
+      SubtitleDefault.forcedOnly => 'Forced only',
+      SubtitleDefault.sameAsAudio => 'Same as audio',
     };
 
 /// The audio language row's value: Auto, or the language by the English name
@@ -280,8 +290,8 @@ Future<void> showDownloadSettingsDialog(
                     CustomSlider(
                       value: chunks.toDouble(),
                       min: 1,
-                      max: 8,
-                      divisions: 7,
+                      max: 16,
+                      divisions: 15,
                       step: 1.0,
                       onChanged: (v) =>
                           setDialogState(() => chunks = v.round()),
@@ -319,6 +329,17 @@ Future<void> showDownloadSettingsDialog(
   );
 }
 
+/// Picks the download location: a preset on iOS, or any folder anywhere.
+///
+/// On iOS the presets are the design preview's: the default — no custom
+/// directory, files in Documents/ZoroX, which Files shows as
+/// "On My iPhone › ZoroX" — and Files › Downloads, a folder inside the app's
+/// Documents. A folder picked with the file picker is Custom. iCloud Drive
+/// is not offered: the app ships no iCloud entitlement, so there is no
+/// container to write into (see [DownloadLocationPreset]).
+///
+/// Off iOS there are no presets — the picker row is the whole dialog, as
+/// before — because the presets are iOS folders.
 Future<void> showDownloadLocationDialog(
   BuildContext context,
   WidgetRef ref,
@@ -326,6 +347,21 @@ Future<void> showDownloadLocationDialog(
 ) async {
   String? directory = settings.downloadDirectory;
 
+  final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+  String? documentsDir;
+  var preset = DownloadLocationPreset.custom;
+  if (isIOS) {
+    try {
+      documentsDir =
+          await ref.read(downloadServiceProvider).getApplicationDocumentsPath();
+      preset = downloadLocationPresetOf(directory, documentsDir);
+    } on Object {
+      // No Documents dir, no presets: the picker row below still works.
+      documentsDir = null;
+    }
+  }
+
+  if (!context.mounted) return;
   await showDialog<void>(
     context: context,
     builder: (dialogContext) {
@@ -336,41 +372,117 @@ Future<void> showDownloadLocationDialog(
             title: const Text('Download Location'),
             content: SizedBox(
               width: 420,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.folder_open_rounded),
-                    title: const Text('Target Directory'),
-                    subtitle: Text(
-                      directory ?? 'System Downloads/ZoroX',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: const Icon(Icons.edit_rounded),
-                    onTap: () async {
-                      final picked = await ref
-                          .read(downloadServiceProvider)
-                          .pickDownloadDirectory();
-                      if (picked != null) {
-                        setState(() => directory = picked);
-                      }
-                    },
-                  ),
-                  if (directory != null)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: () {
-                          setState(() => directory = null);
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isIOS && documentsDir != null)
+                      RadioGroup<DownloadLocationPreset>(
+                        groupValue: preset,
+                        onChanged: (val) {
+                          if (val == null) return;
+                          setState(() {
+                            preset = val;
+                            if (val != DownloadLocationPreset.custom) {
+                              directory = downloadLocationPresetDirectory(
+                                val,
+                                documentsDir!,
+                              );
+                            }
+                          });
                         },
-                        icon: const Icon(Icons.restart_alt_rounded),
-                        label: const Text('Reset to default'),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final option in [
+                              (
+                                value: DownloadLocationPreset.defaultLocation,
+                                title: 'On My iPhone › ZoroX',
+                                subtitle: 'Default · Documents/ZoroX',
+                              ),
+                              (
+                                value: DownloadLocationPreset.filesDownloads,
+                                title: 'Files › Downloads',
+                                subtitle: 'Documents/Downloads',
+                              ),
+                              (
+                                value: DownloadLocationPreset.custom,
+                                title: 'Custom folder',
+                                subtitle: 'Pick a folder below',
+                              ),
+                            ])
+                              currentOption(
+                                isCurrent: preset == option.value,
+                                child: ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(option.title),
+                                  subtitle: Text(option.subtitle),
+                                  leading: Radio<DownloadLocationPreset>(
+                                    value: option.value,
+                                  ),
+                                  onTap: () {
+                                    setState(() {
+                                      preset = option.value;
+                                      if (option.value !=
+                                          DownloadLocationPreset.custom) {
+                                        directory =
+                                            downloadLocationPresetDirectory(
+                                              option.value,
+                                              documentsDir!,
+                                            );
+                                      }
+                                    });
+                                  },
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.folder_open_rounded),
+                      title: const Text('Target Directory'),
+                      subtitle: Text(
+                        directory ?? 'System Downloads/ZoroX',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: const Icon(Icons.edit_rounded),
+                      onTap: () async {
+                        final picked = await ref
+                            .read(downloadServiceProvider)
+                            .pickDownloadDirectory();
+                        if (picked != null) {
+                          setState(() {
+                            directory = picked;
+                            if (documentsDir != null) {
+                              preset = downloadLocationPresetOf(
+                                picked,
+                                documentsDir,
+                              );
+                            }
+                          });
+                        }
+                      },
                     ),
-                ],
+                    if (directory != null)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              directory = null;
+                              preset =
+                                  DownloadLocationPreset.defaultLocation;
+                            });
+                          },
+                          icon: const Icon(Icons.restart_alt_rounded),
+                          label: const Text('Reset to default'),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
             actions: [
@@ -470,7 +582,7 @@ void showDownloadChunksDialog(
   showDialog<void>(
     context: context,
     builder: (ctx) {
-      var chunks = settings.downloadChunks.clamp(1, 8);
+      var chunks = settings.downloadChunks.clamp(1, 16);
       return StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
           surfaceTintColor: Colors.transparent,
@@ -490,8 +602,8 @@ void showDownloadChunksDialog(
               CustomSlider(
                 value: chunks.toDouble(),
                 min: 1,
-                max: 8,
-                divisions: 7,
+                max: 16,
+                divisions: 15,
                 step: 1.0,
                 onChanged: (v) => setState(() => chunks = v.round()),
               ),
@@ -829,6 +941,24 @@ void showSubtitleDefaultDialog(
       value: SubtitleDefault.off,
       label: l10n.off,
       detail: l10n.subtitleDefaultOffDetail,
+    ),
+    (
+      value: SubtitleDefault.english,
+      label: 'English',
+      detail:
+          'Videos start with an English subtitle when the media carries one.',
+    ),
+    (
+      value: SubtitleDefault.forcedOnly,
+      label: 'Forced only',
+      detail:
+          'Only a forced subtitle goes on — the lines spoken in another language than the film’s. No forced track means no subtitle.',
+    ),
+    (
+      value: SubtitleDefault.sameAsAudio,
+      label: 'Same as audio',
+      detail:
+          'Videos start with a subtitle in the language of the audio track that is playing.',
     ),
   ];
   showDialog<void>(
@@ -1305,6 +1435,185 @@ class _DohProviderDialogState extends ConsumerState<_DohProviderDialog> {
               final url = _controller.text.trim();
               if (url.isNotEmpty) {
                 _saveAndClose(DohProvider.custom, url);
+              }
+            },
+            child: Text(l10n.save),
+          ),
+      ],
+    );
+  }
+}
+
+/// The GitHub Proxy row's value: the choice by name, or the custom base URL
+/// when the choice is Custom.
+String githubProxyLabel(GeneralSettings settings) {
+  switch (settings.githubProxy) {
+    case GithubProxyOption.none:
+      return 'None';
+    case GithubProxyOption.jsdelivr:
+      return 'jsDelivr';
+    case GithubProxyOption.ghproxy:
+      return 'ghproxy';
+    case GithubProxyOption.custom:
+      final url = settings.githubProxyCustomUrl.trim();
+      return url.isEmpty ? 'Custom…' : 'Custom · $url';
+  }
+}
+
+/// Shows a dialog to pick the GitHub proxy: None, jsDelivr, ghproxy, or a
+/// custom proxy base URL. Modelled on [_DohProviderDialog]: a radio list,
+/// with the URL field only while Custom is picked.
+void showGithubProxyDialog(BuildContext context, WidgetRef ref) {
+  showDialog<void>(
+    context: context,
+    builder: (_) => const _GithubProxyDialog(),
+  );
+}
+
+class _GithubProxyDialog extends ConsumerStatefulWidget {
+  const _GithubProxyDialog();
+
+  @override
+  ConsumerState<_GithubProxyDialog> createState() => _GithubProxyDialogState();
+}
+
+class _GithubProxyDialogState extends ConsumerState<_GithubProxyDialog> {
+  late GithubProxyOption _current;
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final settings = ref.read(generalSettingsProvider);
+    _current = settings.githubProxy;
+    _controller = TextEditingController(text: settings.githubProxyCustomUrl);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveAndClose(GithubProxyOption option, [String? customUrl]) async {
+    await ref
+        .read(generalSettingsProvider.notifier)
+        .setGithubProxy(option, customUrl: customUrl);
+    if (mounted) Navigator.pop<void>(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return AlertDialog(
+      surfaceTintColor: Colors.transparent,
+      title: Text(l10n.githubProxy),
+      content: SingleChildScrollView(
+        child: RadioGroup<GithubProxyOption>(
+          groupValue: _current,
+          onChanged: (val) {
+            if (val == null) return;
+            if (val == GithubProxyOption.custom) {
+              setState(() => _current = val);
+            } else {
+              unawaited(_saveAndClose(val));
+            }
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              currentOption(
+                isCurrent: _current == GithubProxyOption.none,
+                child: ListTile(
+                  autofocus: _current == GithubProxyOption.none,
+                  title: const Text('None'),
+                  subtitle: const Text('Download directly from GitHub.'),
+                  leading: const Radio<GithubProxyOption>(
+                    value: GithubProxyOption.none,
+                  ),
+                  onTap: () => unawaited(
+                    _saveAndClose(GithubProxyOption.none),
+                  ),
+                ),
+              ),
+              currentOption(
+                isCurrent: _current == GithubProxyOption.jsdelivr,
+                child: ListTile(
+                  autofocus: _current == GithubProxyOption.jsdelivr,
+                  title: const Text('jsDelivr'),
+                  subtitle: const Text(
+                    'raw.githubusercontent.com via cdn.jsdelivr.net.',
+                  ),
+                  leading: const Radio<GithubProxyOption>(
+                    value: GithubProxyOption.jsdelivr,
+                  ),
+                  onTap: () => unawaited(
+                    _saveAndClose(GithubProxyOption.jsdelivr),
+                  ),
+                ),
+              ),
+              currentOption(
+                isCurrent: _current == GithubProxyOption.ghproxy,
+                child: ListTile(
+                  autofocus: _current == GithubProxyOption.ghproxy,
+                  title: const Text('ghproxy'),
+                  subtitle: const Text('GitHub URLs via ghproxy.com.'),
+                  leading: const Radio<GithubProxyOption>(
+                    value: GithubProxyOption.ghproxy,
+                  ),
+                  onTap: () => unawaited(
+                    _saveAndClose(GithubProxyOption.ghproxy),
+                  ),
+                ),
+              ),
+              ListTile(
+                title: const Text('Custom…'),
+                subtitle: const Text('Your own proxy base URL.'),
+                leading: const Radio<GithubProxyOption>(
+                  value: GithubProxyOption.custom,
+                ),
+                onTap: () =>
+                    setState(() => _current = GithubProxyOption.custom),
+              ),
+              if (_current == GithubProxyOption.custom)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8.0,
+                  ),
+                  child: CustomTextField(
+                    controller: _controller,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Custom proxy URL',
+                      hintText: 'https://gh-proxy.com',
+                      prefixIcon: Icon(Icons.link_rounded, size: 20),
+                    ),
+                    keyboardType: TextInputType.url,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop<void>(context),
+          child: Text(
+            l10n.cancel,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        if (_current == GithubProxyOption.custom)
+          CustomButton(
+            isPrimary: true,
+            onPressed: () {
+              final url = _controller.text.trim();
+              if (url.isNotEmpty) {
+                unawaited(_saveAndClose(GithubProxyOption.custom, url));
               }
             },
             child: Text(l10n.save),

@@ -5,16 +5,77 @@ import 'dart:convert';
 import '../models/extension_repository.dart';
 import '../models/extension_plugin.dart';
 import '../../storage/app_temp_directory.dart';
+import '../../../features/settings/presentation/general_settings_provider.dart'
+    show GithubProxyOption;
 
 /// Where a repository's manifest is read from, and the short link the code
 /// it was entered as was found at, when it was entered as a code.
 typedef _Found = ({String url, String? shortLink});
 
+/// Rewrites a GitHub URL through the viewer's chosen proxy, or returns it
+/// unchanged.
+///
+/// Pure so the choice is testable without a [RepositoryService]: the service
+/// calls it from [_normalizeUrl] with its own stored choice.
+///
+/// * [GithubProxyOption.none] — unchanged.
+/// * [GithubProxyOption.jsdelivr] — `raw.githubusercontent.com/user/repo/path`
+///   becomes `cdn.jsdelivr.net/gh/user/repo@path` (the old toggle's
+///   behaviour); anything else unchanged.
+/// * [GithubProxyOption.ghproxy] — the whole URL prefixed with
+///   `https://ghproxy.com/`, the mirror's own shape
+///   (`https://ghproxy.com/https://raw.githubusercontent.com/…`).
+/// * [GithubProxyOption.custom] — the whole URL prefixed with the viewer's
+///   base URL; an empty base behaves as None, so a Custom choice with no URL
+///   typed yet never mangles a download.
+String applyGithubProxy(
+  String url,
+  GithubProxyOption option, [
+  String customUrl = '',
+]) {
+  switch (option) {
+    case GithubProxyOption.none:
+      return url;
+    case GithubProxyOption.jsdelivr:
+      if (url.contains('raw.githubusercontent.com')) {
+        final regex = RegExp(
+          r'^https://raw\.githubusercontent\.com/([A-Za-z0-9-]+)/([A-Za-z0-9_.-]+)/(.*)$',
+        );
+        final match = regex.firstMatch(url);
+        if (match != null) {
+          final user = match.group(1);
+          final repo = match.group(2);
+          final path = match.group(3);
+          return 'https://cdn.jsdelivr.net/gh/$user/$repo@$path';
+        }
+      }
+      return url;
+    case GithubProxyOption.ghproxy:
+      return 'https://ghproxy.com/$url';
+    case GithubProxyOption.custom:
+      final base = customUrl.trim().replaceAll(RegExp(r'/+$'), '');
+      if (base.isEmpty) return url;
+      return '$base/$url';
+  }
+}
+
 class RepositoryService {
   final Dio _dio;
-  final bool enableGithubProxy;
 
-  RepositoryService(this._dio, {this.enableGithubProxy = false});
+  /// The GitHub proxy choice; [GithubProxyOption.none] is the old toggle
+  /// off. Kept as a field (not read off a provider) so the service stays
+  /// constructible in tests.
+  final GithubProxyOption githubProxy;
+
+  /// The base URL a Custom proxy prefixes with; ignored unless
+  /// [githubProxy] is [GithubProxyOption.custom].
+  final String githubProxyCustomUrl;
+
+  RepositoryService(
+    this._dio, {
+    this.githubProxy = GithubProxyOption.none,
+    this.githubProxyCustomUrl = '',
+  });
 
   /// Resolves the actual URL from shortcodes, bare hosts or custom schemes.
   ///
@@ -351,22 +412,7 @@ class RepositoryService {
   }
 
   String _normalizeUrl(String url) {
-    if (!enableGithubProxy) return url;
-
-    // Convert raw.githubusercontent.com to jsdelivr for caching/performance
-    if (url.contains('raw.githubusercontent.com')) {
-      final regex = RegExp(
-        r'^https://raw\.githubusercontent\.com/([A-Za-z0-9-]+)/([A-Za-z0-9_.-]+)/(.*)$',
-      );
-      final match = regex.firstMatch(url);
-      if (match != null) {
-        final user = match.group(1);
-        final repo = match.group(2);
-        final path = match.group(3);
-        return 'https://cdn.jsdelivr.net/gh/$user/$repo@$path';
-      }
-    }
-    return url;
+    return applyGithubProxy(url, githubProxy, githubProxyCustomUrl);
   }
 
   dynamic _jsonDecodeSafe(String source) {

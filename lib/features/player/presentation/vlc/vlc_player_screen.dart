@@ -466,6 +466,15 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
   /// makes Auto exactly what it was before the setting existed.
   bool _subtitlesOffPending = false;
 
+  /// The subtitle default this attempt opened under, read once in
+  /// [_openAttempt] like the Off flag above: a change made in Settings
+  /// while a player is open reaches the NEXT media this screen opens,
+  /// never the one already on screen. The pick functions
+  /// ([_pickPreferredSubtitle] and the side-car pick in [_openAttempt])
+  /// read this, not the provider, so a mid-play change cannot move the
+  /// target under a look already in flight.
+  SubtitleDefault _subtitleDefaultForAttempt = SubtitleDefault.auto;
+
   /// The subtitle id the Off rule last asked the engine to drop. A run of
   /// ticks still naming it is the same fact restated, not a second one to act
   /// on - without this the rule would re-send `disableSubtitle` four times a
@@ -1761,6 +1770,9 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
     _subtitlesOffPending =
         _read(playerSettingsProvider).asData?.value.subtitleDefault ==
         SubtitleDefault.off;
+    _subtitleDefaultForAttempt =
+        _read(playerSettingsProvider).asData?.value.subtitleDefault ??
+        SubtitleDefault.auto;
     _subtitleOffAsked = null;
     // Auto picks only for media with nothing to put back: a track inside the
     // video that was on before this reopen is [_restoreTracks]' to restore,
@@ -2124,12 +2136,18 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
       _autoPickPending = false;
       unawaited(_sideCars.select(carried, from: startAt));
     } else if (_autoPickPending && _sideCars.active == null) {
-      // Auto: the source's file in the viewer's language, straight away. When
-      // it ships none, the tracks inside the video are looked at once they
-      // are known - see [_pickPreferredSubtitle].
-      final preferred = preferredSubtitleIndex([
-        for (final track in sideCars) track.languageCode,
-      ], _read(subtitleLanguageProvider));
+      // The default's language, straight away. When it ships none, the
+      // tracks inside the video are looked at once they are known - see
+      // [_pickPreferredSubtitle]. A default that cannot answer yet (Same
+      // as audio, whose language is only known once the tracks are listed)
+      // or that matches on the track's name instead of a language (Forced
+      // only) stands down here and lets that look decide.
+      final pickLanguage = _subtitlePickLanguageForSideCars();
+      final preferred = pickLanguage == null
+          ? null
+          : preferredSubtitleIndex([
+              for (final track in sideCars) track.languageCode,
+            ], pickLanguage);
       if (preferred != null) {
         _autoPickPending = false;
         unawaited(_sideCars.select(sideCars[preferred], from: startAt));
@@ -2641,6 +2659,58 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
     );
   }
 
+  /// The language the subtitle default picks a side-car file in, or null
+  /// when it picks nothing at this moment.
+  ///
+  /// English names its language outright. Same as audio cannot answer yet:
+  /// the audio track's language is only known once the tracks are listed,
+  /// so the side-car pick stands down and [_pickPreferredSubtitle] decides.
+  /// Forced-only picks no language — a side-car file carries no forced
+  /// flag — so it stands down too. Auto answers with the subtitle search
+  /// language, as before.
+  String? _subtitlePickLanguageForSideCars() {
+    return switch (_subtitleDefaultForAttempt) {
+      SubtitleDefault.english => 'en',
+      SubtitleDefault.sameAsAudio || SubtitleDefault.forcedOnly => null,
+      SubtitleDefault.auto || SubtitleDefault.off =>
+        _read(subtitleLanguageProvider),
+    };
+  }
+
+  /// The language the subtitle default picks in among the tracks inside
+  /// the video, or null when it picks nothing there.
+  ///
+  /// English names its language outright. Same as audio reads the active
+  /// audio track's language — the language the viewer is hearing — which
+  /// is only known once the tracks are listed; unknown audio means no
+  /// pick, and the source's last side-car stays the fallback. Forced-only
+  /// has no language (it matches on the track's name instead — see the
+  /// forced branch in [_pickPreferredSubtitle]), and Auto uses the
+  /// subtitle search language, as before.
+  Future<String?> _subtitlePickLanguage() async {
+    return switch (_subtitleDefaultForAttempt) {
+      SubtitleDefault.english => 'en',
+      SubtitleDefault.forcedOnly => null,
+      SubtitleDefault.sameAsAudio => await _activeAudioLanguage(),
+      SubtitleDefault.auto || SubtitleDefault.off =>
+        languageCodeOf(_read(subtitleLanguageProvider)),
+    };
+  }
+
+  /// The language of the audio track that is playing, or null when the
+  /// engine will not say. A refusal leaves the pick to the fallback below.
+  Future<String?> _activeAudioLanguage() async {
+    try {
+      final active = _controller.value.activeAudioTrackId;
+      if (active == null) return null;
+      final tracks = await _audioTracksWithLanguages();
+      final track = tracks.where((t) => t.id == active).firstOrNull;
+      return languageCodeOf(track?.language);
+    } on Object {
+      return null;
+    }
+  }
+
   /// Auto's look at the tracks inside the video, for media whose side-cars
   /// had none in the viewer's language.
   ///
@@ -2670,8 +2740,14 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
         .where((track) => track.origin == SideCarOrigin.source)
         .toList();
 
-    final preferred = languageCodeOf(_read(subtitleLanguageProvider));
-    if (preferred != null) {
+    // The default's language, or null when it picks nothing here: English
+    // names it, Same as audio reads it off the audio track, Auto uses the
+    // subtitle search language. Forced-only has no language — it matches
+    // on the track's name instead.
+    final preferred = await _subtitlePickLanguage();
+    final forcedOnly =
+        _subtitleDefaultForAttempt == SubtitleDefault.forcedOnly;
+    if (preferred != null || forcedOnly) {
       try {
         final listed = await _controller.getSubtitleTracks();
         if (superseded()) return;
@@ -2688,21 +2764,27 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
         final tracks = withTrackLanguages(listed, info);
         if (kDebugMode) {
           debugPrint(
-            'Subtitles: Auto looks for $preferred in '
+            'Subtitles: ${_subtitleDefaultForAttempt.name} looks for '
+            '$preferred in '
             '${tracks.map((t) => '${t.id}:${t.name}').toList()} '
             '(on: ${_controller.value.activeSubtitleTrackId})',
           );
         }
-        final matches = [
-          for (final track in tracks)
-            if (languageCodeOf(track.language) == preferred) track,
-        ];
         // A forced track carries only the lines in another language than
         // the film's, so a full one is the better answer where there is one.
-        bool full(VlcTrackDescription track) =>
-            !track.name.toLowerCase().contains('forced');
+        bool forced(VlcTrackDescription track) =>
+            track.name.toLowerCase().contains('forced');
+        bool full(VlcTrackDescription track) => !forced(track);
+        final matches = forcedOnly
+            ? [for (final track in tracks) if (forced(track)) track]
+            : [
+                for (final track in tracks)
+                  if (languageCodeOf(track.language) == preferred) track,
+              ];
         final active = _controller.value.activeSubtitleTrackId;
-        final best = matches.where(full).firstOrNull ?? matches.firstOrNull;
+        final best = forcedOnly
+            ? matches.firstOrNull
+            : matches.where(full).firstOrNull ?? matches.firstOrNull;
         if (best != null) {
           final activeIsFull = matches.any(
             (track) => track.id == active && full(track),
@@ -2710,6 +2792,20 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
           _autoPickPending = false;
           if (!activeIsFull && active != best.id) {
             await _controller.setSubtitleTrack(best.id);
+          }
+          return;
+        }
+        // Forced-only with no forced track: a full subtitle the engine put
+        // on by itself comes off — "forced only" means no other subtitle
+        // shows. Auto with no match falls through to the side-car fallback
+        // below instead.
+        if (forcedOnly) {
+          _autoPickPending = false;
+          if (active != null) {
+            final activeIsForced = tracks.any(
+              (track) => track.id == active && forced(track),
+            );
+            if (!activeIsForced) await _disableSubtitles();
           }
           return;
         }

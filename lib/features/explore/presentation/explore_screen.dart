@@ -27,6 +27,7 @@ import '../../addons/presentation/addons_screen.dart';
 import 'widgets/explore_mode_selector_dialog.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../core/router/app_router.dart';
+import '../../browse/presentation/browse_category_grid.dart';
 
 import 'dart:async';
 
@@ -569,6 +570,28 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
     final l10n = AppLocalizations.of(context)!;
 
     return [
+      // The Browse tab's category grid, first: Movies, TV Shows, Anime,
+      // K-Drama, 4K & HDR, Top Rated. Each tile opens Search on its
+      // category (see [BrowseCategoryGrid]). ExploreScreen is the Browse
+      // tab's only content, so the grid belongs to it rather than to a
+      // wrapper that would pin it above the scroll view.
+      SliverToBoxAdapter(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Text(
+                'Browse by category',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const BrowseCategoryGrid(),
+          ],
+        ),
+      ),
       SliverToBoxAdapter(
         child: Consumer(
           builder: (context, ref, _) {

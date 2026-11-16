@@ -601,26 +601,17 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                               ),
                               onTap: () => showDohProviderDialog(context, ref),
                             ),
+                          // GitHub Proxy is a choice — None, jsDelivr,
+                          // ghproxy, or a custom base URL — not a switch:
+                          // the old toggle only ever meant jsDelivr, which
+                          // is one of the choices now.
                           SettingsTile(
                             icon: Icons.alt_route_rounded,
                             title: l10n.githubProxy,
-                            subtitle: l10n.githubProxySubtitle,
+                            subtitle: githubProxyLabel(generalSettings),
                             isLast: true,
-                            trailing: Switch(
-                              value: generalSettings.githubProxyEnabled,
-                              onChanged: (val) {
-                                ref
-                                    .read(generalSettingsProvider.notifier)
-                                    .setGithubProxyEnabled(val);
-                              },
-                            ),
-                            onTap: () {
-                              ref
-                                  .read(generalSettingsProvider.notifier)
-                                  .setGithubProxyEnabled(
-                                    !generalSettings.githubProxyEnabled,
-                                  );
-                            },
+                            onTap: () =>
+                                showGithubProxyDialog(context, ref),
                           ),
                         ],
                       );

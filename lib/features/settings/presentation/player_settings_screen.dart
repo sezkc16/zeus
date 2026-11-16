@@ -95,20 +95,69 @@ class PlayerSettingsScreen extends ConsumerWidget {
                       playerSettings.playerEngine,
                     ),
                   ),
-                  // iOS Picture-in-Picture on the mpv engine (+28), iOS
-                  // only: Android mpv PiP already works on the hardware
-                  // renderer. On, the player runs the software renderer
-                  // (PiP needs it — GPU work is not allowed in the
-                  // background), so the picture is softer and 4K is
-                  // heavier. Takes effect on the next play, like the
-                  // engine choice. Title is a plain English literal, the
-                  // same as 'Auto Skip' below.
-                  if (platform == TargetPlatform.iOS)
+                  // Picture-in-Picture (iOS only): the mode the player
+                  // uses, and the master switch. Android mpv PiP already
+                  // works on the hardware renderer, so there is nothing to
+                  // choose there. mpv is the +28 software-renderer bridge;
+                  // iOS is the system's own PiP, which the libVLC engine
+                  // already uses — on the mpv engine there is no system
+                  // path, so iOS mode leaves the mpv player on the hardware
+                  // renderer with no PiP button. Takes effect on the next
+                  // play, like the engine choice.
+                  if (platform == TargetPlatform.iOS) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Picture-in-Picture',
+                            style: TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          SegmentedButton<PipMode>(
+                            segments: const [
+                              ButtonSegment<PipMode>(
+                                value: PipMode.mpv,
+                                label: Text('mpv'),
+                              ),
+                              ButtonSegment<PipMode>(
+                                value: PipMode.ios,
+                                label: Text('iOS'),
+                              ),
+                            ],
+                            selected: {playerSettings.pipMode},
+                            onSelectionChanged: (selection) {
+                              final mode = selection.firstOrNull;
+                              if (mode == null) return;
+                              ref
+                                  .read(playerSettingsProvider.notifier)
+                                  .setPipMode(mode);
+                            },
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            playerSettings.pipMode == PipMode.mpv
+                                ? 'mpv bridge · PiP on the mpv engine (software renderer)'
+                                : 'System PiP · libVLC engine; mpv keeps hardware rendering',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
                     SettingsTile(
                       icon: Icons.picture_in_picture_alt_rounded,
-                      title: 'Picture-in-Picture (mpv)',
+                      title: 'Enable PiP',
                       subtitle: playerSettings.iosMpvPip
-                          ? 'On · software renderer'
+                          ? 'On · keep playing in a floating window'
                           : l10n.disabled,
                       trailing: Switch(
                         value: playerSettings.iosMpvPip,
@@ -120,6 +169,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                           .read(playerSettingsProvider.notifier)
                           .setIosMpvPip(!playerSettings.iosMpvPip),
                     ),
+                  ],
                   if (isTouchDevice) ...[
                     SettingsTile(
                       icon: Icons.swipe_vertical_rounded,

@@ -16,6 +16,7 @@ import '../../../../core/network/clearance/site_checks.dart';
 import '../../../../core/nuvio/data/nuvio_repository.dart';
 import '../../explore/data/explore_tmdb_provider.dart';
 import '../domain/search_fold.dart';
+import 'search_category.dart';
 import 'search_sources.dart';
 
 part 'search_provider.g.dart';
@@ -718,6 +719,18 @@ class SearchFilterNotifier extends _$SearchFilterNotifier {
   SearchFilter build() => SearchFilter.content;
 
   void set(SearchFilter filter) => state = filter;
+}
+
+/// The category the Search chips filter by. All until the viewer picks one.
+/// Kept as its own provider — not folded into the query — so the Browse
+/// tiles can set it and open Search on it, and so a new query keeps the
+/// filter the viewer already chose.
+@Riverpod(keepAlive: true)
+class SearchCategoryNotifier extends _$SearchCategoryNotifier {
+  @override
+  SearchCategory build() => SearchCategory.all;
+
+  void set(SearchCategory category) => state = category;
 }
 
 @Riverpod(keepAlive: true)

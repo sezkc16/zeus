@@ -9,8 +9,10 @@ import '../../../core/utils/layout_constants.dart';
 import '../../../core/utils/responsive_breakpoints.dart';
 import 'search_history_provider.dart';
 import 'search_provider.dart';
+import 'search_category.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import 'widgets/search_result_section.dart';
+import 'widgets/search_category_chips.dart';
 import 'widgets/search_header_bar.dart';
 import 'widgets/search_suggestion_row.dart';
 import 'widgets/bouncy_entry_animation.dart';
@@ -606,6 +608,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // The category chips filter the results below; they sit above the
+        // checks, so a chip tap never moves the list it filters.
+        const SearchCategoryChips(),
         if (startedAt != null)
           CheckSection(
             since: startedAt,
@@ -632,14 +637,27 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _buildResultsList(BuildContext context) {
     final searchResultsAsync = ref.watch(searchResultsProvider);
+    final category = ref.watch(searchCategoryProvider);
     final l10n = AppLocalizations.of(context)!;
 
     return searchResultsAsync.when(
       data: (state) {
-        final allResults = state.results.expand((e) => e.results).toList();
+        // The chips filter each provider's section, and a section with
+        // nothing left under the chip is hidden outright — an empty
+        // section header over nothing is not a filter result.
+        final sections = [
+          for (final section in state.results)
+            (
+              section,
+              section.results
+                  .where((item) => matchesSearchCategory(item, category))
+                  .toList(),
+            ),
+        ].where((entry) => entry.$2.isNotEmpty).toList();
+        final allResults = sections.expand((entry) => entry.$2).toList();
 
         if (allResults.isEmpty && !state.isLoading) {
-          return _buildEmptyState(context);
+          return _buildEmptyState(context, category: category);
         } else if (allResults.isEmpty && state.isLoading) {
           return const Center(child: AppLoadingIndicator());
         }
@@ -652,14 +670,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             padding: EdgeInsets.only(
               bottom: LayoutConstants.shellBottomContentPadding(context),
             ),
-            itemCount: state.results.length,
+            itemCount: sections.length,
             itemBuilder: (context, index) {
-              final pResult = state.results[index];
+              final pResult = sections[index].$1;
               return SearchResultSection(
                 key: ValueKey(pResult.providerId),
                 providerName: pResult.providerName,
                 providerId: pResult.providerId,
-                results: pResult.results,
+                results: sections[index].$2,
                 kind: pResult.kind,
                 source: pResult.source,
                 firstCardFocusNode: index == 0 ? _firstResultFocusNode : null,
@@ -783,7 +801,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
+  Widget _buildEmptyState(
+    BuildContext context, {
+    SearchCategory category = SearchCategory.all,
+  }) {
     final l10n = AppLocalizations.of(context)!;
     final query = ref.watch(searchQueryProvider);
     final isInputEmpty = _controller.text.trim().isEmpty;
@@ -819,14 +840,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final isWidescreen = context.isTabletOrLarger;
     final imageWidth = isWidescreen ? 320.0 : 200.0;
 
-    // No search results found: display No Results Found text and the image grouped vertically
+    // No search results found: display No Results Found text and the image grouped vertically.
+    // A chip that filtered everything out names itself, so the empty screen
+    // says which filter hid the results rather than that the search failed.
+    final noResultsText = category == SearchCategory.all
+        ? 'No Results Found'
+        : 'No ${searchCategoryLabel(category)} results found';
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'No Results Found',
+            noResultsText,
             style: TextStyle(
               fontFamily: nativeFont,
               fontSize: 16.0,

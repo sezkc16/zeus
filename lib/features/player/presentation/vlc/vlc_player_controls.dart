@@ -491,6 +491,12 @@ class _VlcPlayerControlsState extends ConsumerState<VlcPlayerControls> {
   bool? _dragIsVolume;
   double _dragStart = 0;
 
+  /// Whether a vertical drag is driving the seek rail instead: the side it
+  /// started on is set to [PlayerGesture.seek]. Separate from
+  /// [_dragIsVolume] because a seek drag has no volume/brightness level —
+  /// null there means "no drag", and a seek drag is a drag.
+  bool _dragIsSeek = false;
+
   /// Whether this volume swipe may go past 100 %: only one that started at
   /// 100 % or above, and hasn't been under it since. As VLC's player has it, a
   /// swipe from below stops at 100 % and says to swipe again, so the amplifier
@@ -1264,6 +1270,23 @@ class _VlcPlayerControlsState extends ConsumerState<VlcPlayerControls> {
     final gesture = isRight ? settings.rightGesture : settings.leftGesture;
     if (gesture == PlayerGesture.none) {
       _dragIsVolume = null;
+      _dragIsSeek = false;
+      return;
+    }
+    // Seek: a vertical drag on a side set to Seek slides the playhead. No
+    // level to read first — the position is synchronous — so the rail is
+    // ready at once. Live and unseekable inputs get no rail, as the
+    // horizontal swipe-seek gets none.
+    if (gesture == PlayerGesture.seek) {
+      if (widget.isLive || !widget.controller.value.isSeekable) {
+        _dragIsVolume = null;
+        _dragIsSeek = false;
+        return;
+      }
+      _dragIsVolume = null;
+      _dragIsSeek = true;
+      _dragReady = true;
+      _dragPending = 0;
       return;
     }
     final isVolume = gesture == PlayerGesture.volume;
@@ -1553,12 +1576,21 @@ class _VlcPlayerControlsState extends ConsumerState<VlcPlayerControls> {
   /// [primaryDelta] is the finger's vertical travel since the last update —
   /// what a vertical drag recognizer used to hand over as `primaryDelta`.
   void _updateRail(double primaryDelta) {
-    final isVolume = _dragIsVolume;
-    if (isVolume == null) return;
     final height = context.size?.height ?? 0;
     if (height <= 0) return;
 
     final travel = -primaryDelta / height;
+    if (_dragIsSeek) {
+      if (!_dragReady) {
+        _dragPending += travel;
+        return;
+      }
+      _seekRailTravel(travel);
+      return;
+    }
+    final isVolume = _dragIsVolume;
+    if (isVolume == null) return;
+
     if (!_dragReady) {
       _dragPending += travel;
       return;
@@ -1608,6 +1640,39 @@ class _VlcPlayerControlsState extends ConsumerState<VlcPlayerControls> {
     }
   }
 
+  /// Slides the playhead by [travel], a share of the screen's height.
+  ///
+  /// A full height is 90 seconds — the same scale the horizontal
+  /// swipe-seek uses per full width — so the two seek gestures agree with
+  /// each other. Up is forward. Each update seeks from the running target
+  /// ([_seekBy]'s `_seekBase`), so a run of updates adds up instead of
+  /// re-seeking from a stale position.
+  ///
+  /// The rail sits on the right edge, the volume rail's side, and shows the
+  /// target time: a rail that followed the finger would be the same rail in
+  /// two places once Seek is set on both sides (see [PlayerRail]).
+  void _seekRailTravel(double travel, {bool live = true}) {
+    final delta = Duration(milliseconds: (travel * 90000).round());
+    if (delta == Duration.zero) return;
+    _seekBy(delta);
+    final target = _seekBase ?? widget.controller.value.position;
+    final duration = widget.controller.value.duration;
+    _rail.show(
+      PlayerRail(
+        icon: Icons.fast_forward_rounded,
+        value: duration > Duration.zero
+            ? (target.inMilliseconds / duration.inMilliseconds).clamp(
+                0.0,
+                1.0,
+              )
+            : 0,
+        label: _formatDuration(target),
+        onLeft: false,
+      ),
+      hideAfter: live ? null : const Duration(milliseconds: 900),
+    );
+  }
+
   static IconData _brightnessIcon(double value) {
     final clamped = value.clamp(0.0, 1.0);
     if (clamped < 0.33) return Icons.brightness_5_rounded;
@@ -1617,6 +1682,7 @@ class _VlcPlayerControlsState extends ConsumerState<VlcPlayerControls> {
 
   void _railDragEnd() {
     _dragIsVolume = null;
+    _dragIsSeek = false;
     _rail.clearAfter(const Duration(milliseconds: 1500));
   }
 

@@ -14,7 +14,8 @@ RepositoryService repositoryService(Ref ref) {
   final generalSettings = ref.watch(generalSettingsProvider);
   return RepositoryService(
     ref.watch(dioClientProvider),
-    enableGithubProxy: generalSettings.githubProxyEnabled,
+    githubProxy: generalSettings.githubProxy,
+    githubProxyCustomUrl: generalSettings.githubProxyCustomUrl,
   );
 }
 

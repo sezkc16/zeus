@@ -14,7 +14,15 @@ import '../../../core/network/dio_client_provider.dart';
 
 part 'player_settings_provider.g.dart';
 
-enum PlayerGesture { brightness, volume, none }
+/// The action a vertical drag on one half of the video performs.
+///
+/// [seek] slides the playhead: a full screen height of travel is 90 seconds,
+/// the same scale the horizontal swipe-seek uses per full width, so the two
+/// seek gestures agree with each other. It only exists because the design
+/// preview's Left/Right Gesture rows offer Seek alongside Volume, Brightness
+/// and None; the VLC controls honour it, and the mpv (Golden) controls honour
+/// it on their outer thirds.
+enum PlayerGesture { brightness, volume, seek, none }
 
 /// Preferred playback quality tier. Plugins don't guarantee a specific
 /// quality but sources are sorted so the preferred tier is tried first.
@@ -68,6 +76,22 @@ enum SubtitleDefault {
 
   /// Media starts with no subtitle selected.
   off,
+
+  /// Media starts with an English subtitle when the media carries one,
+  /// whatever the subtitle search language says.
+  english,
+
+  /// Only a forced subtitle goes on — the track that translates the lines
+  /// spoken in another language than the film's. When the media carries no
+  /// forced track, no subtitle shows. Applied when the tracks are picked at
+  /// open time (see `_pickPreferredSubtitle`); the engine's own later
+  /// re-select, e.g. at an HLS discontinuity, is not chased.
+  forcedOnly,
+
+  /// Media starts with a subtitle in the language of the audio track that
+  /// is playing — the same language the viewer is hearing, read off the
+  /// active audio track once the tracks are known.
+  sameAsAudio,
 }
 
 /// How heavily subtitle letters are outlined.
@@ -111,6 +135,27 @@ enum PlayerEngine {
   /// libVLC — the v16/v17 engine. PiP on Android and iOS.
   vlc,
 }
+
+/// Which Picture-in-Picture implementation the iOS player uses.
+///
+/// The design preview's Picture-in-Picture segmented control: mpv or iOS.
+/// Only the mpv engine has two things to choose between, and only on iOS:
+///
+/// * [mpv] — the +28 software-renderer bridge (`MpvPipIos`): the player opens
+///   with the software renderer so frames are available to the PiP window.
+///   This is the only PiP the mpv engine can do on iOS, and the default: it
+///   is the behaviour every install already had.
+/// * [ios] — the system's own PiP. The libVLC engine already uses it, and
+///   nothing changes there. On the mpv engine there is no system path — mpv
+///   renders into a Flutter texture, not an AVPlayer — so iOS mode leaves the
+///   mpv player on the hardware renderer and its PiP button hidden, and the
+///   viewer who wants PiP gets it by switching the engine to libVLC.
+///   The settings row says exactly that, so the choice never reads as a
+///   second mpv PiP that does not exist.
+///
+/// Gated by the Enable PiP toggle ([PlayerSettings.iosMpvPip]) either way:
+/// the toggle is the master on/off, the mode only picks the implementation.
+enum PipMode { mpv, ios }
 
 /// Which output preset the iOS mpv player's Video panel applies (+57).
 ///
@@ -301,6 +346,10 @@ class PlayerSettings {
   /// renderer.
   final bool iosMpvPip;
 
+  /// Which PiP implementation the iOS player uses. [PipMode.mpv] is what
+  /// every install already had (the +28 bridge); see [PipMode].
+  final PipMode pipMode;
+
   /// The Video output preset (+57). Default Native EDR: it is the
   /// behaviour every install already had (clip on both paths since +50),
   /// so an upgrade changes nothing. See [VideoOutputPreset].
@@ -361,6 +410,7 @@ class PlayerSettings {
     this.autoSkip = true,
     this.playerEngine = PlayerEngine.mpv,
     this.iosMpvPip = false,
+    this.pipMode = PipMode.mpv,
     this.videoOutputPreset = VideoOutputPreset.nativeEdr,
     this.videoCustomToneMapping,
     this.videoCustomTargetPeak,
@@ -413,6 +463,7 @@ class PlayerSettings {
     bool? autoSkip,
     PlayerEngine? playerEngine,
     bool? iosMpvPip,
+    PipMode? pipMode,
     VideoOutputPreset? videoOutputPreset,
     String? videoCustomToneMapping,
     bool clearVideoCustomToneMapping = false,
@@ -471,6 +522,7 @@ class PlayerSettings {
       autoSkip: autoSkip ?? this.autoSkip,
       playerEngine: playerEngine ?? this.playerEngine,
       iosMpvPip: iosMpvPip ?? this.iosMpvPip,
+      pipMode: pipMode ?? this.pipMode,
       videoOutputPreset: videoOutputPreset ?? this.videoOutputPreset,
       videoCustomToneMapping: clearVideoCustomToneMapping
           ? null
@@ -732,6 +784,13 @@ class PlayerSettingsNotifier extends _$PlayerSettingsNotifier {
           defaultValue: false,
         ) ??
         false;
+    // PiP mode: stored by enum name; an unknown name — written by a newer
+    // build, or a corrupted box — reads back as mpv, the behaviour every
+    // install already had.
+    final pipMode = PipMode.values.firstWhere(
+      (e) => e.name == storage.getPlayerSetting<String>('player_pip_mode'),
+      orElse: () => PipMode.mpv,
+    );
 
     // Video output preset (+57): stored by enum name; an unknown name —
     // written by a newer build, or a corrupted box — reads back as
@@ -800,6 +859,7 @@ class PlayerSettingsNotifier extends _$PlayerSettingsNotifier {
       autoSkip: autoSkip,
       playerEngine: playerEngine,
       iosMpvPip: iosMpvPip,
+      pipMode: pipMode,
       videoOutputPreset: videoOutputPreset,
       videoCustomToneMapping: videoCustomToneMapping,
       videoCustomTargetPeak: videoCustomTargetPeak,
@@ -990,6 +1050,16 @@ class PlayerSettingsNotifier extends _$PlayerSettingsNotifier {
   Future<void> setIosMpvPip(bool value) async {
     await _repository.setPlayerSetting('player_ios_mpv_pip', value);
     _update((PlayerSettings c) => c.copyWith(iosMpvPip: value));
+  }
+
+  /// Which PiP implementation the iOS player uses. Stored by enum name;
+  /// an unknown name reads back as mpv (see the load above). Takes effect
+  /// on the next play, like the enable toggle: the mpv screen reads it
+  /// once when the player opens to decide whether the +28 bridge is the
+  /// renderer at all.
+  Future<void> setPipMode(PipMode mode) async {
+    await _repository.setPlayerSetting('player_pip_mode', mode.name);
+    _update((PlayerSettings c) => c.copyWith(pipMode: mode));
   }
 
   /// The Video output preset (+57). Stored by enum name; an unknown name

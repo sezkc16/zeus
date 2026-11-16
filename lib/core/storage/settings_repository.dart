@@ -175,6 +175,24 @@ class SettingsRepository {
     return _storageService.isGithubProxyEnabled();
   }
 
+  /// The GitHub proxy choice, by enum name, or null when never chosen (the
+  /// legacy toggle then decides — see the storage doc).
+  Future<void> setGithubProxyOption(String option) async {
+    await _storageService.setGithubProxyOption(option);
+  }
+
+  String? getGithubProxyOption() {
+    return _storageService.getGithubProxyOption();
+  }
+
+  Future<void> setGithubProxyCustomUrl(String url) async {
+    await _storageService.setGithubProxyCustomUrl(url);
+  }
+
+  String getGithubProxyCustomUrl() {
+    return _storageService.getGithubProxyCustomUrl();
+  }
+
   Future<void> setIntroDbIntegrationEnabled(bool enabled) async {
     await _storageService.setIntroDbIntegrationEnabled(enabled);
   }

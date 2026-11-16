@@ -7,11 +7,13 @@ import '../../../core/utils/responsive_breakpoints.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import 'widgets/bookmarks_tab.dart';
 import 'widgets/downloads_tab.dart';
+import 'widgets/watch_status_tab.dart';
 import '../../../shared/focus/app_focus.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
-  /// 0 = Downloads, 1 = Bookmarks. Settings opens the screen on a given tab
-  /// now that Library is no longer a navigation destination.
+  /// 0 = My List, 1 = Watching, 2 = Completed, 3 = Downloads — the design
+  /// preview's Library chips, in order. Settings opens the screen on a
+  /// given tab now that Library is no longer a navigation destination.
   final int initialTab;
 
   const LibraryScreen({super.key, this.initialTab = 0});
@@ -25,12 +27,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   late TabController _tabController;
   late PageController _pageController;
 
+  /// The tabs, in the design preview's order: My List (bookmarks), Watching
+  /// and Completed (two views over the watch history), Downloads. 'My List'
+  /// is a plain literal — there is no l10n key for it — the rest are the
+  /// localised words the app already used for the same things.
+  List<({String label, IconData icon})> _tabDefs(AppLocalizations l10n) => [
+    (label: 'My List', icon: Icons.bookmark_rounded),
+    (label: l10n.watching, icon: Icons.play_circle_outline_rounded),
+    (label: l10n.completed, icon: Icons.check_circle_outline_rounded),
+    (label: l10n.downloads, icon: Icons.download_for_offline_rounded),
+  ];
+
+  static const int _tabCount = 4;
+
   @override
   void initState() {
     super.initState();
-    final initial = widget.initialTab.clamp(0, 1);
+    final initial = widget.initialTab.clamp(0, _tabCount - 1);
     _tabController = TabController(
-      length: 2,
+      length: _tabCount,
       vsync: this,
       initialIndex: initial,
     );
@@ -96,9 +111,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   _tabController.animateTo(index);
                 },
                 physics: const BouncingScrollPhysics(),
-                itemCount: 2,
-                itemBuilder: (_, i) =>
-                    i == 0 ? const DownloadsTab() : const BookmarksTab(),
+                itemCount: _tabCount,
+                itemBuilder: (_, i) => _tabPage(i),
               ),
             ),
           ],
@@ -113,14 +127,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         bottom: TabBar(
           controller: _tabController,
           tabs: [
-            Tab(
-              text: AppLocalizations.of(context)!.downloads,
-              icon: const Icon(Icons.download_for_offline_rounded),
-            ),
-            Tab(
-              text: AppLocalizations.of(context)!.bookmarks,
-              icon: const Icon(Icons.bookmark_rounded),
-            ),
+            for (final tab in _tabDefs(AppLocalizations.of(context)!))
+              Tab(text: tab.label, icon: Icon(tab.icon)),
           ],
         ),
       ),
@@ -130,14 +138,26 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           _tabController.animateTo(index);
         },
         physics: const BouncingScrollPhysics(),
-        children: const [DownloadsTab(), BookmarksTab()],
+        children: [
+          for (var i = 0; i < _tabCount; i++) _tabPage(i),
+        ],
       ),
     );
   }
 
+  /// The page behind tab [index], shared by the mobile PageView and the
+  /// widescreen one so the two can never disagree about the order.
+  Widget _tabPage(int index) => switch (index) {
+    0 => const BookmarksTab(),
+    1 => const WatchStatusTab(filter: LibraryWatchFilter.watching),
+    2 => const WatchStatusTab(filter: LibraryWatchFilter.completed),
+    _ => const DownloadsTab(),
+  };
+
   Widget _buildTabChips(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final tabs = _tabDefs(l10n);
 
     return AnimatedBuilder(
       animation: _tabController,
@@ -145,21 +165,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _TabChip(
-              label: l10n.downloads,
-              icon: Icons.download_for_offline_rounded,
-              selected: _tabController.index == 0,
-              onTap: () => _tabController.animateTo(0),
-              theme: theme,
-            ),
-            const SizedBox(width: 8),
-            _TabChip(
-              label: l10n.bookmarks,
-              icon: Icons.bookmark_rounded,
-              selected: _tabController.index == 1,
-              onTap: () => _tabController.animateTo(1),
-              theme: theme,
-            ),
+            for (var i = 0; i < tabs.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              _TabChip(
+                label: tabs[i].label,
+                icon: tabs[i].icon,
+                selected: _tabController.index == i,
+                onTap: () => _tabController.animateTo(i),
+                theme: theme,
+              ),
+            ],
           ],
         );
       },

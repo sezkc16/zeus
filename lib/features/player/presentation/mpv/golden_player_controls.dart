@@ -76,7 +76,7 @@ enum _GoldenPanAxis { none, horizontal, vertical }
 /// Which vertical rail a pan is driving: the mpv volume (right third), the
 /// screen brightness (left third), or the subtitle position (centre third,
 /// +25).
-enum _GoldenRailKind { volume, brightness, subtitle }
+enum _GoldenRailKind { volume, brightness, subtitle, seek }
 
 /// The subtitle raise a centre-third vertical slide lands on: [travel] is
 /// the share of the screen's height the finger moved, upward positive, and
@@ -886,6 +886,13 @@ class _GoldenPlayerControlsState
   /// left third, volume on the right third, subtitle position in the centre
   /// third (+25). [localX] is the finger's x in this detector's
   /// coordinates, which is what decides the third.
+  ///
+  /// The outer thirds follow the Left/Right Gesture setting, as the VLC
+  /// controls do: a side set to Seek slides the playhead instead of its
+  /// level, and a side set to None starts no rail at all — a viewer who
+  /// switched a gesture off must not find it still firing underneath them.
+  /// The centre third is always the subtitle slide: no gesture setting
+  /// covers it.
   Future<void> _beginRail(double localX) async {
     if (!_isTouch) {
       _dragRail = null;
@@ -893,11 +900,34 @@ class _GoldenPlayerControlsState
     }
     final width = context.size?.width ?? 0;
     if (width <= 0) return;
-    final kind = localX < width / 3
-        ? _GoldenRailKind.brightness
-        : localX > 2 * width / 3
-            ? _GoldenRailKind.volume
-            : _GoldenRailKind.subtitle;
+    final settings = widget.settings.value;
+    _GoldenRailKind? kindFor(PlayerGesture gesture, _GoldenRailKind level) {
+      return switch (gesture) {
+        PlayerGesture.seek => _GoldenRailKind.seek,
+        PlayerGesture.none => null,
+        _ => level,
+      };
+    }
+
+    final _GoldenRailKind? kind;
+    if (localX < width / 3) {
+      kind = kindFor(settings.leftGesture, _GoldenRailKind.brightness);
+    } else if (localX > 2 * width / 3) {
+      kind = kindFor(settings.rightGesture, _GoldenRailKind.volume);
+    } else {
+      kind = _GoldenRailKind.subtitle;
+    }
+    if (kind == null) {
+      _dragRail = null;
+      return;
+    }
+    // A seek rail on a live or unseekable input is no rail, as the
+    // horizontal swipe-seek gets none.
+    if (kind == _GoldenRailKind.seek &&
+        (widget.isLive || !widget.controller.value.isSeekable)) {
+      _dragRail = null;
+      return;
+    }
     final id = ++_dragId;
     _dragRail = kind;
     _dragReady = false;
@@ -912,6 +942,10 @@ class _GoldenPlayerControlsState
       _dragStart = widget.settings.value.subtitleRaise;
     } else if (kind == _GoldenRailKind.volume) {
       _dragStart = widget.controller.value.volume.toDouble();
+    } else if (kind == _GoldenRailKind.seek) {
+      // Seconds, not a 0..1 level: the travel adds seconds to it, and the
+      // running target is what the next update counts from.
+      _dragStart = widget.controller.value.position.inMilliseconds / 1000.0;
     } else {
       final level = await _brightnessControl.read();
       if (!mounted || id != _dragId) return;
@@ -979,6 +1013,32 @@ class _GoldenPlayerControlsState
             icon: _volumeIcon(level),
             value: level / 100,
             label: '${level.round()}%',
+            onLeft: false,
+          ),
+          hideAfter: live ? null : const Duration(milliseconds: 900),
+        );
+      case _GoldenRailKind.seek:
+        // A full screen of travel is 90 seconds — the same scale the
+        // horizontal swipe-seek uses per full width, and the VLC seek rail's
+        // — so the two seek gestures agree with each other. _dragStart is
+        // the running target in seconds, so a run of updates adds up
+        // instead of re-seeking from a stale position.
+        final duration = widget.controller.value.duration;
+        final total = duration.inMilliseconds / 1000.0;
+        final target = (_dragStart + travel * 90).clamp(0.0, total);
+        _dragStart = target;
+        unawaited(
+          widget.controller.seekTo(
+            Duration(milliseconds: (target * 1000).round()),
+          ),
+        );
+        _rail.show(
+          _GoldenRailData(
+            icon: Icons.fast_forward_rounded,
+            value: total > 0 ? target / total : 0,
+            label: _formatDuration(
+              Duration(milliseconds: (target * 1000).round()),
+            ),
             onLeft: false,
           ),
           hideAfter: live ? null : const Duration(milliseconds: 900),

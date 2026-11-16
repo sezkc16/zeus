@@ -691,7 +691,14 @@ class DownloadService {
         if (isAndroid && !hasCustomDir) {
           taskDirectory = p.join(await _getPublicDownloadsPath(), directory);
         } else if (isIOS && hasCustomDir) {
-          taskDirectory = p.join(customDir.trim(), directory);
+          // `directory` already is absolute here: getDownloadPath() returns
+          // customDir/ZoroX/<title> whenever a custom directory is set, so
+          // joining the custom dir onto it again doubled the prefix
+          // (customDir/customDir/ZoroX/…). A relative value — from a caller
+          // that did not go through getDownloadPath — still joins.
+          taskDirectory = p.isAbsolute(directory)
+              ? directory
+              : p.join(customDir.trim(), directory);
         } else {
           // Desktop / custom: directory is already absolute.
           taskDirectory = directory;
@@ -701,7 +708,7 @@ class DownloadService {
       final chunks = _ref
           .read(storageServiceProvider)
           .getDownloadChunks()
-          .clamp(1, 8);
+          .clamp(1, 16);
       final DownloadTask task = chunks > 1
           ? ParallelDownloadTask(
               url: url,
@@ -789,6 +796,13 @@ class DownloadService {
       await dir.create(recursive: true);
     }
     return cleaned;
+  }
+
+  /// The app's Documents directory on iOS — the folder Files shows as
+  /// "On My iPhone › ZoroX". The presets in the download-location dialog
+  /// are resolved against it.
+  Future<String> getApplicationDocumentsPath() async {
+    return (await getApplicationDocumentsDirectory()).path;
   }
 
   Future<String> getDownloadPath(
@@ -961,6 +975,58 @@ class DownloadService {
         await getApplicationDocumentsDirectory();
     return dir.path;
   }
+}
+
+/// The preset download locations the settings dialog offers on iOS.
+///
+/// * [defaultLocation] — no custom directory: files land in the app's
+///   Documents/ZoroX, which Files shows as "On My iPhone › ZoroX". This is
+///   the design preview's "On My iPhone › ZoroX" value, and the default.
+/// * [filesDownloads] — Documents/Downloads, a folder inside the app's
+///   Documents that Files shows under "On My iPhone › ZoroX › Downloads".
+///   Stored as a custom directory; downloads still go under its ZoroX
+///   subfolder, as they do under every custom directory.
+/// * [custom] — a folder the viewer picked with the file picker, or any
+///   other stored directory that matches no preset.
+///
+/// iCloud Drive is deliberately not a preset: the app ships no iCloud
+/// ubiquity entitlement, so there is no container to write into — offering
+/// it would store a location downloads can never reach.
+enum DownloadLocationPreset { defaultLocation, filesDownloads, custom }
+
+/// The stored download directory for [preset], resolved against
+/// [documentsDir] (the app's Documents directory), or null for the default
+/// (no custom directory). [custom] has no preset path: the caller keeps
+/// whatever directory is already stored.
+String? downloadLocationPresetDirectory(
+  DownloadLocationPreset preset,
+  String documentsDir,
+) {
+  return switch (preset) {
+    DownloadLocationPreset.defaultLocation => null,
+    DownloadLocationPreset.filesDownloads => p.join(
+      documentsDir,
+      'Downloads',
+    ),
+    DownloadLocationPreset.custom => null,
+  };
+}
+
+/// Which preset a stored [directory] is, resolved against [documentsDir].
+/// Null or blank is the default; the Documents/Downloads folder is the
+/// Files preset; anything else is Custom.
+DownloadLocationPreset downloadLocationPresetOf(
+  String? directory,
+  String documentsDir,
+) {
+  if (directory == null || directory.trim().isEmpty) {
+    return DownloadLocationPreset.defaultLocation;
+  }
+  if (p.normalize(directory.trim()) ==
+      p.normalize(p.join(documentsDir, 'Downloads'))) {
+    return DownloadLocationPreset.filesDownloads;
+  }
+  return DownloadLocationPreset.custom;
 }
 
 class DownloadMetadata {

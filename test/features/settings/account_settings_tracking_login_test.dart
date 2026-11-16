@@ -236,8 +236,8 @@ class NoTokens extends SecureTokenStorage {
   Future<void> delete(String key) async {}
 }
 
-/// `generalSettingsProvider` builds itself out of nine repository getters, all
-/// of which reach the same unopened box.
+/// `generalSettingsProvider` builds itself out of eleven repository getters,
+/// all of which reach the same unopened box.
 class QuietSettings extends SettingsRepository {
   QuietSettings() : super(StorageService());
 
@@ -249,6 +249,12 @@ class QuietSettings extends SettingsRepository {
 
   @override
   bool isGithubProxyEnabled() => false;
+
+  @override
+  String? getGithubProxyOption() => null;
+
+  @override
+  String getGithubProxyCustomUrl() => '';
 
   @override
   bool isAlwaysOnTop() => false;

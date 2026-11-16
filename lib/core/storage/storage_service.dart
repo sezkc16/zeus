@@ -293,13 +293,13 @@ class StorageService {
   }
 
   Future<void> setDownloadChunks(int value) async {
-    await _settingsBox.put('download_chunks', value.clamp(1, 8));
+    await _settingsBox.put('download_chunks', value.clamp(1, 16));
   }
 
   int getDownloadChunks() {
-    return (_settingsBox.get('download_chunks', defaultValue: 1) as int).clamp(
+    return (_settingsBox.get('download_chunks', defaultValue: 8) as int).clamp(
       1,
-      8,
+      16,
     );
   }
 
@@ -460,6 +460,30 @@ class StorageService {
     return (_settingsBox.get('github_proxy_enabled', defaultValue: false)
             as bool?) ??
         false;
+  }
+
+  /// The GitHub proxy choice, by enum name. Null when never chosen: the
+  /// provider then falls back to the legacy [isGithubProxyEnabled] toggle
+  /// (on = jsDelivr, off = none), so an upgrade keeps the behaviour the
+  /// viewer already had.
+  Future<void> setGithubProxyOption(String option) async {
+    await _settingsBox.put('github_proxy_option', option);
+  }
+
+  String? getGithubProxyOption() {
+    return _settingsBox.get('github_proxy_option') as String?;
+  }
+
+  /// The base URL a Custom proxy prefixes GitHub URLs with, e.g.
+  /// `https://gh-proxy.com`. Empty when never set.
+  Future<void> setGithubProxyCustomUrl(String url) async {
+    await _settingsBox.put('github_proxy_custom_url', url);
+  }
+
+  String getGithubProxyCustomUrl() {
+    return (_settingsBox.get('github_proxy_custom_url', defaultValue: '')
+            as String?) ??
+        '';
   }
 
   // --- Integrations ---
