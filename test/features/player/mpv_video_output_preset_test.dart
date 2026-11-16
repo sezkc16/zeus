@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zorox/features/player/presentation/mpv/golden_video_drawer.dart';
 import 'package:zorox/features/player/presentation/mpv/mpv_ios_options.dart';
@@ -9,7 +10,8 @@ import 'package:zorox/features/settings/presentation/player_settings_provider.da
 /// LUT curve (PiP ON) — never a label that changes nothing. These
 /// tests pin the preset → option map, the preset → LUT-curve table,
 /// the stored default, and the drawer itself (tap a row, the pick
-/// fires; Reset tuning picks Native EDR).
+/// fires; Reset tuning picks Native EDR; Custom's advanced values
+/// persist and re-apply Custom live).
 void main() {
   group('videoOutputPresetToneMapping', () {
     test('Native EDR is clip (the behaviour every install already had)', () {
@@ -194,21 +196,60 @@ void main() {
       WidgetTester tester, {
       required ValueNotifier<PlayerSettings> settings,
       required ValueChanged<VideoOutputPreset> onPresetPicked,
+      _RecordingCustomValues? recorder,
     }) async {
+      // Tall enough for every row: the drawer is a ListView, so rows
+      // below the fold are not built at the default 600 px height and
+      // no finder can see them.
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            backgroundColor: Colors.black,
-            body: GoldenVideoDrawer(
-              settings: settings,
-              onPresetPicked: onPresetPicked,
-              onClose: () {},
+        ProviderScope(
+          overrides: [
+            // The drawer reads the settings notifier to persist a Custom
+            // pick; the recorder keeps the write off Hive.
+            playerSettingsProvider.overrideWith(
+              () => recorder ?? _RecordingCustomValues(),
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              backgroundColor: Colors.black,
+              body: GoldenVideoDrawer(
+                settings: settings,
+                onPresetPicked: onPresetPicked,
+                onClose: () {},
+              ),
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
     }
+
+    /// Whether the tile labelled [label] shows the checked radio: the
+    /// tile's own Padding is the label's Padding ancestor with a
+    /// bottom-only 6 px inset — the SafeArea above the whole drawer is
+    /// a Padding too, so a bare [find.byType] would match it and see
+    /// every checked radio in the drawer. The checked icon is looked
+    /// up inside the tile's Padding only.
+    bool tileChecked(String label) =>
+        find
+            .descendant(
+              of: find.ancestor(
+                of: find.text(label),
+                matching: find.byWidgetPredicate(
+                  (widget) =>
+                      widget is Padding &&
+                      widget.padding == const EdgeInsets.only(bottom: 6),
+                ),
+              ),
+              matching: find.byIcon(Icons.radio_button_checked_rounded),
+            )
+            .evaluate()
+            .isNotEmpty;
 
     testWidgets('lists the four presets in the screenshot order', (
       tester,
@@ -233,7 +274,7 @@ void main() {
         find.text('Closest to the older iOS MPV behavior.'),
         findsOneWidget,
       );
-      expect(find.text('Use your advanced values below.'), findsOneWidget);
+      expect(find.text('Your own tone mapping and target peak.'), findsOneWidget);
       expect(find.text('Reset tuning'), findsOneWidget);
     });
 
@@ -286,5 +327,155 @@ void main() {
         findsNWidgets(3),
       );
     });
+
+    testWidgets('the advanced section stays hidden until Custom is picked', (
+      tester,
+    ) async {
+      final settings = ValueNotifier<PlayerSettings>(const PlayerSettings());
+      addTearDown(settings.dispose);
+      await pumpDrawer(tester, settings: settings, onPresetPicked: (_) {});
+      expect(find.text('TONE MAPPING'), findsNothing);
+      expect(find.text('TARGET PEAK'), findsNothing);
+      expect(find.text('Clip'), findsNothing);
+      expect(find.text('100 nits'), findsNothing);
+    });
+
+    testWidgets('Custom shows the advanced values, defaults selected', (
+      tester,
+    ) async {
+      final settings = ValueNotifier<PlayerSettings>(
+        const PlayerSettings().copyWith(
+          videoOutputPreset: VideoOutputPreset.custom,
+        ),
+      );
+      addTearDown(settings.dispose);
+      await pumpDrawer(tester, settings: settings, onPresetPicked: (_) {});
+      expect(find.text('TONE MAPPING'), findsOneWidget);
+      expect(find.text('TARGET PEAK'), findsOneWidget);
+      expect(find.text('Clip'), findsOneWidget);
+      expect(find.text('BT.2390'), findsOneWidget);
+      // One Auto in each section: tone mapping's and target peak's.
+      expect(find.text('Auto'), findsNWidgets(2));
+      for (final peak in <String>[
+        '100 nits',
+        '200 nits',
+        '400 nits',
+        '1000 nits',
+      ]) {
+        expect(find.text(peak), findsOneWidget);
+      }
+      expect(
+        find.text(
+          'Nothing stored yet — Custom behaves as Native EDR '
+          'until you pick a value.',
+        ),
+        findsOneWidget,
+      );
+      // One checked radio per group: Custom, Clip (the effective
+      // tone mapping with nothing stored), Auto (the effective peak).
+      expect(
+        find.byIcon(Icons.radio_button_checked_rounded),
+        findsNWidgets(3),
+      );
+      expect(tileChecked('Custom'), isTrue);
+      expect(tileChecked('Clip'), isTrue);
+      expect(tileChecked('BT.2390'), isFalse);
+    });
+
+    testWidgets('tapping a tone-mapping value persists it and re-applies Custom', (
+      tester,
+    ) async {
+      final settings = ValueNotifier<PlayerSettings>(
+        const PlayerSettings().copyWith(
+          videoOutputPreset: VideoOutputPreset.custom,
+        ),
+      );
+      addTearDown(settings.dispose);
+      final recorder = _RecordingCustomValues();
+      VideoOutputPreset? picked;
+      await pumpDrawer(
+        tester,
+        settings: settings,
+        onPresetPicked: (preset) => picked = preset,
+        recorder: recorder,
+      );
+      await tester.tap(find.text('BT.2390'));
+      await tester.pump();
+      expect(recorder.toneMappings, <String?>['bt.2390']);
+      expect(recorder.targetPeaks, isEmpty);
+      expect(picked, VideoOutputPreset.custom);
+    });
+
+    testWidgets('tapping a target-peak value persists it and re-applies Custom', (
+      tester,
+    ) async {
+      final settings = ValueNotifier<PlayerSettings>(
+        const PlayerSettings().copyWith(
+          videoOutputPreset: VideoOutputPreset.custom,
+        ),
+      );
+      addTearDown(settings.dispose);
+      final recorder = _RecordingCustomValues();
+      VideoOutputPreset? picked;
+      await pumpDrawer(
+        tester,
+        settings: settings,
+        onPresetPicked: (preset) => picked = preset,
+        recorder: recorder,
+      );
+      await tester.tap(find.text('400 nits'));
+      await tester.pump();
+      expect(recorder.targetPeaks, <String?>['400']);
+      expect(recorder.toneMappings, isEmpty);
+      expect(picked, VideoOutputPreset.custom);
+    });
+
+    testWidgets('the advanced checkmarks follow the stored values', (
+      tester,
+    ) async {
+      final settings = ValueNotifier<PlayerSettings>(
+        const PlayerSettings().copyWith(
+          videoOutputPreset: VideoOutputPreset.custom,
+          videoCustomToneMapping: 'bt.2390',
+          videoCustomTargetPeak: '100',
+        ),
+      );
+      addTearDown(settings.dispose);
+      await pumpDrawer(tester, settings: settings, onPresetPicked: (_) {});
+      expect(tileChecked('BT.2390'), isTrue);
+      expect(tileChecked('Clip'), isFalse);
+      expect(tileChecked('100 nits'), isTrue);
+      expect(tileChecked('200 nits'), isFalse);
+      // Nothing stored any more: the note goes away.
+      expect(find.textContaining('Nothing stored yet'), findsNothing);
+
+      settings.value = settings.value.copyWith(
+        videoCustomToneMapping: 'auto',
+        videoCustomTargetPeak: '1000',
+      );
+      await tester.pump();
+      expect(tileChecked('BT.2390'), isFalse);
+      expect(tileChecked('100 nits'), isFalse);
+      expect(tileChecked('1000 nits'), isTrue);
+    });
   });
+}
+
+/// Records the Custom advanced-value writes instead of writing them to Hive.
+class _RecordingCustomValues extends PlayerSettingsNotifier {
+  final List<String?> toneMappings = <String?>[];
+  final List<String?> targetPeaks = <String?>[];
+
+  @override
+  Future<PlayerSettings> build() async => const PlayerSettings();
+
+  @override
+  Future<void> setVideoCustomToneMapping(String? value) async {
+    toneMappings.add(value);
+  }
+
+  @override
+  Future<void> setVideoCustomTargetPeak(String? value) async {
+    targetPeaks.add(value);
+  }
 }
