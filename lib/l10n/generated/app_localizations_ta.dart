@@ -42,7 +42,23 @@ class AppLocalizationsTa extends AppLocalizations {
   String get exploreMovies => 'திரைப்படங்களை உலாவுக';
 
   @override
+  String get browse => 'Browse';
+
+  @override
+  String get exploreByCategory => 'Explore by category';
+
+  @override
+  String get browseSettingsSubtitle =>
+      'Theme, player, accounts, extensions & more';
+
+  @override
+  String get appSection => 'App';
+
+  @override
   String get library => 'நூலகம்';
+
+  @override
+  String get librarySubtitle => 'Your list, history and downloads';
 
   @override
   String get settings => 'அமைப்புகள்';
@@ -93,6 +109,9 @@ class AppLocalizationsTa extends AppLocalizations {
   String get titlePositionInsidePoster => 'போஸ்டருக்குள்';
 
   @override
+  String get playback => 'Playback';
+
+  @override
   String get player => 'வீடியோ பிளேயர்';
 
   @override
@@ -100,6 +119,18 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get playerEngine => 'Player Engine';
+
+  @override
+  String get playerEngineMpv => 'libmpv Golden';
+
+  @override
+  String get playerEngineVlc => 'libVLC';
+
+  @override
+  String get pipModeMpv => 'mpv';
+
+  @override
+  String get pipModeIos => 'iOS';
 
   @override
   String get playerEngineMpvDetail => 'Golden player · PiP on Android';
@@ -748,6 +779,20 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get addRepository => 'ரிப்போசிட்டரியைச் சேர்';
+
+  @override
+  String get add => 'Add';
+
+  @override
+  String get extensionsSubtitle =>
+      'CloudStream repos (.cs3), TojiX, Nuvio & Stremio';
+
+  @override
+  String get noZoroxReposYet => 'No ZoroX repos yet';
+
+  @override
+  String get pasteRepoUrlHint =>
+      'Paste a CloudStream repository URL — its .cs3 extensions install from here using the repo.json + .cs3 flow.';
 
   @override
   String get repoUrlOrShortcode => 'ரிப்போசிட்டரி URL அல்லது ஷார்ட்கோட்';
@@ -1938,6 +1983,9 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get audioLanguage => 'Audio language';
+
+  @override
+  String get audioSubtitlesAndQuality => 'Audio, Subtitles & Quality';
 
   @override
   String get audioLanguageAuto => 'Auto';

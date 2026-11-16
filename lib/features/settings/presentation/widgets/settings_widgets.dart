@@ -32,26 +32,38 @@ class SettingsGroup extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: LayoutConstants.spacingMd,
-            vertical: LayoutConstants.spacingSm,
+          // The design preview's section headers: gold, all caps, 12px,
+          // tracked out — not the fork's title-case bold header. The
+          // header sits on the same left edge as the card (spacingMd),
+          // so the whole group reads as one column.
+          padding: const EdgeInsets.fromLTRB(
+            LayoutConstants.spacingMd,
+            8,
+            LayoutConstants.spacingMd,
+            8,
           ),
           child: Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            title.toUpperCase(),
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
               color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+              letterSpacing: 0.8,
             ),
           ),
         ),
         Container(
+          // One step of inset, paid here and nowhere else: the host
+          // screen's ListView must not add its own horizontal padding,
+          // or the four screens of the settings tree disagree about
+          // their left edge (settings_inset_test).
           margin: const EdgeInsets.symmetric(
             horizontal: LayoutConstants.spacingMd,
           ),
           decoration: filled
               ? BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: Theme.of(context).dividerColor),
                 )
               : null,
@@ -62,27 +74,58 @@ class SettingsGroup extends StatelessWidget {
   }
 }
 
+/// A row in a [SettingsGroup], in the design preview's visual language:
+/// a 34px gold-dim icon tile, title 14.5px semibold, subtitle 12px muted
+/// under it, and the row's current value right-aligned in muted 13px
+/// before the chevron. The fork's pattern — gold line icon, value below
+/// the title, title-case header — is not used anywhere.
+///
+/// Pass either [icon] (a Material icon) or [emoji] (one emoji string,
+/// rendered as text in the tile); exactly one must be set. [value] is
+/// the right-aligned current value (e.g. "English", "Home", "2.9.19");
+/// [trailing] overrides it with a widget of its own (a Switch). [danger]
+/// paints the title red — Factory Reset only.
 class SettingsTile extends StatefulWidget {
-  final IconData icon;
+  final IconData? icon;
+
+  /// One emoji string, rendered as text in the icon tile.
+  final String? emoji;
   final String title;
   final String? subtitle;
+
+  /// The row's current value, right-aligned before the chevron.
+  final String? value;
+
+  /// Whether the chevron shows after [value] (or on its own). The Version
+  /// row shows its value with no chevron — it goes nowhere.
+  final bool showChevron;
   final Widget? trailing;
   final VoidCallback? onTap;
   final bool isLast;
   final bool isBeta;
+
+  /// Red title — the Factory Reset danger row only.
+  final bool danger;
   final FocusNode? focusNode;
 
   const SettingsTile({
     super.key,
-    required this.icon,
+    this.icon,
+    this.emoji,
     required this.title,
     this.subtitle,
+    this.value,
+    this.showChevron = true,
     this.trailing,
     this.onTap,
     this.isLast = false,
     this.isBeta = false,
+    this.danger = false,
     this.focusNode,
-  });
+  }) : assert(
+         icon != null || emoji != null,
+         'SettingsTile needs an icon or an emoji',
+       );
 
   @override
   State<SettingsTile> createState() => _SettingsTileState();
@@ -145,13 +188,23 @@ class _SettingsTileState extends State<SettingsTile> {
               child: ListTile(
                 focusColor: Colors.transparent,
                 hoverColor: primary.withValues(alpha: 0.10),
+                minTileHeight: 52,
+                minLeadingWidth: 34,
+                horizontalTitleGap: 12,
                 leading: Container(
-                  padding: const EdgeInsets.all(LayoutConstants.spacingXs),
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    color: primary.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(widget.icon, color: primary, size: 20),
+                  child: widget.emoji != null
+                      ? Text(
+                          widget.emoji!,
+                          style: const TextStyle(fontSize: 18),
+                        )
+                      : Icon(widget.icon, color: primary, size: 20),
                 ),
                 title: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -159,7 +212,13 @@ class _SettingsTileState extends State<SettingsTile> {
                     Flexible(
                       child: Text(
                         widget.title,
-                        style: const TextStyle(fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14.5,
+                          color: widget.danger
+                              ? const Color(0xFFFF7A6B)
+                              : null,
+                        ),
                       ),
                     ),
                     if (widget.isBeta) ...[
@@ -190,40 +249,96 @@ class _SettingsTileState extends State<SettingsTile> {
                     ? Text(
                         widget.subtitle!,
                         style: TextStyle(
-                          color: Theme.of(context).textTheme.bodySmall?.color,
+                          fontSize: 12,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant,
                         ),
                       )
                     : null,
                 trailing: widget.trailing != null
                     ? ExcludeFocus(
                         excluding: true,
-                        child: showFocus
-                            ? SwitchTheme(
-                                data: SwitchThemeData(
-                                  thumbIcon:
-                                      WidgetStateProperty.resolveWith<Icon?>((
-                                        states,
-                                      ) {
-                                        if (states.contains(
-                                          WidgetState.selected,
-                                        )) {
-                                          return const Icon(
-                                            Icons.check_rounded,
-                                            size: 14,
-                                          );
-                                        } else {
-                                          return const Icon(
-                                            Icons.close_rounded,
-                                            size: 14,
-                                          );
-                                        }
-                                      }),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // A value and a trailing widget together: the
+                            // value names the choice, the trailing shows
+                            // it. The subtitle Text Colour row is the one
+                            // that has both — "Yellow" beside its swatch.
+                            // A trailing on its own (a Switch) still
+                            // replaces the value + chevron, as before: a
+                            // Switch tile's `value:` belongs to the Switch
+                            // itself, not to this tile, so `widget.value`
+                            // is null there and nothing changes.
+                            if (widget.value != null) ...[
+                              Text(
+                                widget.value!,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                 ),
-                                child: widget.trailing!,
-                              )
-                            : widget.trailing!,
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            showFocus
+                                ? SwitchTheme(
+                                    data: SwitchThemeData(
+                                      thumbIcon:
+                                          WidgetStateProperty.resolveWith<
+                                            Icon?
+                                          >((states) {
+                                            if (states.contains(
+                                              WidgetState.selected,
+                                            )) {
+                                              return const Icon(
+                                                Icons.check_rounded,
+                                                size: 14,
+                                              );
+                                            } else {
+                                              return const Icon(
+                                                Icons.close_rounded,
+                                                size: 14,
+                                              );
+                                            }
+                                          }),
+                                    ),
+                                    child: widget.trailing!,
+                                  )
+                                : widget.trailing!,
+                          ],
+                        ),
                       )
-                    : const Icon(Icons.chevron_right_rounded, size: 20),
+                    : widget.value != null
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            widget.value!,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                          ),
+                          if (widget.showChevron) ...[
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              size: 20,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                          ],
+                        ],
+                      )
+                    : widget.showChevron
+                    ? const Icon(Icons.chevron_right_rounded, size: 20)
+                    : const SizedBox.shrink(),
                 onTap: widget.onTap,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -235,7 +350,7 @@ class _SettingsTileState extends State<SettingsTile> {
         if (!widget.isLast && !showFocus)
           Divider(
             height: 1,
-            indent: 56,
+            indent: 62,
             endIndent: 16,
             color: Theme.of(context).dividerColor.withValues(alpha: 0.8),
           ),

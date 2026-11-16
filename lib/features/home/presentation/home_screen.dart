@@ -173,6 +173,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
+        // iOS centres AppBar titles by default, which pushed the Z logo
+        // half off the left edge (v2 phone screenshot). The title row is
+        // left-aligned like the preview's header.
+        centerTitle: false,
         systemOverlayStyle: overlayStyle,
         forceMaterialTransparency: true,
         backgroundColor: Colors.transparent,

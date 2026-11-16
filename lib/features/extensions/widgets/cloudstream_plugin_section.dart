@@ -40,11 +40,19 @@ import '../../cloudstream/presentation/extension_ui/extension_settings_flow.dart
 /// The CloudStream repositories, under the one "CloudStream" section
 /// header — the owner's TojiX repo and the official repository, plus any
 /// other CloudStream-format repository the user added. The section has its
-/// own add row (see [_showAddRepoDialog]); the header and the row stay
-/// even when there are no repositories yet, so the CloudStream add flow is
-/// always reachable. A spinner while the first load is still running.
+/// own add row (see [_showAddRepoDialog]) unless [showAddRow] is false:
+/// the Extensions screen's inline Add Repository card already feeds this
+/// same CloudStream flow, so the section's own row is hidden there to
+/// avoid two add entries for one flow. The header stays even when there
+/// are no repositories yet, so the CloudStream add flow is always
+/// reachable. A spinner while the first load is still running.
 class CloudStreamRepositoriesSection extends ConsumerWidget {
-  const CloudStreamRepositoriesSection({super.key});
+  const CloudStreamRepositoriesSection({super.key, this.showAddRow = true});
+
+  /// Whether the section renders its own dialog-based add row. True on
+  /// the standalone CloudStream screens; false on the Extensions screen,
+  /// where the inline Add Repository card is the only add entry.
+  final bool showAddRow;
 
   /// This section's add flow: the CloudStream fetcher, not ZoroX's.
   /// A repo.json manifest (name + pluginLists, no id/packageName needed)
@@ -150,27 +158,30 @@ class CloudStreamRepositoriesSection extends ConsumerWidget {
             ),
           ),
         // This section's own add row: a CloudStream-format repository
-        // lands here, not under ZoroX.
-        Card(
-          margin: const EdgeInsets.symmetric(
-            horizontal: LayoutConstants.spacingMd,
-            vertical: LayoutConstants.spacingSm,
-          ),
-          child: ListTile(
-            leading: Icon(
-              Icons.add_circle_outline,
-              color: Theme.of(context).colorScheme.primary,
+        // lands here, not under ZoroX. Hidden when [showAddRow] is
+        // false — the Extensions screen's inline Add Repository card
+        // already feeds this same flow.
+        if (showAddRow)
+          Card(
+            margin: const EdgeInsets.symmetric(
+              horizontal: LayoutConstants.spacingMd,
+              vertical: LayoutConstants.spacingSm,
             ),
-            title: Text(
-              l10n.cloudStreamAddRepositoryTitle,
-              style: TextStyle(
+            child: ListTile(
+              leading: Icon(
+                Icons.add_circle_outline,
                 color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.bold,
               ),
+              title: Text(
+                l10n.cloudStreamAddRepositoryTitle,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onTap: () => unawaited(_showAddRepoDialog(context, ref)),
             ),
-            onTap: () => unawaited(_showAddRepoDialog(context, ref)),
           ),
-        ),
       ],
     );
   }

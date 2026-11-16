@@ -2,68 +2,55 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/accent_color.dart';
-import '../../../../core/utils/layout_constants.dart';
 
-/// Accent color picker (ZoroX v7, 2.9.6) — the swatches row under the
-/// "Theme" tile in Settings > General.
-///
-/// Tapping a swatch sets the accent immediately across the whole app
-/// (the theme is seeded from the accent, so the MaterialApp rebuilds —
-/// no restart, no re-login). Gold is the default; the background stays
-/// black and the layout is untouched, only the accent changes.
+/// Accent color picker — the design preview's swatch row in Settings >
+/// General: the label "Accent Color — Gold is default" and the 8 presets
+/// in one row of 38px circles. Tapping a swatch sets the accent
+/// immediately across the whole app (the theme is seeded from the accent,
+/// so the MaterialApp rebuilds — no restart, no re-login). Gold is the
+/// default; the background stays black and the layout is untouched, only
+/// the accent changes.
 class AccentColorPicker extends ConsumerWidget {
   const AccentColorPicker({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final accent = ref.watch(accentColorProvider);
-    final primary = Theme.of(context).colorScheme.primary;
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ListTile(
-          leading: Container(
-            padding: const EdgeInsets.all(LayoutConstants.spacingXs),
-            decoration: BoxDecoration(
-              color: primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(Icons.palette_rounded, color: primary, size: 20),
-          ),
-          title: const Text(
-            'Accent color',
-            style: TextStyle(fontWeight: FontWeight.w500),
-          ),
-          subtitle: Text(
-            accent.label,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+          child: Text(
+            'Accent Color — Gold is default',
             style: TextStyle(
-              color: Theme.of(context).textTheme.bodySmall?.color,
+              fontSize: 14.5,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(56, 0, 16, 16),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                for (final option in ZoroxAccent.values)
-                  _Swatch(
-                    option: option,
-                    selected: option == accent,
-                    onTap: () => ref
-                        .read(accentColorProvider.notifier)
-                        .setAccent(option),
-                  ),
-              ],
-            ),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final option in ZoroxAccent.values)
+                _Swatch(
+                  option: option,
+                  selected: option == accent,
+                  onTap: () => ref
+                      .read(accentColorProvider.notifier)
+                      .setAccent(option),
+                ),
+            ],
           ),
         ),
         Divider(
           height: 1,
-          indent: 56,
+          indent: 62,
           endIndent: 16,
           color: Theme.of(context).dividerColor.withValues(alpha: 0.8),
         ),
@@ -85,17 +72,11 @@ class _Swatch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // A dark check on the light accents (Gold, Orange, Green, Cyan, White),
-    // a white check on the dark ones (Red, Blue, Purple, Pink, Black).
+    // A dark check on the light accents (Gold, Orange, Green, Silver),
+    // a white check on the dark ones (Red, Blue, Violet, Pink).
     final checkColor = option.color.computeLuminance() > 0.5
         ? Colors.black
         : Colors.white;
-    // The Black swatch is invisible on the dark Settings background with
-    // a black-tinted border, so it gets a light ring instead (M M
-    // 2026-11-14: Black accent for the light theme).
-    final unselectedBorder = option.color.computeLuminance() < 0.05
-        ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4)
-        : option.color.withValues(alpha: 0.4);
     return Semantics(
       button: true,
       selected: selected,
@@ -107,15 +88,16 @@ class _Swatch extends StatelessWidget {
           customBorder: const CircleBorder(),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            width: 40,
-            height: 40,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
               color: option.color,
               shape: BoxShape.circle,
+              // The preview marks the selected swatch with a white ring.
               border: Border.all(
                 color: selected
-                    ? Theme.of(context).colorScheme.onSurface
-                    : unselectedBorder,
+                    ? Colors.white
+                    : option.color.withValues(alpha: 0.4),
                 width: selected ? 2.5 : 1.5,
               ),
               boxShadow: selected

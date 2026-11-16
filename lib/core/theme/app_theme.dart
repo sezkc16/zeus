@@ -230,24 +230,29 @@ class AppTheme {
     // Cards / list items in the design's surface colour.
     colorScheme = colorScheme.copyWith(surface: palette.surface);
 
-    // White/Black accents (v20+37): ColorScheme.fromSeed builds a tonal
-    // palette from the seed and the seed itself never becomes `primary` —
-    // for achromatic seeds the palette is the same neutral ramp, so White
-    // and Black collapse to the identical light-grey primary and neither
-    // looks like the swatch that was tapped (the picker checkmark moves,
-    // the app does not recolor). Pin the primary family to the literal
-    // accent for the two monochrome presets; the other eight presets keep
-    // the tonal scheme untouched. onPrimary follows the same luminance
-    // guard the light theme already uses (dark text on White, white text
-    // on Black). Note Black on the dark theme is near-invisible by design
-    // — black on obsidian — it is meant for the light theme.
-    if (seedColor == const Color(0xFFFFFFFF) ||
-        seedColor == const Color(0xFF000000)) {
-      final isWhite = seedColor == const Color(0xFFFFFFFF);
-      final onAccent = isWhite
+    // Achromatic accents (White/Black v20+37, Silver v3):
+    // ColorScheme.fromSeed builds a tonal palette from the seed and the
+    // seed itself never becomes `primary` — for achromatic seeds the
+    // palette is the same neutral ramp, so White and Black collapse to
+    // the identical light-grey primary and Silver collapses to the same
+    // light blue as Blue (0xFF9ECAFC vs 0xFF9DCBFB), and neither looks
+    // like the swatch that was tapped (the picker checkmark moves, the
+    // app does not recolor). Pin the primary family to the literal
+    // accent for seeds with almost no saturation; the chromatic presets
+    // keep the tonal scheme untouched. Silver's 0xFFE8E8EC reads as
+    // saturation ~0.095 (its blue channel is 4 steps above red/green),
+    // so the threshold sits at 0.15 — every chromatic preset is above
+    // 0.5. onPrimary follows the same
+    // luminance guard the light theme already uses (dark text on a
+    // light accent, white text on a dark one), so White and Black keep
+    // exactly the behaviour they had under the old exact match.
+    final seedSaturation = HSLColor.fromColor(seedColor).saturation;
+    if (seedSaturation < 0.15) {
+      final isLight = seedColor.computeLuminance() > 0.6;
+      final onAccent = isLight
           ? const Color(0xFF1A1A1A)
           : Colors.white;
-      final container = isWhite
+      final container = isLight
           ? const Color(0xFF2E2E33)
           : const Color(0xFF1C1C1F);
       colorScheme = colorScheme.copyWith(

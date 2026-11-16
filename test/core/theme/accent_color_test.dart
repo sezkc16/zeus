@@ -130,17 +130,17 @@ void main() {
 
     await container
         .read(accentColorProvider.notifier)
-        .setAccent(ZoroxAccent.purple);
+        .setAccent(ZoroxAccent.violet);
 
-    expect(container.read(accentColorProvider), ZoroxAccent.purple);
-    expect(storage.getAccentColor(), 'purple');
+    expect(container.read(accentColorProvider), ZoroxAccent.violet);
+    expect(storage.getAccentColor(), 'violet');
   });
 
-  test('the palette has 10 distinct, named presets', () {
-    expect(ZoroxAccent.values.length, 10);
+  test('the palette has 8 distinct, named presets', () {
+    expect(ZoroxAccent.values.length, 8);
     expect(
       ZoroxAccent.values.map((a) => a.color).toSet().length,
-      10,
+      8,
       reason: 'no two presets share a color',
     );
     for (final accent in ZoroxAccent.values) {
@@ -148,10 +148,11 @@ void main() {
     }
   });
 
-  test('White and Black are in the palette (M M, 2026-11-14)', () {
-    expect(ZoroxAccent.white.color, const Color(0xFFFFFFFF));
-    expect(ZoroxAccent.black.color, const Color(0xFF000000));
-    expect(ZoroxAccent.fromName('white'), ZoroxAccent.white);
-    expect(ZoroxAccent.fromName('black'), ZoroxAccent.black);
+  test('retired White / Black / Cyan fall back to Gold (v3, 2.9.19+59)', () {
+    expect(ZoroxAccent.silver.color, const Color(0xFFE8E8EC));
+    expect(ZoroxAccent.fromName('white'), ZoroxAccent.gold);
+    expect(ZoroxAccent.fromName('black'), ZoroxAccent.gold);
+    expect(ZoroxAccent.fromName('cyan'), ZoroxAccent.gold);
+    expect(ZoroxAccent.fromName('violet'), ZoroxAccent.violet);
   });
 }

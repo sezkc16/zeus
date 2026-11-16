@@ -120,26 +120,57 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       );
     }
 
-    // Mobile layout: existing AppBar with TabBar
+    // Mobile layout: the preview's in-body header — big title, subtitle,
+    // then the chips — instead of an AppBar with a TabBar. The chips are
+    // the same _TabChip row the widescreen header uses, so the two can
+    // never disagree about the order or the labels.
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(AppLocalizations.of(context)!.library),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: [
-            for (final tab in _tabDefs(AppLocalizations.of(context)!))
-              Tab(text: tab.label, icon: Icon(tab.icon)),
-          ],
-        ),
-      ),
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: (index) {
-          _tabController.animateTo(index);
-        },
-        physics: const BouncingScrollPhysics(),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (var i = 0; i < _tabCount; i++) _tabPage(i),
+          Padding(
+            padding: EdgeInsets.only(
+              left: LayoutConstants.spacingMd,
+              right: LayoutConstants.spacingMd,
+              top: MediaQuery.paddingOf(context).top + 8,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.library,
+                  style: Theme.of(context).textTheme.headlineMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  l10n.librarySubtitle,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: _buildTabChips(context),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: PageView(
+              controller: _pageController,
+              onPageChanged: (index) {
+                _tabController.animateTo(index);
+              },
+              physics: const BouncingScrollPhysics(),
+              children: [
+                for (var i = 0; i < _tabCount; i++) _tabPage(i),
+              ],
+            ),
+          ),
         ],
       ),
     );

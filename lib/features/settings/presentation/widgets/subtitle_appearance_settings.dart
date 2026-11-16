@@ -187,28 +187,32 @@ class SubtitleAppearanceGroup extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          icon: Icons.format_size_rounded,
+          emoji: '🔠',
           title: l10n.textSize,
-          subtitle: '${settings.subtitleSize.round()}',
+          value: '${settings.subtitleSize.round()}',
           onTap: () => showSubtitleSizeDialog(context, ref, settings),
         ),
         SettingsTile(
-          icon: Icons.palette_outlined,
+          emoji: '🎨',
           title: l10n.subtitleTextColour,
-          subtitle: subtitleColorLabel(l10n, settings.subtitleColor),
+          value: subtitleColorLabel(l10n, settings.subtitleColor),
           trailing: _Swatch(color: Color(settings.subtitleColor)),
           onTap: () => showSubtitleColorDialog(context, ref, settings),
         ),
+        // One Background row, not two: the colour and the opacity are
+        // set together in the one editor, and the value says both
+        // ("Black · 50%", or "Off" at zero opacity). Splitting them
+        // would add a D-pad stop for a setting that has one editor.
         SettingsTile(
-          icon: Icons.format_color_fill_rounded,
+          emoji: '⬛',
           title: l10n.background,
-          subtitle: subtitleBackgroundLabel(l10n, settings),
+          value: subtitleBackgroundLabel(l10n, settings),
           onTap: () => showSubtitleBackgroundDialog(context, ref, settings),
         ),
         SettingsTile(
-          icon: Icons.border_style_rounded,
+          emoji: '✒️',
           title: l10n.subtitleOutline,
-          subtitle: subtitleOutlineLabel(l10n, settings.subtitleOutline),
+          value: subtitleOutlineLabel(l10n, settings.subtitleOutline),
           onTap: () => _showChoiceDialog<SubtitleOutline>(
             context,
             title: l10n.subtitleOutline,
@@ -219,9 +223,9 @@ class SubtitleAppearanceGroup extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          icon: Icons.vertical_align_bottom_rounded,
+          emoji: '↕️',
           title: l10n.subtitlePosition,
-          subtitle: subtitlePositionLabel(l10n, settings.subtitleRaise),
+          value: subtitlePositionLabel(l10n, settings.subtitleRaise),
           onTap: () => _showChoiceDialog<double>(
             context,
             title: l10n.subtitlePosition,
@@ -245,9 +249,9 @@ class SubtitleAppearanceGroup extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          icon: Icons.format_bold_rounded,
+          emoji: '🅱️',
           title: l10n.subtitleBold,
-          subtitle: settings.subtitleBold ? l10n.on : l10n.off,
+          value: settings.subtitleBold ? l10n.on : l10n.off,
           onTap: () => _showChoiceDialog<bool>(
             context,
             title: l10n.subtitleBold,
@@ -258,9 +262,9 @@ class SubtitleAppearanceGroup extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          icon: Icons.font_download_outlined,
+          emoji: '🅰️',
           title: l10n.subtitleFont,
-          subtitle: subtitleFontLabel(l10n, settings.subtitleFont),
+          value: subtitleFontLabel(l10n, settings.subtitleFont),
           onTap: () => _showChoiceDialog<SubtitleFont>(
             context,
             title: l10n.subtitleFont,
@@ -271,9 +275,9 @@ class SubtitleAppearanceGroup extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          icon: Icons.opacity_rounded,
+          emoji: '◐',
           title: l10n.subtitleTextOpacity,
-          subtitle: subtitleOpacityLabel(l10n, settings.subtitleTextOpacity),
+          value: subtitleOpacityLabel(l10n, settings.subtitleTextOpacity),
           onTap: () => _showChoiceDialog<double>(
             context,
             title: l10n.subtitleTextOpacity,
@@ -287,9 +291,9 @@ class SubtitleAppearanceGroup extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          icon: Icons.translate_rounded,
+          emoji: '🌐',
           title: l10n.subtitleEncoding,
-          subtitle: subtitleEncodingLabel(l10n, settings.subtitleEncoding),
+          value: subtitleEncodingLabel(l10n, settings.subtitleEncoding),
           onTap: () => _showChoiceDialog<String>(
             context,
             title: l10n.subtitleEncoding,
@@ -300,7 +304,7 @@ class SubtitleAppearanceGroup extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          icon: Icons.restart_alt_rounded,
+          emoji: '↺',
           title: l10n.resetSubtitleAppearance,
           subtitle: l10n.resetSubtitleAppearanceSubtitle,
           isLast: true,

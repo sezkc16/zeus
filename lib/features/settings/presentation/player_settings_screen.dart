@@ -14,6 +14,10 @@ import 'widgets/settings_widgets.dart';
 import 'widgets/subtitle_appearance_settings.dart';
 
 /// Sub-screen for configuring all video playback, gestures, display, and quality preferences.
+///
+/// Visual language is the design preview's Player screen: dark cards,
+/// CAPS gold section headers, emoji icon tiles, values right-aligned —
+/// not the fork's gold line icons with the value under the title.
 class PlayerSettingsScreen extends ConsumerWidget {
   final bool isEmbedded;
 
@@ -27,7 +31,6 @@ class PlayerSettingsScreen extends ConsumerWidget {
     final playerSettings =
         ref.watch(playerSettingsProvider).asData?.value ??
         const PlayerSettings();
-
 
     // Whether this device has a touchscreen, which is the only thing the four
     // gesture rows below depend on: a swipe, a drag and a double-tap are the
@@ -61,12 +64,12 @@ class PlayerSettingsScreen extends ConsumerWidget {
             ).copyWith(bottom: LayoutConstants.shellBottomContentPadding(context)),
             children: [
               SettingsGroup(
-                title: l10n.player,
+                title: l10n.playback,
                 children: [
                   SettingsTile(
-                    icon: Icons.smart_display_rounded,
+                    emoji: '▶️',
                     title: l10n.defaultPlayer,
-                    subtitle: getPlayerDisplayName(
+                    value: getPlayerDisplayName(
                       playerSettings.preferredPlayer,
                       l10n,
                     ),
@@ -76,23 +79,57 @@ class PlayerSettingsScreen extends ConsumerWidget {
                       playerSettings.preferredPlayer,
                     ),
                   ),
-                  // Player Engine (libmpv / libVLC): which engine plays the
-                  // next video. libmpv is the Golden player; libVLC is the
-                  // only engine that could do PiP on iOS before +28. Takes
-                  // effect on the next play.
-                  SettingsTile(
-                    icon: Icons.memory_rounded,
-                    title: l10n.playerEngine,
-                    subtitle: switch (playerSettings.playerEngine) {
-                      PlayerEngine.mpv =>
-                        'libmpv · ${l10n.playerEngineMpvDetail}',
-                      PlayerEngine.vlc =>
-                        'libVLC · ${l10n.playerEngineVlcDetail}',
-                    },
-                    onTap: () => showPlayerEngineDialog(
-                      context,
-                      ref,
-                      playerSettings.playerEngine,
+                  // Player Engine (libmpv Golden / libVLC): which engine
+                  // plays the next video. libmpv is the Golden player;
+                  // libVLC is the only engine that could do PiP on iOS
+                  // before +28. Takes effect on the next play.
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.playerEngine,
+                          style: const TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SegmentedButton<PlayerEngine>(
+                          segments: [
+                            ButtonSegment<PlayerEngine>(
+                              value: PlayerEngine.mpv,
+                              label: Text(l10n.playerEngineMpv),
+                            ),
+                            ButtonSegment<PlayerEngine>(
+                              value: PlayerEngine.vlc,
+                              label: Text(l10n.playerEngineVlc),
+                            ),
+                          ],
+                          selected: {playerSettings.playerEngine},
+                          onSelectionChanged: (selection) {
+                            final engine = selection.firstOrNull;
+                            if (engine == null) return;
+                            ref
+                                .read(playerSettingsProvider.notifier)
+                                .setPlayerEngine(engine);
+                          },
+                          style: _segmentedStyle(context),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          playerSettings.playerEngine == PlayerEngine.mpv
+                              ? 'libmpv · ${l10n.playerEngineMpvDetail}'
+                              : 'libVLC · ${l10n.playerEngineVlcDetail}',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
                     ),
                   ),
                   // Picture-in-Picture (iOS only): the mode the player
@@ -119,14 +156,14 @@ class PlayerSettingsScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: 8),
                           SegmentedButton<PipMode>(
-                            segments: const [
+                            segments: [
                               ButtonSegment<PipMode>(
                                 value: PipMode.mpv,
-                                label: Text('mpv'),
+                                label: Text(l10n.pipModeMpv),
                               ),
                               ButtonSegment<PipMode>(
                                 value: PipMode.ios,
-                                label: Text('iOS'),
+                                label: Text(l10n.pipModeIos),
                               ),
                             ],
                             selected: {playerSettings.pipMode},
@@ -137,6 +174,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                                   .read(playerSettingsProvider.notifier)
                                   .setPipMode(mode);
                             },
+                            style: _segmentedStyle(context),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -154,11 +192,9 @@ class PlayerSettingsScreen extends ConsumerWidget {
                       ),
                     ),
                     SettingsTile(
-                      icon: Icons.picture_in_picture_alt_rounded,
+                      emoji: '⧉',
                       title: 'Enable PiP',
-                      subtitle: playerSettings.iosMpvPip
-                          ? 'On · keep playing in a floating window'
-                          : l10n.disabled,
+                      subtitle: 'Keep playing in a floating window',
                       trailing: Switch(
                         value: playerSettings.iosMpvPip,
                         onChanged: (val) => ref
@@ -172,9 +208,9 @@ class PlayerSettingsScreen extends ConsumerWidget {
                   ],
                   if (isTouchDevice) ...[
                     SettingsTile(
-                      icon: Icons.swipe_vertical_rounded,
+                      emoji: '👈',
                       title: l10n.leftGesture,
-                      subtitle: getGestureLabel(
+                      value: getGestureLabel(
                         playerSettings.leftGesture,
                         l10n,
                       ),
@@ -186,9 +222,9 @@ class PlayerSettingsScreen extends ConsumerWidget {
                       ),
                     ),
                     SettingsTile(
-                      icon: Icons.swipe_vertical_rounded,
+                      emoji: '👉',
                       title: l10n.rightGesture,
-                      subtitle: getGestureLabel(
+                      value: getGestureLabel(
                         playerSettings.rightGesture,
                         l10n,
                       ),
@@ -200,11 +236,8 @@ class PlayerSettingsScreen extends ConsumerWidget {
                       ),
                     ),
                     SettingsTile(
-                      icon: Icons.touch_app_rounded,
+                      emoji: '⏩',
                       title: l10n.doubleTapToSeek,
-                      subtitle: playerSettings.doubleTapEnabled
-                          ? l10n.enabled
-                          : l10n.disabled,
                       trailing: Switch(
                         value: playerSettings.doubleTapEnabled,
                         onChanged: (val) => ref
@@ -218,11 +251,9 @@ class PlayerSettingsScreen extends ConsumerWidget {
                           ),
                     ),
                     SettingsTile(
-                      icon: Icons.swipe_rounded,
+                      emoji: '↔️',
                       title: l10n.swipeToSeek,
-                      subtitle: playerSettings.swipeSeekEnabled
-                          ? l10n.enabled
-                          : l10n.disabled,
+                      subtitle: 'Full width = 90 seconds',
                       trailing: Switch(
                         value: playerSettings.swipeSeekEnabled,
                         onChanged: (val) => ref
@@ -239,11 +270,9 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     // automatically, like anime/dramas. Title is a plain
                     // English literal, the same as 'Maximum volume' below.
                     SettingsTile(
-                      icon: Icons.fast_forward_rounded,
+                      emoji: '⏭️',
                       title: 'Auto Skip',
-                      subtitle: playerSettings.autoSkip
-                          ? l10n.enabled
-                          : l10n.disabled,
+                      subtitle: 'AnimeSkip & IntroDB segments',
                       trailing: Switch(
                         value: playerSettings.autoSkip,
                         onChanged: (val) => ref
@@ -256,9 +285,9 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     ),
                   ],
                   SettingsTile(
-                    icon: Icons.av_timer_rounded,
+                    emoji: '↩️',
                     title: l10n.seekDuration,
-                    subtitle: formatSeekDuration(
+                    value: formatSeekDuration(
                       playerSettings.seekDuration,
                       l10n,
                     ),
@@ -269,12 +298,21 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   SettingsTile(
-                    icon: Icons.download_for_offline_rounded,
+                    emoji: '📶',
                     title: l10n.networkBuffer,
-                    // Auto says what it does; a picked size says itself.
+                    // The buffer setting is MB-based (the +55 fix: no cap,
+                    // cache-secs 3600, demuxer-max-bytes 768 MiB). The
+                    // preview shows a duration ("120s") but the app's
+                    // setting is a size — the value shown is the real MB
+                    // setting, and the behaviour is unchanged. Auto keeps
+                    // its explanation: the size is picked per video from
+                    // its bitrate and this device's memory.
+                    value: playerSettings.bufferOverrideMb == null
+                        ? 'Auto'
+                        : formatNetworkBuffer(playerSettings.bufferOverrideMb!),
                     subtitle: playerSettings.bufferOverrideMb == null
                         ? l10n.networkBufferAutoHint
-                        : formatNetworkBuffer(playerSettings.bufferOverrideMb!),
+                        : null,
                     onTap: () => showNetworkBufferDialog(
                       context,
                       ref,
@@ -282,22 +320,29 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   SettingsTile(
-                    icon: Icons.aspect_ratio_rounded,
+                    emoji: '🖥️',
                     title: l10n.defaultResizeMode,
-                    subtitle: getResizeModeLabel(
+                    value: getResizeModeLabel(
                       playerSettings.defaultResizeMode,
                       l10n,
                     ),
+                    isLast: true,
                     onTap: () => showResizeDialog(
                       context,
                       ref,
                       playerSettings.defaultResizeMode,
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: LayoutConstants.spacingLg),
+              SettingsGroup(
+                title: l10n.audioSubtitlesAndQuality,
+                children: [
                   SettingsTile(
-                    icon: Icons.audiotrack_rounded,
+                    emoji: '🔊',
                     title: l10n.audioLanguage,
-                    subtitle: preferredAudioLanguageLabel(
+                    value: preferredAudioLanguageLabel(
                       playerSettings.preferredAudioLanguage,
                       l10n,
                     ),
@@ -308,9 +353,9 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   SettingsTile(
-                    icon: Icons.subtitles_rounded,
+                    emoji: '💬',
                     title: l10n.subtitleDefault,
-                    subtitle: subtitleDefaultLabel(
+                    value: subtitleDefaultLabel(
                       playerSettings.subtitleDefault,
                       l10n,
                     ),
@@ -322,7 +367,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                   ),
                   if (_switchReachesDecoder(context))
                     SettingsTile(
-                      icon: Icons.high_quality_rounded,
+                      emoji: '⚡',
                       title: l10n.hardwareDecoding,
                       subtitle: playerSettings.hardwareDecoding
                           ? '${l10n.enabled} (${l10n.recommended})'
@@ -340,20 +385,21 @@ class PlayerSettingsScreen extends ConsumerWidget {
                           ),
                     ),
                   SettingsTile(
-                    icon: Icons.volume_up_rounded,
+                    emoji: '🔉',
                     title: 'Maximum volume',
-                    subtitle: playerSettings.maxVolumePercent <= 100
-                        ? '100% (no boost)'
-                        : '${playerSettings.maxVolumePercent}% — boost enabled',
+                    value: playerSettings.maxVolumePercent <= 100
+                        ? '100%'
+                        : '${playerSettings.maxVolumePercent}%',
                     onTap: () =>
                         showMaxVolumeDialog(context, ref, playerSettings),
                   ),
                   // The pair splits on metered vs unmetered, not on Wi-Fi:
                   // Ethernet, a VPN tunnel and no link at all take this one.
                   SettingsTile(
-                    icon: Icons.wifi_rounded,
+                    emoji: '📡',
                     title: l10n.unmeteredQualityPreference,
-                    subtitle: qualityPreferenceLabel(
+                    subtitle: 'Wi-Fi / unlimited data',
+                    value: qualityPreferenceLabel(
                       playerSettings.wifiQuality,
                       l10n,
                     ),
@@ -368,9 +414,10 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   SettingsTile(
-                    icon: Icons.signal_cellular_alt_rounded,
+                    emoji: '📱',
                     title: l10n.mobileQualityPreference,
-                    subtitle: qualityPreferenceLabel(
+                    subtitle: 'Cellular data',
+                    value: qualityPreferenceLabel(
                       playerSettings.mobileQuality,
                       l10n,
                     ),
@@ -385,9 +432,9 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   SettingsTile(
-                    icon: Icons.filter_list_rounded,
+                    emoji: '🎚️',
                     title: 'Quality Filter Mode',
-                    subtitle: _qualityFilterModeLabel(
+                    value: _qualityFilterModeLabel(
                       playerSettings.qualityFilterMode,
                     ),
                     onTap: () => showQualityFilterModeDialog(
@@ -400,7 +447,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   SettingsTile(
-                    icon: Icons.tune_rounded,
+                    emoji: '🎛️',
                     title: l10n.playerControls,
                     subtitle: l10n.playerControlsSubtitle,
                     isLast: true,
@@ -408,6 +455,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: LayoutConstants.spacingLg),
               SubtitleAppearanceGroup(settings: playerSettings),
             ],
           ),
@@ -437,6 +485,26 @@ class PlayerSettingsScreen extends ConsumerWidget {
       body: content,
     );
   }
+}
+
+/// The segmented-control style shared by the engine and PiP pickers: the
+/// selected segment is solid gold with dark text, the rest are dark.
+ButtonStyle _segmentedStyle(BuildContext context) {
+  return ButtonStyle(
+    textStyle: WidgetStateProperty.all(const TextStyle(fontSize: 12)),
+    backgroundColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.selected)) {
+        return Theme.of(context).colorScheme.primary;
+      }
+      return null;
+    }),
+    foregroundColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.selected)) {
+        return Theme.of(context).colorScheme.onPrimary;
+      }
+      return null;
+    }),
+  );
 }
 
 /// Whether the hardware-decoding switch reaches a decoder on this platform.

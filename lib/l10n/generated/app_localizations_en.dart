@@ -42,7 +42,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exploreMovies => 'Explore Movies';
 
   @override
+  String get browse => 'Browse';
+
+  @override
+  String get exploreByCategory => 'Explore by category';
+
+  @override
+  String get browseSettingsSubtitle =>
+      'Theme, player, accounts, extensions & more';
+
+  @override
+  String get appSection => 'App';
+
+  @override
   String get library => 'Library';
+
+  @override
+  String get librarySubtitle => 'Your list, history and downloads';
 
   @override
   String get settings => 'Settings';
@@ -94,6 +110,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get titlePositionInsidePoster => 'Inside Poster';
 
   @override
+  String get playback => 'Playback';
+
+  @override
   String get player => 'Player';
 
   @override
@@ -101,6 +120,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playerEngine => 'Player Engine';
+
+  @override
+  String get playerEngineMpv => 'libmpv Golden';
+
+  @override
+  String get playerEngineVlc => 'libVLC';
+
+  @override
+  String get pipModeMpv => 'mpv';
+
+  @override
+  String get pipModeIos => 'iOS';
 
   @override
   String get playerEngineMpvDetail => 'Golden player · PiP on Android';
@@ -741,6 +772,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addRepository => 'Add Repository';
 
   @override
+  String get add => 'Add';
+
+  @override
+  String get extensionsSubtitle =>
+      'CloudStream repos (.cs3), TojiX, Nuvio & Stremio';
+
+  @override
+  String get noZoroxReposYet => 'No ZoroX repos yet';
+
+  @override
+  String get pasteRepoUrlHint =>
+      'Paste a CloudStream repository URL — its .cs3 extensions install from here using the repo.json + .cs3 flow.';
+
+  @override
   String get repoUrlOrShortcode => 'Repository URL or Shortcode';
 
   @override
@@ -757,7 +802,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get browseRepositoriesToInstall =>
-      'Browse the Repositories tab to discover and install extensions.';
+      'Add a repository below to discover and install extensions.';
 
   @override
   String get browseRepositories => 'Browse Repositories';
@@ -1922,6 +1967,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get audioLanguage => 'Audio language';
+
+  @override
+  String get audioSubtitlesAndQuality => 'Audio, Subtitles & Quality';
 
   @override
   String get audioLanguageAuto => 'Auto';

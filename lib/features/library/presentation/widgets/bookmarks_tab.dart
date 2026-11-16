@@ -1,3 +1,8 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:background_downloader/background_downloader.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,10 +10,14 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../core/domain/entity/multimedia_item.dart';
 import '../../../../core/providers/device_info_provider.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/services/download_service.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../../../core/utils/image_fallbacks.dart';
 import '../../../../core/utils/layout_constants.dart';
 import '../../../../core/utils/responsive_breakpoints.dart';
 import '../../../../shared/widgets/multimedia_card.dart';
+import '../../../details/presentation/playback_launcher.dart';
+import '../downloads_provider.dart';
 import '../library_provider.dart';
 
 import '../library_state.dart';
@@ -169,37 +178,53 @@ class _BookmarksTabState extends ConsumerState<BookmarksTab>
       LibraryLoading() => const Center(child: AppLoadingIndicator()),
       LibraryError(message: final msg) => Center(child: Text(msg)),
       LibraryEmpty() => _buildEmpty(context),
-      LibrarySuccess(items: final items) => GridView.builder(
-        padding: const EdgeInsets.fromLTRB(
-          LayoutConstants.spacingMd,
-          LayoutConstants.spacingMd,
-          LayoutConstants.spacingMd,
-          0,
-        ).copyWith(
-          bottom: LayoutConstants.shellBottomContentPadding(context),
-        ),
-        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: totalHeight,
-          childAspectRatio: 2 / 3.4,
-          crossAxisSpacing: LayoutConstants.spacingMd,
-          mainAxisSpacing: LayoutConstants.spacingMd,
-        ),
-        itemCount: items.length,
-        itemBuilder: (context, index) {
-          final item = items[index];
-          return MultimediaCard(
-            key: ValueKey(item.url),
-            // Keyed by URL, not by index: the index is what moves when a
-            // bookmark is added or removed while the viewer is away.
-            focusNode: _focusReturn.nodeFor(item.url),
-            imageUrl:
-                AppImageFallbacks.poster(item.posterUrl, label: item.title) ??
-                '',
-            title: item.title,
-            heroTag: 'lib_bookmark_${item.url}_$index',
-            onTap: () => _openDetails(item),
-          );
-        },
+      LibrarySuccess(items: final items) => CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(
+              LayoutConstants.spacingMd,
+              LayoutConstants.spacingMd,
+              LayoutConstants.spacingMd,
+              0,
+            ),
+            sliver: SliverGrid.builder(
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: totalHeight,
+                childAspectRatio: 2 / 3.4,
+                crossAxisSpacing: LayoutConstants.spacingMd,
+                mainAxisSpacing: LayoutConstants.spacingMd,
+              ),
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index];
+                return MultimediaCard(
+                  key: ValueKey(item.url),
+                  // Keyed by URL, not by index: the index is what moves when a
+                  // bookmark is added or removed while the viewer is away.
+                  focusNode: _focusReturn.nodeFor(item.url),
+                  imageUrl:
+                      AppImageFallbacks.poster(item.posterUrl, label: item.title) ??
+                      '',
+                  title: item.title,
+                  heroTag: 'lib_bookmark_${item.url}_$index',
+                  onTap: () => _openDetails(item),
+                );
+              },
+            ),
+          ),
+          // The preview's DOWNLOADS card, below the grid: the real
+          // downloads, not a placeholder. Hidden when there are none.
+          const SliverToBoxAdapter(child: _DownloadsCard()),
+          // The bottom clearance, as a trailing spacer: a CustomScrollView
+          // takes no padding of its own, so the clearance lives here
+          // (the shell-bottom-clearance test reads it by this key).
+          SliverToBoxAdapter(
+            child: SizedBox(
+              key: const ValueKey('bookmarks_bottom_clearance'),
+              height: LayoutConstants.shellBottomContentPadding(context),
+            ),
+          ),
+        ],
       ),
     };
   }
@@ -219,6 +244,196 @@ class _BookmarksTabState extends ConsumerState<BookmarksTab>
             AppLocalizations.of(context)!.libraryEmpty,
             style: Theme.of(context).textTheme.bodyLarge,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The preview's DOWNLOADS card, below the My List grid: the real
+/// downloads from [downloadsProvider], not a placeholder. Hidden when
+/// there are none. A completed download plays its local file (the same
+/// path the Downloads tab uses); a running or paused one shows its
+/// progress instead — an unfinished file has nothing to play.
+class _DownloadsCard extends ConsumerWidget {
+  const _DownloadsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final downloadsAsync = ref.watch(downloadsProvider);
+    final l10n = AppLocalizations.of(context)!;
+    return downloadsAsync.maybeWhen(
+      data: (downloads) {
+        if (downloads.isEmpty) return const SizedBox.shrink();
+        final theme = Theme.of(context);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            LayoutConstants.spacingMd,
+            LayoutConstants.spacingLg,
+            LayoutConstants.spacingMd,
+            0,
+          ),
+          child: Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(LayoutConstants.spacingMd),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.downloads.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.8,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: LayoutConstants.spacingSm),
+                  for (final download in downloads)
+                    _DownloadRow(item: download),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _DownloadRow extends ConsumerWidget {
+  const _DownloadRow({required this.item});
+
+  final DownloadItem item;
+
+  String _statusText(TaskStatus status, AppLocalizations l10n) {
+    switch (status) {
+      case TaskStatus.enqueued:
+        return l10n.statusQueued;
+      case TaskStatus.running:
+        return l10n.statusDownloading;
+      case TaskStatus.complete:
+        return l10n.statusFinished;
+      case TaskStatus.failed:
+        return l10n.statusFailed;
+      case TaskStatus.canceled:
+        return l10n.statusCanceled;
+      case TaskStatus.paused:
+        return l10n.statusPaused;
+      default:
+        return l10n.statusWaiting;
+    }
+  }
+
+  Future<void> _playLocalFile(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+  ) async {
+    final downloadService = ref.read(downloadServiceProvider);
+    final File? file = await downloadService.getDownloadedFile(
+      item.item,
+      episode: item.episode,
+    );
+
+    if (file == null || !await file.exists()) {
+      if (context.mounted) {
+        ref
+            .read(notificationServiceProvider)
+            .showError(
+              l10n.fileNotFoundRemoving,
+              title: 'Downloads',
+              icon: Icons.folder_off_rounded,
+            );
+      }
+      await ref.read(downloadsProvider.notifier).removeDownload(item);
+      return;
+    }
+
+    if (context.mounted) {
+      unawaited(
+        ref
+            .read(playbackLauncherProvider)
+            .play(
+              context,
+              file.path,
+              baseItem: item.item,
+              episode: item.episode,
+            ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
+    final complete = item.status == TaskStatus.complete;
+    final episode = item.episode;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: CachedNetworkImage(
+              imageUrl:
+                  AppImageFallbacks.poster(
+                    item.item.posterUrl,
+                    label: item.item.title,
+                  ) ??
+                  '',
+              width: 40,
+              height: 60,
+              fit: BoxFit.cover,
+              errorWidget: (_, _, _) => Container(
+                width: 40,
+                height: 60,
+                color: theme.dividerColor,
+                child: const Icon(Icons.movie_outlined),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  episode != null
+                      ? '${item.item.title} — E${episode.episode}'
+                      : item.item.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  complete
+                      ? l10n.statusFinished
+                      : '${_statusText(item.status, l10n)} · ${(item.progress * 100).round()}%',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (!complete) ...[
+                  const SizedBox(height: 6),
+                  LinearProgressIndicator(
+                    value: item.progress.clamp(0.0, 1.0),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (complete)
+            TextButton(
+              onPressed: () => unawaited(_playLocalFile(context, ref, l10n)),
+              child: Text(l10n.play),
+            ),
         ],
       ),
     );

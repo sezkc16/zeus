@@ -320,62 +320,68 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
               _goToPreviousSlide();
             }
           },
-          child: isDesktop
-              ? RepaintBoundary(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      LayoutConstants.dashboardContentPadding,
-                      LayoutConstants.spacingSm,
-                      LayoutConstants.dashboardContentPadding,
-                      0,
-                    ),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        border: _isFocusHighlighted
-                            ? Border.all(
-                                color: Theme.of(context).colorScheme.primary,
-                                width: 2.5,
-                              )
-                            : null,
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: SizedBox(
-                          height: heroHeight,
-                          child: _buildCarouselStack(
-                            heroHeight,
-                            isDesktop: isDesktop,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-              : Padding(
-                  padding: EdgeInsets.zero,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    decoration: BoxDecoration(
-                      border: _isFocusHighlighted
-                          ? Border.all(
-                              color: Theme.of(context).colorScheme.primary,
-                              width: 2.5,
-                            )
-                          : null,
-                    ),
-                    child: SizedBox(
-                      height: heroHeight,
-                      child: _buildCarouselStack(
-                        heroHeight,
-                        isDesktop: isDesktop,
-                      ),
-                    ),
-                  ),
-                ),
+          // The preview hero is a CARD, not full-bleed: rounded corners
+          // and a gold border on every screen (v3). The dots sit BELOW
+          // the card, not overlaid on the backdrop the way v2 had them.
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildHeroCard(context, heroHeight, isDesktop: isDesktop),
+              if (widget.movies.length > 1) ...[
+                const SizedBox(height: 12),
+                _buildProgressIndicators(),
+              ],
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  /// The hero as a card: rounded corners, a gold border, the backdrop
+  /// clipped inside. The border is always present (the preview's gold
+  /// card edge); keyboard/TV focus thickens it instead of adding it.
+  Widget _buildHeroCard(
+    BuildContext context,
+    double heroHeight, {
+    required bool isDesktop,
+  }) {
+    final border = Border.all(
+      color: _isFocusHighlighted
+          ? Theme.of(context).colorScheme.primary
+          : Theme.of(context).colorScheme.primary.withValues(alpha: 0.45),
+      width: _isFocusHighlighted ? 2.5 : 1.0,
+    );
+    final card = AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: border,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: SizedBox(
+          height: heroHeight,
+          child: _buildCarouselStack(heroHeight, isDesktop: isDesktop),
+        ),
+      ),
+    );
+    if (isDesktop) {
+      return RepaintBoundary(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            LayoutConstants.dashboardContentPadding,
+            LayoutConstants.spacingSm,
+            LayoutConstants.dashboardContentPadding,
+            0,
+          ),
+          child: card,
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: card,
     );
   }
 
@@ -428,14 +434,8 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
               )
             : _buildSlideForIndex(height, _currentSlide, isDesktop: isDesktop),
 
-        // Progress bar indicators
-        if (widget.movies.length > 1)
-          Positioned(
-            bottom: 20,
-            left: 0,
-            right: 0,
-            child: RepaintBoundary(child: _buildProgressIndicators()),
-          ),
+        // The dots live below the card now (see build), not overlaid on
+        // the backdrop — v2 had them at bottom: 20 inside the slide.
       ],
     );
   }

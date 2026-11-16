@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zorox/core/cloudstream/cloudstream_repository.dart';
 import 'package:zorox/shared/focus/app_focus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zorox/features/extensions/screens/extensions_screen.dart';
@@ -14,6 +15,26 @@ import 'package:zorox/core/extensions/models/extension_repository.dart';
 import 'package:zorox/core/extensions/base_provider.dart';
 import 'package:zorox/shared/widgets/cards_wrapper.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
+
+/// A CloudStream store that is already loaded: the real one never finishes
+/// loading in the harness (its SharedPreferences / engine-host work has no
+/// test backing), so its section shows the endlessly-morphing loading
+/// spinner and pumpAndSettle never completes. The tests below are about the
+/// ZoroX extension system's UI and focus, not the CloudStream load.
+class _LoadedCloudStream extends CloudStreamRepository {
+  @override
+  CloudStreamState build() => const CloudStreamState(isLoading: false);
+}
+
+/// The single scroll is taller than the default 800x600 test viewport, so
+/// rows below the fold are not built yet (a ListView builds lazily) and a
+/// tap on one of them misses. A tall viewport makes the whole screen
+/// visible, so no test has to scroll first. The framework resets the view
+/// between tests, so nothing has to restore it.
+void _tallViewport(WidgetTester tester) {
+  tester.view.physicalSize = const Size(800, 2400);
+  tester.view.devicePixelRatio = 1.0;
+}
 
 class MockExtensionsController extends ExtensionsController {
   final ExtensionsState initialState;
@@ -56,7 +77,7 @@ class MockExtensionManager extends ExtensionManager {
 
 void main() {
   testWidgets(
-    'ExtensionsScreen displays 2 tabs and guided empty state when no plugins installed',
+    'ExtensionsScreen shows one scroll with the guided empty state when no plugins installed',
     (WidgetTester tester) async {
       final emptyState = ExtensionsSuccess(
         repositories: [
@@ -79,6 +100,9 @@ void main() {
               () => MockExtensionsController(emptyState),
             ),
             extensionManagerProvider.overrideWith(() => MockExtensionManager()),
+            cloudStreamRepositoryProvider.overrideWith(
+              () => _LoadedCloudStream(),
+            ),
           ],
           child: const MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -90,20 +114,26 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // TabBar should be present with 2 tabs by default
-      expect(find.byType(TabBar), findsOneWidget);
-      expect(find.text('Installed'), findsOneWidget);
-      expect(find.text('Repositories'), findsOneWidget);
+      // One scroll, not the fork's Installed / Repositories tabs.
+      expect(find.byType(TabBar), findsNothing);
+      expect(find.byType(TabBarView), findsNothing);
+      expect(find.text('Plugins'), findsOneWidget);
 
-      // Installed tab should present guided empty state
+      // The guided empty state: no installed extensions, and the hint
+      // points at the Add Repository card below (there is no Browse
+      // Repositories button any more — the card is right there).
       expect(find.text('No Extensions Installed'), findsOneWidget);
-      expect(find.text('Browse Repositories'), findsOneWidget);
+      expect(
+        find.text('Add a repository below to discover and install extensions.'),
+        findsOneWidget,
+      );
+      expect(find.widgetWithText(FilledButton, 'Browse Repositories'), findsNothing);
 
-      // Tapping 'Browse Repositories' button switches to Repositories tab
-      await tester.tap(find.text('Browse Repositories'));
-      await tester.pumpAndSettle();
-
-      // Repositories content should now be visible
+      // The inline Add Repository card is on screen, and the repository
+      // is already visible below it — no tab to switch to.
+      expect(find.text('ADD REPOSITORY'), findsOneWidget);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Add'), findsOneWidget);
       expect(find.text('Test Repo'), findsOneWidget);
     },
   );
@@ -140,6 +170,9 @@ void main() {
               () => MockExtensionsController(installedState),
             ),
             extensionManagerProvider.overrideWith(() => MockExtensionManager()),
+            cloudStreamRepositoryProvider.overrideWith(
+              () => _LoadedCloudStream(),
+            ),
           ],
           child: const MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -151,10 +184,9 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // TabBar should be present with 2 tabs
-      expect(find.byType(TabBar), findsOneWidget);
-      expect(find.text('Installed'), findsOneWidget);
-      expect(find.text('Repositories'), findsOneWidget);
+      // One scroll, not the fork's Installed / Repositories tabs.
+      expect(find.byType(TabBar), findsNothing);
+      expect(find.byType(TabBarView), findsNothing);
 
       // Installed plugin list should display the installed plugin exactly once
       expect(find.text('Installed Plugin'), findsOneWidget);
@@ -177,12 +209,14 @@ void _touchTests() {
     // Mac, used with nothing but a finger and a mouse. Focus does land on the
     // cards under a pointer - a header tapped to expand it, a node focused by
     // code written for the remote - and the card lit up for any of it.
+    _tallViewport(tester);
     await tester.pumpWidget(_app(_oneRepository(), visibility: true));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Repositories'));
     await tester.pumpAndSettle();
     final theme = Theme.of(tester.element(find.text('Test Repo')));
 
+    // The single scroll is taller than the test viewport, so scroll the
+    // card (and then its row) into view first — off-screen rows are not
+    // built yet.
     await tester.tap(find.text('Test Repo'));
     await tester.pumpAndSettle();
     await _focusOn(tester, find.text('Test Repo'));
@@ -325,6 +359,9 @@ Widget _app(ExtensionsState state, {bool visibility = false}) => ProviderScope(
       () => MockExtensionsController(state),
     ),
     extensionManagerProvider.overrideWith(() => MockExtensionManager()),
+    cloudStreamRepositoryProvider.overrideWith(
+      () => _LoadedCloudStream(),
+    ),
   ],
   child: MaterialApp(
     localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -464,6 +501,7 @@ void _focusAffordanceTests() {
   testWidgets(
     'a repository card still lights for its own header, then hands over',
     (WidgetTester tester) async {
+      _tallViewport(tester);
       final state = ExtensionsSuccess(
         repositories: [
           ExtensionRepository(
@@ -490,14 +528,14 @@ void _focusAffordanceTests() {
 
       await tester.pumpWidget(_app(state));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Repositories'));
-      await tester.pumpAndSettle();
 
       final theme = Theme.of(tester.element(find.text('Test Repo')));
       final surface = theme.colorScheme.surface;
       final primary = theme.colorScheme.primary;
 
-      // Expand the repository so its plugin rows exist.
+      // Expand the repository so its plugin rows exist. The single scroll
+      // is taller than the test viewport, so scroll the card into view
+      // first — off-screen rows are not built yet.
       await tester.tap(find.text('Test Repo'));
       await tester.pumpAndSettle();
 
@@ -552,7 +590,7 @@ void _focusAffordanceTests() {
 /// from". Both paths below do exactly that, and both are on the one journey a
 /// first-time viewer has to complete before the app can play anything.
 void _tvDeadEndTests() {
-  /// Asserts focus is on a real, live control inside the tab body.
+  /// Asserts focus is on a real, live control inside the screen body.
   void expectFocusInBody(WidgetTester tester) {
     final primary = FocusManager.instance.primaryFocus;
     expect(primary, isNotNull, reason: 'focus was dropped entirely');
@@ -564,14 +602,14 @@ void _tvDeadEndTests() {
     final context = primary!.context;
     expect(context?.mounted, isTrue, reason: 'focused node is not on screen');
 
-    final body = tester.element(find.byType(TabBarView));
+    final body = tester.element(find.byType(ListView));
     var inside = false;
     context!.visitAncestorElements((element) {
       if (element != body) return true;
       inside = true;
       return false;
     });
-    expect(inside, isTrue, reason: 'focus left the tab body');
+    expect(inside, isTrue, reason: 'focus left the screen body');
   }
 
   ExtensionsSuccess empty() => const ExtensionsSuccess(
@@ -600,6 +638,9 @@ void _tvDeadEndTests() {
     overrides: [
       extensionsControllerProvider.overrideWith(() => controller),
       extensionManagerProvider.overrideWith(() => MockExtensionManager()),
+      cloudStreamRepositoryProvider.overrideWith(
+        () => _LoadedCloudStream(),
+      ),
     ],
     child: const MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -608,45 +649,60 @@ void _tvDeadEndTests() {
     ),
   );
 
-  testWidgets('Browse Repositories carries focus into the tab it opens', (
+  testWidgets('the add-repository row carries focus into the dialog it opens', (
     tester,
   ) async {
+    _tallViewport(tester);
     await tester.pumpWidget(hostFor(MutableExtensionsController(empty())));
     await tester.pumpAndSettle();
 
-    // The Installed tab's empty state is this one button, so it is both what
-    // the viewer presses and what the press destroys.
-    final browse = find.widgetWithText(FilledButton, 'Browse Repositories');
-    expect(browse, findsOneWidget);
-    await _focusOn(tester, browse);
+    // Focus is on the inline card's field, a live control in the body.
+    // (The add row itself is a ListTile inside a _FocusableRow whose
+    // Focus cannot request focus, so the field is the control to stand
+    // on here.)
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+    expectFocusInBody(tester);
 
-    await tester.tap(browse);
+    // The ZoroX section's add row is the one control that opens a new
+    // view (the add-repository dialog); opening it must carry focus
+    // into the dialog, not drop it.
+    final add = find.widgetWithText(ListTile, 'Add Repository');
+    expect(add, findsOneWidget);
+    await tester.tap(add);
     await tester.pumpAndSettle();
 
-    expectFocusInBody(tester);
-    expect(find.widgetWithText(FilledButton, 'Add Repository'), findsOneWidget);
+    // The dialog is open and its field holds the focus.
+    expect(find.byType(AlertDialog), findsOneWidget);
+    final primary = FocusManager.instance.primaryFocus;
+    expect(primary, isNotNull, reason: 'focus was dropped entirely');
+    expect(primary!.context?.mounted, isTrue);
   });
 
   testWidgets('adding the first repository does not strand the remote', (
     tester,
   ) async {
+    _tallViewport(tester);
     final controller = MutableExtensionsController(empty());
     await tester.pumpWidget(hostFor(controller));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Browse Repositories'));
+    // Focus is on the inline card's field, a live control in the body.
+    // (The add row itself is a ListTile inside a _FocusableRow whose
+    // Focus cannot request focus, so the field is the control to stand
+    // on here.)
+    await tester.tap(find.byType(TextField));
     await tester.pumpAndSettle();
-
-    final add = find.widgetWithText(FilledButton, 'Add Repository');
-    await _focusOn(tester, add);
     expectFocusInBody(tester);
 
-    // The repository lands. The empty state - and the focused button in it -
-    // is replaced by the list, exactly as it is after a real install.
+    // The repository lands. The empty "No ZoroX repos yet" text is
+    // replaced by the repository card below the field — the field itself
+    // stays, and the focus on it must stay live.
     controller.push(withRepository());
     await tester.pumpAndSettle();
 
-    expect(find.widgetWithText(FilledButton, 'Add Repository'), findsNothing);
+    expect(find.text('Test Repo'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, 'Add Repository'), findsOneWidget);
     expectFocusInBody(tester);
   });
 
@@ -656,18 +712,11 @@ void _tvDeadEndTests() {
     await tester.pumpWidget(hostFor(controller));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Browse Repositories'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Add Repository'));
-    await tester.pumpAndSettle();
-
-    final field = tester.widget<TextField>(
-      find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.byType(TextField),
-      ),
-    );
+    // The preview's inline Add Repository card: its field is the add
+    // flow now, not a dialog's.
+    final field = tester.widget<TextField>(find.byType(TextField));
     expect(field.keyboardType, TextInputType.url);
     expect(field.autocorrect, isFalse);
+    expect(field.enableSuggestions, isFalse);
   });
 }

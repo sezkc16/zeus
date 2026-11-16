@@ -5,13 +5,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/extensions/extension_manager.dart';
+import '../../../core/router/app_router.dart';
+import '../../../core/utils/image_fallbacks.dart';
 import '../../../core/utils/layout_constants.dart';
 import '../../../core/utils/responsive_breakpoints.dart';
+import '../../../shared/widgets/multimedia_card.dart';
 import 'search_history_provider.dart';
 import 'search_provider.dart';
 import 'search_category.dart';
 import '../../../l10n/generated/app_localizations.dart';
-import 'widgets/search_result_section.dart';
 import 'widgets/search_category_chips.dart';
 import 'widgets/search_header_bar.dart';
 import 'widgets/search_suggestion_row.dart';
@@ -37,6 +39,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final FocusNode _firstSuggestionFocusNode = FocusNode();
   final FocusNode _firstResultFocusNode = FocusNode();
   final FocusNode _checksFocusNode = FocusNode();
+
+  /// The results grid's own controller: the D-pad focus-wait reads it to
+  /// tell whether the first result is scrolled away, and a grid — unlike
+  /// the old per-provider horizontal rows — has exactly one scrollable.
+  final ScrollController _resultsScrollController = ScrollController();
 
   /// Whether the recents-and-suggestions panel is covering the results.
   ///
@@ -260,6 +267,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _firstSuggestionFocusNode.dispose();
     _firstResultFocusNode.dispose();
     _checksFocusNode.dispose();
+    _resultsScrollController.dispose();
     super.dispose();
   }
 
@@ -662,25 +670,58 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           return const Center(child: AppLoadingIndicator());
         }
 
+        // The preview's flat grid: every category-filtered result from
+        // every provider in one poster grid (3 columns on mobile, 5 on
+        // widescreen), not a vertical list of per-provider horizontal
+        // rows. The provider grouping is gone with the rows — the grid
+        // keeps each card's provider only for its hero tag and its tap
+        // target, so a result still opens through its own source.
+        final flat = [
+          for (final entry in sections)
+            for (final item in entry.$2) (entry.$1, item),
+        ];
+
         // RepaintBoundary isolates list repaints from the rest of the
         // screen (app bar, background) so each incremental result update
         // only repaints the list — not the entire scaffold.
         return RepaintBoundary(
-          child: ListView.builder(
-            padding: EdgeInsets.only(
-              bottom: LayoutConstants.shellBottomContentPadding(context),
+          child: GridView.builder(
+            controller: _resultsScrollController,
+            padding: EdgeInsets.fromLTRB(
+              16,
+              8,
+              16,
+              LayoutConstants.shellBottomContentPadding(context),
             ),
-            itemCount: sections.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: context.isTabletOrLarger ? 5 : 3,
+              childAspectRatio: 2 / 3.4,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: flat.length,
             itemBuilder: (context, index) {
-              final pResult = sections[index].$1;
-              return SearchResultSection(
-                key: ValueKey(pResult.providerId),
-                providerName: pResult.providerName,
-                providerId: pResult.providerId,
-                results: sections[index].$2,
-                kind: pResult.kind,
-                source: pResult.source,
-                firstCardFocusNode: index == 0 ? _firstResultFocusNode : null,
+              final pResult = flat[index].$1;
+              final item = flat[index].$2;
+              return MultimediaCard(
+                key: ValueKey(item.url),
+                imageUrl: AppImageFallbacks.poster(
+                  item.posterUrl,
+                  label: item.title,
+                ),
+                title: item.title,
+                heroTag: 'search_${pResult.providerId}_${item.url}_$index',
+                focusNode: index == 0 ? _firstResultFocusNode : null,
+                onTap: () {
+                  final source = pResult.source;
+                  if (source != null) {
+                    unawaited(source.open(context, item));
+                    return;
+                  }
+                  DetailsRoute(
+                    $extra: DetailsRouteExtra(item: item),
+                  ).push<void>(context);
+                },
               );
             },
           ),

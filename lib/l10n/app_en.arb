@@ -25,7 +25,24 @@
   "explore": "Explore",
   "exploreAnime": "Explore Anime",
   "exploreMovies": "Explore Movies",
+  "browse": "Browse",
+  "exploreByCategory": "Explore by category",
+  "@exploreByCategory": {
+    "description": "Subtitle under the Browse title: what the screen holds."
+  },
+  "browseSettingsSubtitle": "Theme, player, accounts, extensions & more",
+  "@browseSettingsSubtitle": {
+    "description": "Subtitle of the Settings row on the Browse screen's APP card."
+  },
+  "appSection": "App",
+  "@appSection": {
+    "description": "Header of the APP card on the Browse screen (shown uppercased)."
+  },
   "library": "Library",
+  "librarySubtitle": "Your list, history and downloads",
+  "@librarySubtitle": {
+    "description": "Subtitle under the Library title: what the screen holds."
+  },
   "settings": "Settings",
   "extensions": "Extensions",
   "updateAvailable": "Update Available",
@@ -51,9 +68,29 @@
   "titlePosition": "Title Position",
   "titlePositionBelowPoster": "Below Poster",
   "titlePositionInsidePoster": "Inside Poster",
+  "playback": "Playback",
+  "@playback": {
+    "description": "Player settings group title: the playback group (default player, gestures, PiP)."
+  },
   "player": "Player",
   "defaultPlayer": "Default Player",
   "playerEngine": "Player Engine",
+  "playerEngineMpv": "libmpv Golden",
+  "@playerEngineMpv": {
+    "description": "Label of the libmpv engine segment in Player settings."
+  },
+  "playerEngineVlc": "libVLC",
+  "@playerEngineVlc": {
+    "description": "Label of the libVLC engine segment in Player settings."
+  },
+  "pipModeMpv": "mpv",
+  "@pipModeMpv": {
+    "description": "Label of the mpv PiP-mode segment in Player settings."
+  },
+  "pipModeIos": "iOS",
+  "@pipModeIos": {
+    "description": "Label of the iOS PiP-mode segment in Player settings."
+  },
   "playerEngineMpvDetail": "Golden player · PiP on Android",
   "playerEngineVlcDetail": "PiP on Android & iOS",
   "playerEngineNextVideo": "Takes effect on the next video",
@@ -363,12 +400,28 @@
   },
   "removeRepoWarning": "This will remove the repository and uninstall ALL its plugins.",
   "addRepository": "Add Repository",
+  "add": "Add",
+  "@add": {
+    "description": "Short action label for a confirm button, e.g. adding a repository."
+  },
+  "extensionsSubtitle": "CloudStream repos (.cs3), TojiX, Nuvio & Stremio",
+  "@extensionsSubtitle": {
+    "description": "Subtitle under the Extensions title: which plugin sources the screen lists."
+  },
+  "noZoroxReposYet": "No ZoroX repos yet",
+  "@noZoroxReposYet": {
+    "description": "Empty state of the Extensions > Repositories section: no repository added yet."
+  },
+  "pasteRepoUrlHint": "Paste a CloudStream repository URL — its .cs3 extensions install from here using the repo.json + .cs3 flow.",
+  "@pasteRepoUrlHint": {
+    "description": "Helper text under the Add Repository URL field on the Extensions screen."
+  },
   "repoUrlOrShortcode": "Repository URL or Shortcode",
   "assetPlugin": "Asset Plugin",
   "installed": "Installed",
   "repositories": "Repositories",
   "noExtensionsInstalled": "No Extensions Installed",
-  "browseRepositoriesToInstall": "Browse the Repositories tab to discover and install extensions.",
+  "browseRepositoriesToInstall": "Add a repository below to discover and install extensions.",
   "browseRepositories": "Browse Repositories",
   "addRepoDescription": "Add a repository URL or shortcode to discover and install extension plugins.",
   "updateTo": "Update to {version}",
@@ -1405,6 +1458,10 @@
   "audioLanguage": "Audio language",
   "@audioLanguage": {
     "description": "Player settings row: the language whose audio track a video starts on, when the video has one. A default for newly opened media only - it never stops the viewer choosing a track from the player's Audio menu. Also the title of the dialog the row opens, which lists Auto and then the languages by their English names."
+  },
+  "audioSubtitlesAndQuality": "Audio, Subtitles & Quality",
+  "@audioSubtitlesAndQuality": {
+    "description": "Player settings group title: the audio, subtitles and quality group."
   },
   "audioLanguageAuto": "Auto",
   "@audioLanguageAuto": {

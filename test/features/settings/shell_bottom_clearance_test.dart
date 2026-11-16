@@ -72,6 +72,15 @@ class _QuietSettings extends SettingsRepository {
   @override
   bool getDevLoadAssets() => false;
 
+  // The Developer Options toggle reads this on build (Settings > App Data
+  // & Developer); the base implementation touches the Hive box, which is
+  // never initialised here. Off by default, like a fresh install.
+  @override
+  bool getDevQoeLog() => false;
+
+  @override
+  Future<void> setDevQoeLog(bool enabled) async {}
+
   // The theme variant and accent providers read these on build; the base
   // implementations touch the Hive box, which is never initialised here.
   // Nothing chosen yet → the fresh-install defaults.
@@ -190,8 +199,16 @@ void main() {
     await tester.pump();
   }
 
-  /// The bottom padding of the first [ListView] / [GridView] on screen.
+  /// The bottom padding of the first [ListView] / [GridView] on screen,
+  /// or of the bookmarks grid's trailing clearance spacer.
   double bottomPadding(WidgetTester tester) {
+    // The bookmarks grid is a CustomScrollView (grid + DOWNLOADS card),
+    // and a CustomScrollView takes no padding of its own — its clearance
+    // is a trailing spacer, keyed for this measurement.
+    final spacer = find.byKey(const ValueKey('bookmarks_bottom_clearance'));
+    if (spacer.evaluate().isNotEmpty) {
+      return tester.widget<SizedBox>(spacer).height ?? 0;
+    }
     final list = find.byType(ListView);
     if (list.evaluate().isNotEmpty) {
       final listView = tester.widget<ListView>(list.first);
@@ -199,9 +216,12 @@ void main() {
       return padding.resolve(TextDirection.ltr).bottom;
     }
     final grid = find.byType(GridView);
-    final gridView = tester.widget<GridView>(grid.first);
-    final padding = gridView.padding!;
-    return padding.resolve(TextDirection.ltr).bottom;
+    if (grid.evaluate().isNotEmpty) {
+      final gridView = tester.widget<GridView>(grid.first);
+      final padding = gridView.padding!;
+      return padding.resolve(TextDirection.ltr).bottom;
+    }
+    throw StateError('no scrollable with bottom clearance on screen');
   }
 
   // The standalone routes are what the shell pushes; the embedded variants
@@ -230,6 +250,14 @@ void main() {
   testWidgets('the bookmarks grid clears the shell bottom bar',
       (tester) async {
     await pump(tester, const BookmarksTab());
+    // The clearance is a trailing spacer at the end of the grid, so it
+    // is only built once it is scrolled into view (slivers build lazily).
+    // Scroll to the bottom first, then read it.
+    await tester.drag(
+      find.byType(CustomScrollView),
+      const Offset(0, -10000),
+    );
+    await tester.pump();
     expect(
       bottomPadding(tester),
       kShellBar,

@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/layout_constants.dart';
-import '../../../core/theme/theme_provider.dart';
 import '../../../core/theme/theme_variant.dart';
+import '../../../core/services/notification_service.dart';
 
 import 'widgets/settings_widgets.dart';
 import 'widgets/settings_dialogs.dart';
@@ -12,6 +12,7 @@ import 'widgets/accent_color_picker.dart';
 import 'full_screen_mode_provider.dart';
 import 'general_settings_provider.dart';
 import 'app_version_provider.dart';
+import 'developer_options_provider.dart';
 
 import 'package:zorox/l10n/generated/app_localizations.dart';
 
@@ -28,7 +29,6 @@ class SettingsScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
 
     final versionAsync = ref.watch(appVersionProvider);
-    final themeMode = ref.watch(appThemeModeProvider);
     final themeVariant = ref.watch(themeVariantProvider);
     final generalSettings = ref.watch(generalSettingsProvider);
 
@@ -61,7 +61,6 @@ class SettingsScreen extends ConsumerWidget {
                   context,
                   ref,
                   l10n,
-                  themeMode,
                   themeVariant,
                   generalSettings,
                 ),
@@ -69,20 +68,27 @@ class SettingsScreen extends ConsumerWidget {
                 SettingsGroup(
                   title: l10n.extensions,
                   children: [
-                    // v20+37: the ZoroX Providers and CloudStream
-                    // Extensions rows are gone from Settings — the
-                    // Providers screen lives on the bottom-nav Plugins tab
-                    // only. Nuvio Plugins and Stremio Add-ons stay.
+                    // The design preview's Extensions card: CloudStream
+                    // Repos (.cs3) first, then Nuvio and Stremio. No
+                    // SkyStream Repos row — the user said nothing
+                    // SkyStream-related, and the preview's Extensions card
+                    // has no SkyStream row either.
                     SettingsTile(
-                      icon: Icons.hub_rounded,
+                      emoji: '🧩',
+                      title: 'CloudStream Repos (.cs3)',
+                      subtitle: 'TojiX repo & official CloudStream repo',
+                      onTap: () => const ExtensionsRoute().go(context),
+                    ),
+                    SettingsTile(
+                      emoji: '🔌',
                       title: 'Nuvio Plugins',
-                      subtitle: 'Manage and configure Nuvio scrapers',
+                      subtitle: 'Manage installed Nuvio plugins',
                       onTap: () => const NuvioPluginsRoute().go(context),
                     ),
                     SettingsTile(
-                      icon: Icons.dashboard_customize_rounded,
+                      emoji: '🧲',
                       title: 'Stremio Add-ons',
-                      subtitle: 'Manage and discover installed add-ons',
+                      subtitle: 'Manage installed Stremio add-ons',
                       isLast: true,
                       onTap: () => const AddonsRoute().go(context),
                     ),
@@ -91,7 +97,7 @@ class SettingsScreen extends ConsumerWidget {
                 const SizedBox(height: LayoutConstants.spacingLg),
                 _buildAppDataSettingsGroup(context, ref, l10n),
                 const SizedBox(height: LayoutConstants.spacingLg),
-                _buildAboutSettingsGroup(context, l10n, versionAsync),
+                _buildAboutSettingsGroup(context, ref, l10n, versionAsync),
               ],
             ),
           ),
@@ -104,7 +110,6 @@ class SettingsScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     AppLocalizations l10n,
-    ThemeMode themeMode,
     ZoroxThemeVariant themeVariant,
     GeneralSettings generalSettings,
   ) {
@@ -112,39 +117,77 @@ class SettingsScreen extends ConsumerWidget {
     return SettingsGroup(
       title: l10n.general,
       children: [
-        SettingsTile(
-          icon: Icons.dark_mode_rounded,
-          title: l10n.appTheme,
-          subtitle: themeMode == ThemeMode.system
-              ? l10n.system
-              : (themeMode == ThemeMode.dark ? l10n.dark : l10n.light),
-          onTap: () => showThemeDialog(context, ref, themeMode),
+        // App Theme as one segmented control — the design preview's
+        // "App Theme" block: Midnight | Arena Gold | Frost | Liquid Glass.
+        // The four variants already cover dark/light (Frost is the light
+        // one), so the separate Dark/Light App Theme row is gone; picking
+        // a variant flips the mode to match its brightness.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.appTheme,
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<ZoroxThemeVariant>(
+                segments: [
+                  for (final variant in ZoroxThemeVariant.values)
+                    ButtonSegment<ZoroxThemeVariant>(
+                      value: variant,
+                      label: Text(variant.label),
+                    ),
+                ],
+                selected: {themeVariant},
+                onSelectionChanged: (selection) {
+                  final variant = selection.firstOrNull;
+                  if (variant == null) return;
+                  ref
+                      .read(themeVariantProvider.notifier)
+                      .setVariant(variant);
+                },
+                style: ButtonStyle(
+                  textStyle: WidgetStateProperty.all(
+                    const TextStyle(fontSize: 12),
+                  ),
+                  backgroundColor: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.selected)) {
+                      return Theme.of(context).colorScheme.primary;
+                    }
+                    return null;
+                  }),
+                  foregroundColor: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.selected)) {
+                      return Theme.of(context).colorScheme.onPrimary;
+                    }
+                    return null;
+                  }),
+                ),
+              ),
+            ],
+          ),
         ),
-        // Named theme variant (Midnight / Arena Gold / Frost / Liquid
-        // Glass). Sits right under the App Theme tile — it is the
-        // theme's look, not a separate section. Picking one applies it
-        // at once (the mode flips to match its brightness).
-        SettingsTile(
-          icon: Icons.palette_rounded,
-          title: l10n.themeStyle,
-          subtitle: themeVariant.label,
-          onTap: () => showThemeVariantDialog(context, ref, themeVariant),
-        ),
-        // Accent color (ZoroX v7): Gold by default, 8 presets. Sits right
-        // under the Theme tile — it is the theme's accent, not a separate
-        // section.
+        // Accent color (Gold by default, 8 presets) — the preview's
+        // swatch row, right under the theme control.
         const AccentColorPicker(),
         SettingsTile(
-          icon: Icons.translate_rounded,
+          emoji: '🌐',
           title: l10n.language,
-          subtitle: l10n.languageName,
+          subtitle: 'App & metadata language',
+          value: l10n.languageName,
           onTap: () =>
               showLanguageDialog(context, ref, ref.read(localeProvider)),
         ),
         SettingsTile(
-          icon: Icons.home_rounded,
+          emoji: '🏠',
           title: l10n.defaultHomeScreen,
-          subtitle: getHomeScreenLabel(generalSettings.defaultHomeScreen, l10n),
+          subtitle: 'Tab shown on launch',
+          value: getHomeScreenLabel(generalSettings.defaultHomeScreen, l10n),
           onTap: () => showDefaultHomeScreenDialog(
             context,
             ref,
@@ -152,11 +195,9 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          icon: Icons.history_rounded,
+          emoji: '🕘',
           title: l10n.recordWatchHistory,
-          subtitle: generalSettings.watchHistoryEnabled
-              ? l10n.enabled
-              : l10n.disabled,
+          subtitle: 'Keep Continue Watching & progress',
           trailing: Switch(
             value: generalSettings.watchHistoryEnabled,
             onChanged: (val) => ref
@@ -168,9 +209,10 @@ class SettingsScreen extends ConsumerWidget {
               .setWatchHistoryEnabled(!generalSettings.watchHistoryEnabled),
         ),
         SettingsTile(
-          icon: Icons.title_rounded,
+          emoji: '🔤',
           title: l10n.titlePosition,
-          subtitle: getTitlePositionLabel(generalSettings.titlePosition, l10n),
+          subtitle: 'Where titles sit on posters',
+          value: getTitlePositionLabel(generalSettings.titlePosition, l10n),
           onTap: () => showTitlePositionDialog(
             context,
             ref,
@@ -195,15 +237,15 @@ class SettingsScreen extends ConsumerWidget {
                 .setEnabled(!fullScreenModeEnabled),
           ),
         SettingsTile(
-          icon: Icons.play_circle_outline_rounded,
+          emoji: '▶️',
           title: l10n.player,
-          subtitle: 'Default player, gestures, decoding & quality',
+          subtitle: 'Engine, gestures, subtitles, quality',
           onTap: () => const PlayerSettingsRoute().go(context),
         ),
         SettingsTile(
-          icon: Icons.manage_accounts_rounded,
+          emoji: '👤',
           title: '${l10n.accounts}, ${l10n.network} & ${l10n.downloads}',
-          subtitle: 'Subtitles, tracking, network, DNS & downloads',
+          subtitle: 'Trakt, Simkl, subtitle accounts, DNS, downloads',
           isLast: true,
           onTap: () => const AccountSettingsRoute().go(context),
         ),
@@ -216,41 +258,54 @@ class SettingsScreen extends ConsumerWidget {
     WidgetRef ref,
     AppLocalizations l10n,
   ) {
+    final developerOptionsEnabled = ref.watch(developerOptionsProvider);
     return SettingsGroup(
       title: '${l10n.appData} & ${l10n.developer}',
       children: [
         if (!kIsWeb)
           SettingsTile(
-            icon: Icons.cleaning_services_rounded,
+            emoji: '🧹',
             title: l10n.clearCache,
             subtitle: ref
                 .watch(cacheSizeProvider)
                 .when(
                   data: (bytes) =>
-                      '${l10n.clearCacheSubtitle} • ${_formatBytes(bytes)}',
+                      'Posters & temporary files • ${_formatBytes(bytes)}',
                   loading: () => l10n.calculating,
                   error: (_, _) => l10n.clearCacheSubtitle,
                 ),
             onTap: () => showClearCacheDialog(context, ref),
           ),
         SettingsTile(
-          icon: Icons.restore_rounded,
+          emoji: '↺',
           title: l10n.resetDataKeepExtensions,
-          subtitle: l10n.resetDataSubtitle,
+          subtitle: 'Reset settings & library, keep extensions',
           onTap: () => showResetDataDialog(context, ref),
         ),
         SettingsTile(
-          icon: Icons.delete_forever_rounded,
+          emoji: '⚠️',
           title: l10n.factoryReset,
-          subtitle: l10n.factoryResetSubtitle,
+          subtitle: 'Erase everything and start fresh',
+          danger: true,
           onTap: () => showFactoryResetDialog(context, ref),
         ),
+        // The preview shows Developer Options as a gold toggle (OFF by
+        // default) — it turns the QoE stats overlay and debug logging on.
+        // The Developer Options screen still holds the rest of the tools.
         SettingsTile(
-          icon: Icons.developer_mode_rounded,
+          emoji: '🛠️',
           title: l10n.developerOptions,
-          subtitle: l10n.developerOptionsSubtitle,
+          subtitle: 'Logs, QoE stats overlay, debug info',
           isLast: true,
-          onTap: () => const DeveloperOptionsRoute().go(context),
+          trailing: Switch(
+            value: developerOptionsEnabled,
+            onChanged: (val) => ref
+                .read(developerOptionsProvider.notifier)
+                .setEnabled(val),
+          ),
+          onTap: () => ref
+              .read(developerOptionsProvider.notifier)
+              .setEnabled(!developerOptionsEnabled),
         ),
       ],
     );
@@ -258,6 +313,7 @@ class SettingsScreen extends ConsumerWidget {
 
   Widget _buildAboutSettingsGroup(
     BuildContext context,
+    WidgetRef ref,
     AppLocalizations l10n,
     AsyncValue<String> versionAsync,
   ) {
@@ -265,18 +321,34 @@ class SettingsScreen extends ConsumerWidget {
       title: l10n.about,
       children: [
         SettingsTile(
-          icon: Icons.person_outline_rounded,
+          emoji: '👨‍💻',
           title: l10n.developer,
-          subtitle: l10n.developedBy('Toji'),
+          subtitle: 'Made by Toji',
+          trailing: const SizedBox.shrink(),
           onTap: () => showDeveloperDialog(context),
         ),
-        // No Discord / Telegram tiles here: the invites the fork shipped
-        // opened SkyStream's own servers, and this app is not SkyStream's.
-        // They come back only when ZoroX has its own community links.
-        // GPL-3.0 asks an interactive program to show its legal notices. The
-        // page lists ZoroX's licence beside every dependency's.
+        // Discord / Telegram rows are shown per the design, but they do
+        // NOT link to SkyStream's servers (the invites the fork shipped)
+        // — tapping one says "coming soon" until ZoroX has its own
+        // community links.
         SettingsTile(
-          icon: Icons.gavel_rounded,
+          emoji: '💬',
+          title: 'Discord',
+          subtitle: 'Join the community server',
+          onTap: () => _showCommunityComingSoon(context, ref, 'Discord'),
+        ),
+        SettingsTile(
+          emoji: '✈️',
+          title: 'Telegram',
+          subtitle: 'Updates & support channel',
+          onTap: () => _showCommunityComingSoon(context, ref, 'Telegram'),
+        ),
+        // GPL-3.0 asks an interactive program to show its legal notices. The
+        // page lists ZoroX's licence beside every dependency's. The row's
+        // subtitle IS the notice (not a dependency list) — the GPL wants
+        // it visible here, and the licences test reads it off this row.
+        SettingsTile(
+          emoji: '📄',
           title: l10n.openSourceLicences,
           subtitle: l10n.openSourceLicencesSubtitle,
           onTap: () => showLicensePage(
@@ -287,17 +359,29 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          icon: Icons.info_outline_rounded,
+          emoji: '🏷️',
           title: l10n.version,
-          subtitle: versionAsync.when(
+          subtitle: 'ZoroX for iOS',
+          value: versionAsync.when(
             data: (v) => v,
             loading: () => l10n.loading,
             error: (err, stack) => l10n.unknown,
           ),
-          trailing: const SizedBox.shrink(),
+          showChevron: false,
           isLast: true,
         ),
       ],
+    );
+  }
+
+  void _showCommunityComingSoon(
+    BuildContext context,
+    WidgetRef ref,
+    String name,
+  ) {
+    ref.read(notificationServiceProvider).showInfo(
+      '$name community links are coming soon.',
+      title: name,
     );
   }
 }

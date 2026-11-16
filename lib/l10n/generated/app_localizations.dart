@@ -237,11 +237,41 @@ abstract class AppLocalizations {
   /// **'Explore Movies'**
   String get exploreMovies;
 
+  /// No description provided for @browse.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse'**
+  String get browse;
+
+  /// Subtitle under the Browse title: what the screen holds.
+  ///
+  /// In en, this message translates to:
+  /// **'Explore by category'**
+  String get exploreByCategory;
+
+  /// Subtitle of the Settings row on the Browse screen's APP card.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme, player, accounts, extensions & more'**
+  String get browseSettingsSubtitle;
+
+  /// Header of the APP card on the Browse screen (shown uppercased).
+  ///
+  /// In en, this message translates to:
+  /// **'App'**
+  String get appSection;
+
   /// No description provided for @library.
   ///
   /// In en, this message translates to:
   /// **'Library'**
   String get library;
+
+  /// Subtitle under the Library title: what the screen holds.
+  ///
+  /// In en, this message translates to:
+  /// **'Your list, history and downloads'**
+  String get librarySubtitle;
 
   /// No description provided for @settings.
   ///
@@ -339,6 +369,12 @@ abstract class AppLocalizations {
   /// **'Inside Poster'**
   String get titlePositionInsidePoster;
 
+  /// Player settings group title: the playback group (default player, gestures, PiP).
+  ///
+  /// In en, this message translates to:
+  /// **'Playback'**
+  String get playback;
+
   /// No description provided for @player.
   ///
   /// In en, this message translates to:
@@ -356,6 +392,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Player Engine'**
   String get playerEngine;
+
+  /// Label of the libmpv engine segment in Player settings.
+  ///
+  /// In en, this message translates to:
+  /// **'libmpv Golden'**
+  String get playerEngineMpv;
+
+  /// Label of the libVLC engine segment in Player settings.
+  ///
+  /// In en, this message translates to:
+  /// **'libVLC'**
+  String get playerEngineVlc;
+
+  /// Label of the mpv PiP-mode segment in Player settings.
+  ///
+  /// In en, this message translates to:
+  /// **'mpv'**
+  String get pipModeMpv;
+
+  /// Label of the iOS PiP-mode segment in Player settings.
+  ///
+  /// In en, this message translates to:
+  /// **'iOS'**
+  String get pipModeIos;
 
   /// No description provided for @playerEngineMpvDetail.
   ///
@@ -1527,6 +1587,30 @@ abstract class AppLocalizations {
   /// **'Add Repository'**
   String get addRepository;
 
+  /// Short action label for a confirm button, e.g. adding a repository.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get add;
+
+  /// Subtitle under the Extensions title: which plugin sources the screen lists.
+  ///
+  /// In en, this message translates to:
+  /// **'CloudStream repos (.cs3), TojiX, Nuvio & Stremio'**
+  String get extensionsSubtitle;
+
+  /// Empty state of the Extensions > Repositories section: no repository added yet.
+  ///
+  /// In en, this message translates to:
+  /// **'No ZoroX repos yet'**
+  String get noZoroxReposYet;
+
+  /// Helper text under the Add Repository URL field on the Extensions screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste a CloudStream repository URL — its .cs3 extensions install from here using the repo.json + .cs3 flow.'**
+  String get pasteRepoUrlHint;
+
   /// No description provided for @repoUrlOrShortcode.
   ///
   /// In en, this message translates to:
@@ -1560,7 +1644,7 @@ abstract class AppLocalizations {
   /// No description provided for @browseRepositoriesToInstall.
   ///
   /// In en, this message translates to:
-  /// **'Browse the Repositories tab to discover and install extensions.'**
+  /// **'Add a repository below to discover and install extensions.'**
   String get browseRepositoriesToInstall;
 
   /// No description provided for @browseRepositories.
@@ -3533,6 +3617,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Audio language'**
   String get audioLanguage;
+
+  /// Player settings group title: the audio, subtitles and quality group.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio, Subtitles & Quality'**
+  String get audioSubtitlesAndQuality;
 
   /// The first choice in the audioLanguage dialog, and the shipped default. 'Auto' means the app does not interfere: whatever audio track the source selects is what plays.
   ///

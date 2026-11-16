@@ -129,10 +129,10 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
               const ZoroxAccountSection(),
               const SizedBox(height: LayoutConstants.spacingLg),
               SettingsGroup(
-                title: l10n.accounts,
+                title: 'Subtitle Accounts',
                 children: [
                   SettingsTile(
-                    icon: Icons.subtitles_rounded,
+                    emoji: '💬',
                     title: l10n.openSubtitles,
                     // A stored username is not a session: with no API key the
                     // provider returns nothing before it sends a request, so
@@ -142,6 +142,9 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                         : playerSettings.osUsername.isNotEmpty
                         ? l10n.loggedInAs(playerSettings.osUsername)
                         : l10n.notLoggedIn,
+                    value: playerSettings.hasOpenSubtitlesKey
+                        ? 'Active'
+                        : 'Connect',
                     onTap: () => showOpenSubtitlesAuthDialog(
                       context,
                       ref,
@@ -149,23 +152,36 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                     ),
                   ),
                   SettingsTile(
-                    icon: Icons.vpn_key_rounded,
+                    emoji: '💬',
                     title: l10n.subDl,
                     subtitle: playerSettings.subdlApiKey.isNotEmpty
                         ? l10n.apiKeyConfigured
                         : l10n.keyNotSet,
+                    value: playerSettings.subdlApiKey.isNotEmpty
+                        ? 'Active'
+                        : 'Connect',
                     onTap: () =>
                         showSubDlAuthDialog(context, ref, playerSettings),
                   ),
                   SettingsTile(
-                    icon: Icons.vpn_key_rounded,
+                    emoji: '💬',
                     title: l10n.subSource,
                     subtitle: playerSettings.subsourceApiKey.isNotEmpty
                         ? l10n.apiKeyConfigured
                         : l10n.keyNotSet,
+                    value: playerSettings.subsourceApiKey.isNotEmpty
+                        ? 'Active'
+                        : 'Connect',
+                    isLast: true,
                     onTap: () =>
                         showSubSourceAuthDialog(context, ref, playerSettings),
                   ),
+                ],
+              ),
+              const SizedBox(height: LayoutConstants.spacingLg),
+              SettingsGroup(
+                title: 'Tracking & Sync',
+                children: [
                   Consumer(
                     builder: (context, ref, _) {
                       final trackingAuthAsync = ref.watch(trackingAuthProvider);
@@ -174,15 +190,19 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                         children: [
                           SettingsTile(
                             focusNode: _simklFocusNode,
-                            icon: Icons.sync_rounded,
+                            emoji: '📊',
                             title: 'Simkl',
                             subtitle: trackingAuthAsync.when(
                               data: (state) => state['simkl'] == true
-                                  ? 'Connected'
+                                  ? 'Connected · sync on'
                                   : l10n.notLoggedIn,
                               loading: () => l10n.loading,
                               error: (_, _) => l10n.unknown,
                             ),
+                            value:
+                                trackingAuthAsync.value?['simkl'] == true
+                                ? 'Active'
+                                : 'Connect',
                             onTap: () async {
                               final state = trackingAuthAsync.value ?? {};
                               if (state['simkl'] == true) {
@@ -276,15 +296,19 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                           ),
                           SettingsTile(
                             focusNode: _traktFocusNode,
-                            icon: Icons.sync_rounded,
+                            emoji: '📺',
                             title: 'Trakt',
                             subtitle: trackingAuthAsync.when(
                               data: (state) => state['trakt'] == true
-                                  ? 'Connected'
+                                  ? 'Connected · sync on'
                                   : l10n.notLoggedIn,
                               loading: () => l10n.loading,
                               error: (_, _) => l10n.unknown,
                             ),
+                            value:
+                                trackingAuthAsync.value?['trakt'] == true
+                                ? 'Active'
+                                : 'Connect',
                             onTap: () async {
                               final state = trackingAuthAsync.value ?? {};
                               if (state['trakt'] == true) {
@@ -378,15 +402,19 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                           ),
                           SettingsTile(
                             focusNode: _malFocusNode,
-                            icon: Icons.sync_rounded,
+                            emoji: '🍥',
                             title: 'MyAnimeList',
                             subtitle: trackingAuthAsync.when(
                               data: (state) => state['mal'] == true
-                                  ? 'Connected'
+                                  ? 'Connected · sync on'
                                   : l10n.notLoggedIn,
                               loading: () => l10n.loading,
                               error: (_, _) => l10n.unknown,
                             ),
+                            value:
+                                trackingAuthAsync.value?['mal'] == true
+                                ? 'Active'
+                                : 'Connect',
                             onTap: () async {
                               final state = trackingAuthAsync.value ?? {};
                               if (state['mal'] == true) {
@@ -435,15 +463,19 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                           ),
                           SettingsTile(
                             focusNode: _anilistFocusNode,
-                            icon: Icons.sync_rounded,
+                            emoji: '📘',
                             title: 'AniList',
                             subtitle: trackingAuthAsync.when(
                               data: (state) => state['anilist'] == true
-                                  ? 'Connected'
+                                  ? 'Connected · sync on'
                                   : l10n.notLoggedIn,
                               loading: () => l10n.loading,
                               error: (_, _) => l10n.unknown,
                             ),
+                            value:
+                                trackingAuthAsync.value?['anilist'] == true
+                                ? 'Active'
+                                : 'Connect',
                             isLast: true,
                             onTap: () async {
                               final state = trackingAuthAsync.value ?? {};
@@ -504,20 +536,21 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                 title: 'Integrations & Metadata',
                 children: [
                   SettingsTile(
-                    icon: Icons.vpn_key_rounded,
+                    emoji: '🔑',
                     title: 'TMDB API key',
-                    subtitle: generalSettings.tmdbApiKey.isNotEmpty
-                        ? 'Custom key saved'
+                    subtitle: 'Posters, logos & metadata',
+                    value: generalSettings.tmdbApiKey.isNotEmpty
+                        ? 'Custom key'
                         : (TmdbConfig.buildTimeApiKey.isNotEmpty
-                              ? 'Using built-in key'
-                              : 'Not set — Stream and Explore need this'),
+                              ? 'Built-in key'
+                              : 'Not set'),
                     onTap: () => showTmdbApiKeyDialog(context, ref),
                   ),
                   SettingsTile(
-                    icon: Icons.fast_forward_rounded,
+                    emoji: '⏩',
                     title: 'AnimeSkip',
                     isBeta: true,
-                    subtitle: 'Automatically fetch skip segments for Anime (requires AniList authentication)',
+                    subtitle: 'Skip segments for Anime',
                     trailing: Switch(
                       value: settingsRepo.isAnimeSkipIntegrationEnabled(),
                       onChanged: (val) {
@@ -534,10 +567,10 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                     },
                   ),
                   SettingsTile(
-                    icon: Icons.fast_forward_rounded,
+                    emoji: '⏩',
                     title: 'IntroDB',
                     isBeta: true,
-                    subtitle: 'Automatically fetch skip segments for TV Shows',
+                    subtitle: 'Skip segments for TV Shows',
                     isLast: true,
                     trailing: Switch(
                       value: settingsRepo.isIntroDbIntegrationEnabled(),
@@ -571,11 +604,9 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           SettingsTile(
-                            icon: Icons.dns_rounded,
+                            emoji: '🔒',
                             title: l10n.dnsOverHttps,
-                            subtitle: dohState.enabled
-                                ? '${l10n.on} (${getDohProviderLabel(dohState.provider, dohState.customUrl, l10n)})'
-                                : l10n.off,
+                            subtitle: 'Encrypt DNS lookups',
                             trailing: Switch(
                               value: dohState.enabled,
                               onChanged: (val) {
@@ -592,9 +623,9 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                           ),
                           if (dohState.enabled)
                             SettingsTile(
-                              icon: Icons.cloud_rounded,
+                              emoji: '🌐',
                               title: l10n.dohProvider,
-                              subtitle: getDohProviderLabel(
+                              value: getDohProviderLabel(
                                 dohState.provider,
                                 dohState.customUrl,
                                 l10n,
@@ -606,9 +637,10 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                           // the old toggle only ever meant jsDelivr, which
                           // is one of the choices now.
                           SettingsTile(
-                            icon: Icons.alt_route_rounded,
+                            emoji: '🐙',
                             title: l10n.githubProxy,
-                            subtitle: githubProxyLabel(generalSettings),
+                            subtitle: 'For repo & extension downloads',
+                            value: githubProxyLabel(generalSettings),
                             isLast: true,
                             onTap: () =>
                                 showGithubProxyDialog(context, ref),
@@ -624,11 +656,11 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                 title: l10n.downloads,
                 children: [
                   SettingsTile(
-                    icon: Icons.folder_copy_rounded,
+                    emoji: '📁',
                     title: 'Download location',
-                    subtitle:
+                    value:
                         generalSettings.downloadDirectory ??
-                        'System Downloads/ZoroX',
+                        'On My iPhone › ZoroX',
                     onTap: () => showDownloadLocationDialog(
                       context,
                       ref,
@@ -636,10 +668,9 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                     ),
                   ),
                   SettingsTile(
-                    icon: Icons.sync_alt_rounded,
+                    emoji: '⏬',
                     title: 'Parallel downloads',
-                    subtitle:
-                        '${generalSettings.downloadConcurrency} simultaneous active download${generalSettings.downloadConcurrency > 1 ? 's' : ''}',
+                    value: '${generalSettings.downloadConcurrency}',
                     onTap: () => showDownloadConcurrencyDialog(
                       context,
                       ref,
@@ -647,11 +678,11 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                     ),
                   ),
                   SettingsTile(
-                    icon: Icons.splitscreen_rounded,
+                    emoji: '🧩',
                     title: 'Download segments per file',
-                    subtitle: generalSettings.downloadChunks == 1
-                        ? 'Single connection (Off)'
-                        : '${generalSettings.downloadChunks} parallel segments per file',
+                    value: generalSettings.downloadChunks == 1
+                        ? 'Off'
+                        : '${generalSettings.downloadChunks}',
                     isLast: true,
                     onTap: () =>
                         showDownloadChunksDialog(context, ref, generalSettings),

@@ -204,22 +204,57 @@ void main() {
       }
     });
 
-    test('the monochrome pair still pins primary in the dark variants', () {
+    test('the lightest preset pins primary in the dark variants', () {
+      // Silver is achromatic: fromSeed would collapse it onto the same
+      // light blue as Blue (0xFF9ECAFC vs 0xFF9DCBFB), so the pin makes
+      // the app actually silver. (White / Black retired in v3, 2.9.19+59;
+      // the pin covers any near-achromatic seed.)
       for (final variant in [
         ZoroxThemeVariant.arenaGold,
         ZoroxThemeVariant.midnight,
         ZoroxThemeVariant.liquidGlass,
       ]) {
-        for (final accent in [ZoroxAccent.white, ZoroxAccent.black]) {
-          final theme = AppTheme.createDarkTheme(
+        final theme = AppTheme.createDarkTheme(
+          null,
+          seedColor: ZoroxAccent.silver.color,
+          variant: variant,
+        );
+        expect(
+          theme.colorScheme.primary,
+          ZoroxAccent.silver.color,
+          reason: 'silver on ${variant.name}',
+        );
+      }
+    });
+
+    test('the darkest preset still recolors in the dark variants', () {
+      // Violet is chromatic, so it keeps the tonal primary (a light
+      // lavender, not the seed) — but it must be its own colour, not
+      // the neutral ramp's: the failure this guards is the extremes
+      // collapsing onto one another.
+      for (final variant in [
+        ZoroxThemeVariant.arenaGold,
+        ZoroxThemeVariant.midnight,
+        ZoroxThemeVariant.liquidGlass,
+      ]) {
+        final theme = AppTheme.createDarkTheme(
+          null,
+          seedColor: ZoroxAccent.violet.color,
+          variant: variant,
+        );
+        final primary = theme.colorScheme.primary;
+        for (final other in ZoroxAccent.values.where(
+          (a) => a != ZoroxAccent.violet,
+        )) {
+          final otherTheme = AppTheme.createDarkTheme(
             null,
-            seedColor: accent.color,
+            seedColor: other.color,
             variant: variant,
           );
           expect(
-            theme.colorScheme.primary,
-            accent.color,
-            reason: '${accent.name} on ${variant.name}',
+            primary,
+            isNot(otherTheme.colorScheme.primary),
+            reason: 'violet vs ${other.name} on ${variant.name}',
           );
         }
       }

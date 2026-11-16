@@ -482,6 +482,43 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
                 // a render object between the Stack and the Positioned
                 // throws "Incorrect use of ParentDataWidget" on every
                 // frame and freezes the app — that was +15..+19.
+                //
+                // The solid backing plate below is a SIBLING Positioned,
+                // not a wrapper: it paints behind the nav and does not
+                // touch its ParentData. The package's glass refracts
+                // whatever is behind it, and v2's pill was translucent
+                // enough that row headers showed through it distorted
+                // (the "Top Movies in 4K" bleed). The plate is the pill's
+                // exact footprint in solid #101014 (see
+                // [CustomBottomNavBar.pillBackingColor]), so the glass
+                // samples a solid colour and the pill reads as opaque —
+                // nothing can show through it, however far the list
+                // scrolls. Hidden with the pill on the Settings branch.
+                if (showNavBar)
+                  Positioned(
+                    left: CustomBottomNavBar.pillHorizontalMargin(context),
+                    right: CustomBottomNavBar.pillHorizontalMargin(context),
+                    bottom:
+                        CustomBottomNavBar.navPaddingBottom(context) +
+                        CustomBottomNavBar.pillBottomMargin,
+                    height: CustomBottomNavBar.pillHeight,
+                    child: DecoratedBox(
+                      decoration: ShapeDecoration(
+                        // The package's pill shape is a rounded
+                        // superellipse of radius 34; its outlined
+                        // equivalent is Flutter's RoundedSuperellipseBorder
+                        // (the class itself is not exported by the package
+                        // barrel). The glass is a shader tint, not a solid
+                        // fill, so the plate underneath is the opacity.
+                        shape: RoundedSuperellipseBorder(
+                          borderRadius: BorderRadius.circular(
+                            CustomBottomNavBar.pillBorderRadius,
+                          ),
+                        ),
+                        color: CustomBottomNavBar.pillBackingColor,
+                      ),
+                    ),
+                  ),
                 if (showNavBar)
                   MediaQuery(
                     data: mq.copyWith(

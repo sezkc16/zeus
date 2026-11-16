@@ -174,18 +174,20 @@ void main() {
   /// questions are that it is there and that it reads back the value in force
   /// rather than a fixed word. Read off the [SettingsTile] rather than by
   /// finding the text: "Auto" is also what the default-player row says, and a
-  /// bare text finder cannot tell the two rows apart.
+  /// bare text finder cannot tell the two rows apart. The value lives in the
+  /// tile's right-aligned `value` slot (the preview's layout), not the
+  /// fork's `subtitle` slot.
   String subtitleDefaultRow(WidgetTester tester) => tester
       .widgetList<SettingsTile>(find.byType(SettingsTile, skipOffstage: false))
       .firstWhere((SettingsTile tile) => tile.title == l10n.subtitleDefault)
-      .subtitle!;
+      .value!;
 
   /// The audio language row, read the way [subtitleDefaultRow] is: "Auto"
   /// is also what other rows say.
   String audioLanguageRow(WidgetTester tester) => tester
       .widgetList<SettingsTile>(find.byType(SettingsTile, skipOffstage: false))
       .firstWhere((SettingsTile tile) => tile.title == l10n.audioLanguage)
-      .subtitle!;
+      .value!;
 
   testWidgets('the audio language row reads Auto on a fresh install', (
     WidgetTester tester,
@@ -283,7 +285,13 @@ void main() {
         profile: const DeviceProfile(),
       );
 
-      expect(find.text(l10n.hardwareDecoding), findsOneWidget);
+      // Offstage at the phone size: the v3 screen is taller (the engine
+      // segmented picker), so the row sits below the fold. The row is
+      // offered — it is just not on screen yet.
+      expect(
+        find.text(l10n.hardwareDecoding, skipOffstage: false),
+        findsOneWidget,
+      );
     });
 
     testWidgets('is offered on an Android television too', (

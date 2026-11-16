@@ -317,20 +317,21 @@ void main() {
         final firstResult = tester
             .widget<MultimediaCard>(find.byType(MultimediaCard).first)
             .focusNode!;
-        final row = tester
-            .widget<ListView>(
-              find.byWidgetPredicate(
-                (w) => w is ListView && w.scrollDirection == Axis.horizontal,
-              ),
+        // The flat results grid (v3): one GridView, not a per-provider
+        // horizontal row — the focus-wait reads its controller the same
+        // way, to tell whether the first result is scrolled away.
+        final grid = tester
+            .widget<GridView>(
+              find.byWidgetPredicate((w) => w is GridView),
             )
             .controller!;
-        row.jumpTo(row.position.maxScrollExtent);
+        grid.jumpTo(grid.position.maxScrollExtent);
         await tester.pump(const Duration(seconds: 1));
         expect(firstResult.parent, isNull);
 
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
         await tester.pump(const Duration(seconds: 1));
-        row.jumpTo(0);
+        grid.jumpTo(0);
         await tester.pump(const Duration(seconds: 1));
         expect(fieldHasFocus(tester), isTrue, reason: 'focus jumped to it');
 

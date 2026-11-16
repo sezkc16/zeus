@@ -4,8 +4,7 @@ import '../storage/settings_repository.dart';
 
 part 'accent_color.g.dart';
 
-/// The 10 accent presets (ZoroX v7, 2.9.6 — White + Black added v20+12,
-/// M M 2026-11-14: White for the dark theme, Black for the light theme).
+/// The 8 accent presets — the design preview's swatch row (v3, 2.9.19+59).
 /// Gold is the default — the app's Gold & Black identity (see
 /// ZOROX_DESIGN_SPEC.md). The shades are picked to stay readable on the
 /// obsidian background (#0A0A0B): saturated enough to read as an accent,
@@ -13,23 +12,20 @@ part 'accent_color.g.dart';
 /// stay legible. Only the accent changes; the background stays black and
 /// the layout is untouched.
 ///
-/// White (0xFFFFFFFF) and Black (0xFF000000) are the monochrome pair:
-/// White reads clean on the dark theme, Black on the light theme. The
-/// theme layer guards the two invisible combinations (see
-/// [AppTheme.createLightTheme]): a near-white accent gets dark `onPrimary`
-/// text in the light theme, and the picker gives the Black swatch a light
-/// ring so it stays visible on the dark Settings background.
+/// White / Black / Cyan were presets in earlier releases (White for the
+/// dark theme, Black for the light theme, M M 2026-11-14). The approved
+/// design preview shows exactly these 8 swatches, so the three are gone:
+/// a saved White / Black / Cyan falls back to Gold through [fromName],
+/// which is the same landing as an absent value.
 enum ZoroxAccent {
   gold('Gold', Color(0xFFD4AF37)),
   red('Red', Color(0xFFE53935)),
-  blue('Blue', Color(0xFF42A5F5)),
-  green('Green', Color(0xFF66BB6A)),
-  purple('Purple', Color(0xFFAB47BC)),
   orange('Orange', Color(0xFFFF9800)),
+  green('Green', Color(0xFF66BB6A)),
+  blue('Blue', Color(0xFF42A5F5)),
+  violet('Violet', Color(0xFFAB47BC)),
   pink('Pink', Color(0xFFEC407A)),
-  cyan('Cyan', Color(0xFF26C6DA)),
-  white('White', Color(0xFFFFFFFF)),
-  black('Black', Color(0xFF000000));
+  silver('Silver', Color(0xFFE8E8EC));
 
   const ZoroxAccent(this.label, this.color);
 

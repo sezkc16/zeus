@@ -66,6 +66,15 @@ class _QuietSettings extends SettingsRepository {
   @override
   bool getDevLoadAssets() => false;
 
+  // The Developer Options toggle reads this on build (Settings > App Data
+  // & Developer); the base implementation touches the Hive box, which is
+  // never initialised here. Off by default, like a fresh install.
+  @override
+  bool getDevQoeLog() => false;
+
+  @override
+  Future<void> setDevQoeLog(bool enabled) async {}
+
   // The theme variant and accent providers read these on build; the base
   // implementations touch the Hive box, which is never initialised here.
   // Nothing chosen yet → the fresh-install defaults.

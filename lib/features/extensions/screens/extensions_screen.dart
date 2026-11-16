@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/layout_constants.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/cloudstream/cloudstream_repository.dart';
 import '../../../core/extensions/models/extension_plugin.dart';
 import '../../../core/extensions/models/extension_repository.dart';
 import '../../../core/extensions/extension_manager.dart';
+import '../../../core/widgets/app_snack_bar.dart';
 import '../providers/extensions_controller.dart';
 import '../widgets/cloudstream_plugin_section.dart';
 import 'plugin_settings_dialog.dart';
@@ -15,6 +17,7 @@ import '../../../shared/widgets/cards_wrapper.dart';
 import '../../../shared/widgets/loading_indicator.dart';
 import '../../../shared/widgets/text_input_dialog.dart';
 import '../../../shared/focus/app_focus.dart';
+import '../../settings/presentation/widgets/settings_widgets.dart';
 
 import 'package:zorox/l10n/generated/app_localizations.dart';
 
@@ -34,144 +37,80 @@ class ExtensionsScreen extends ConsumerStatefulWidget {
   ConsumerState<ExtensionsScreen> createState() => _ExtensionsScreenState();
 }
 
-class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
   bool _didEnsureInit = false;
 
-  /// One key per tab, so a repair can search the page that is actually on
-  /// screen.
-  ///
-  /// Keys rather than a [FocusScope] around each page, which is the obvious
-  /// way to draw the line and the wrong one: a scope is also the boundary
-  /// directional traversal works within, so a page wrapped in one would trap
-  /// the remote inside it - no way back up to the tabs or the Back button.
-  ///
-  /// Searching the body as a whole is not good enough: during a tab change
-  /// both pages are in the tree, and the first focusable in tree order belongs
-  /// to the page being *left* - whose controls are disposed a beat later. The
-  /// first version of this fix did exactly that and still ended up with
-  /// nothing focused, which is the same dead end wearing a different hat.
-  final List<GlobalKey> _tabKeys = <GlobalKey>[
-    GlobalKey(debugLabel: 'extensions-tab-installed'),
-    GlobalKey(debugLabel: 'extensions-tab-repositories'),
-  ];
-
-  /// Set when something inside a tab switches tabs, so the focus that switch
-  /// is about to destroy can be put back. See [_showRepositoriesTab].
-  bool _wantsBodyFocus = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(_handleTabSettled);
-  }
+  /// The Add Repository URL field, kept across rebuilds so typing is not
+  /// lost while the repository list refreshes underneath it.
+  final TextEditingController _addRepoController = TextEditingController();
+  bool _isAddingRepo = false;
 
   @override
   void dispose() {
-    _tabController.removeListener(_handleTabSettled);
-    _tabController.dispose();
+    _addRepoController.dispose();
     super.dispose();
   }
 
-  /// Shows the Repositories tab, and takes focus with it.
-  ///
-  /// The focus half is the point, and it is the fix for a dead end on a
-  /// television. When the Installed tab is empty its only control is the
-  /// button that calls this, so the node holding focus is the node switching
-  /// tabs destroys - and Flutter drops primary focus when that happens
-  /// without telling anybody. [FocusManager.primaryFocus] simply becomes
-  /// null, no listener fires, and its `handleKeyMessage` returns early for
-  /// every key that arrives afterwards. The screen stops answering the remote
-  /// completely: no arrow key has anything left to move *from*.
-  ///
-  /// A viewer who came here to install their first repository - which is the
-  /// only reason a fresh install sends them here - could not reach Add
-  /// Repository at all, and the app read as locked.
-  void _showRepositoriesTab() {
-    _wantsBodyFocus = true;
-    _tabController.animateTo(1);
-  }
-
-  /// Puts focus in the new tab once the old one has finished sliding away.
-  void _handleTabSettled() {
-    // The controller notifies twice per change: once as the slide starts and
-    // once as it lands. Only the second is any use - during the first the
-    // incoming page has not been laid out.
-    if (_tabController.indexIsChanging || !_wantsBodyFocus) return;
-    _wantsBodyFocus = false;
-
-    _afterNextFrame(_focusFirstInSelectedTab);
-  }
-
-  /// The same repair, for the second way this screen throws focus away.
-  ///
-  /// Adding the first repository replaces the empty state - a single
-  /// [FilledButton], which is what the viewer just pressed and what still
-  /// holds focus - with the list of repositories. The button is disposed, and
-  /// [FocusManager.primaryFocus] goes quietly to null exactly as it does on a
-  /// tab change. Same dead end, one step further along the same journey: the
-  /// viewer adds the repository they came for and the screen stops answering
-  /// the remote at the moment it starts being useful.
-  ///
-  /// Unlike the tab case this one can simply ask whether focus was lost,
-  /// because by the time this runs the old subtree is gone rather than
-  /// lingering for a frame.
-  void _restoreBodyFocusIfLost() {
-    _afterNextFrame(() {
-      if (!mounted) return;
-      // A real, still-mounted node has it: nothing to repair.
-      final primary = FocusManager.instance.primaryFocus;
-      if (primary != null &&
-          primary is! FocusScopeNode &&
-          primary.context?.mounted == true) {
+  /// Adds a CloudStream repository from the Add Repository card's URL
+  /// field — the preview's "Paste a CloudStream repository URL" flow
+  /// (repo.json + .cs3). The same resolve / refresh-or-add / snackbar
+  /// flow as [CloudStreamRepositoriesSection]'s dialog, minus the dialog.
+  Future<void> _addCloudStreamRepo() async {
+    final input = _addRepoController.text.trim();
+    if (input.isEmpty || _isAddingRepo) return;
+    final l10n = AppLocalizations.of(context)!;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _isAddingRepo = true);
+    try {
+      final notifier = ref.read(cloudStreamRepositoryProvider.notifier);
+      final url = await notifier.resolveUrl(input);
+      final existing = ref
+          .read(cloudStreamRepositoryProvider)
+          .repositories
+          .where((r) => r.url == url)
+          .firstOrNull;
+      if (existing != null) {
+        final failure = await notifier.refreshRepository(url);
+        if (failure != null) {
+          messenger.showSnackBar(
+            appSnackBar(content: Text(l10n.cloudStreamCouldNotAdd(failure))),
+          );
+          return;
+        }
+        messenger.showSnackBar(
+          appSnackBar(
+            content: Text(
+              l10n.cloudStreamRepositoryAdded(
+                existing.plugins.length,
+                existing.name,
+              ),
+            ),
+          ),
+        );
         return;
       }
-      // Not while a dialog is up. Add Repository is a route of its own, and
-      // pulling focus down to the page underneath would take the remote out
-      // of the field the viewer is typing in.
-      final route = ModalRoute.of(context);
-      if (route != null && !route.isCurrent) return;
-      _focusFirstInSelectedTab();
-    });
-  }
-
-  /// Runs [action] once the tree has been rebuilt, and makes sure it runs.
-  ///
-  /// [SchedulerBinding.addPostFrameCallback] waits for a frame that something
-  /// else asks for - it does not ask for one itself. The moment a tab
-  /// animation finishes the app is idle and nothing is going to, so the repair
-  /// below would sit there unrun until the viewer pressed a key, which is the
-  /// one thing they cannot usefully do while focus is lost.
-  void _afterNextFrame(VoidCallback action) {
-    WidgetsBinding.instance.addPostFrameCallback((_) => action());
-    WidgetsBinding.instance.ensureVisualUpdate();
-  }
-
-  /// Focuses the first control on the tab that is currently selected.
-  void _focusFirstInSelectedTab() {
-    if (!mounted) return;
-    final page = _tabKeys[_tabController.index].currentContext;
-    if (page == null) return;
-    for (final node in FocusScope.of(context).traversalDescendants) {
-      if (!_isInside(node, page)) continue;
-      node.requestFocus();
-      return;
+      final repo = await notifier.addRepository(input);
+      messenger.showSnackBar(
+        appSnackBar(
+          content: Text(
+            l10n.cloudStreamRepositoryAdded(repo.plugins.length, repo.name),
+          ),
+        ),
+      );
+      _addRepoController.clear();
+    } catch (error) {
+      messenger.showSnackBar(
+        appSnackBar(
+          content: Text(
+            l10n.cloudStreamCouldNotAdd(
+              CloudStreamRepository.errorMessage(error),
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isAddingRepo = false);
     }
-  }
-
-  /// Whether [node]'s element sits under [ancestor].
-  static bool _isInside(FocusNode node, BuildContext ancestor) {
-    final context = node.context;
-    if (context == null || !context.mounted) return false;
-    var found = false;
-    context.visitAncestorElements((element) {
-      if (element != ancestor) return true;
-      found = true;
-      return false;
-    });
-    return found;
   }
 
   @override
@@ -184,9 +123,6 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen>
       });
     }
     ref.listen(extensionsControllerProvider, (previous, next) {
-      // A state change can swap a tab's whole body - an empty state for a
-      // list, or back again - and take the focused control with it.
-      _restoreBodyFocusIfLost();
       if (next is ExtensionsError &&
           (previous is! ExtensionsError || previous.message != next.message)) {
         showDialog<void>(
@@ -207,64 +143,41 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen>
 
     final state = ref.watch(extensionsControllerProvider);
 
-    final tabBar = TabBar(
-      controller: _tabController,
-      indicatorSize: TabBarIndicatorSize.label,
-      indicatorWeight: 3,
-      labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-      unselectedLabelStyle: const TextStyle(
-        fontWeight: FontWeight.w500,
-        fontSize: 15,
+    // One scroll, not the fork's Installed / Repositories tabs — the design
+    // preview's Plugins screen: Installed Extensions card at the top, then
+    // Add Repository, Repositories, and More Sources, in that order.
+    final body = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: ListView(
+          padding: EdgeInsets.only(
+            bottom: LayoutConstants.shellBottomContentPadding(context),
+            top: LayoutConstants.spacingMd,
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: LayoutConstants.spacingMd,
+              ),
+              child: Text(
+                l10n.extensionsSubtitle,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(height: LayoutConstants.spacingMd),
+            ..._installedWidgets(context, ref, state),
+            _buildAddRepositoryCard(context, ref),
+            ..._repositoryWidgets(context, ref, state),
+            _buildMoreSourcesCard(context),
+          ],
+        ),
       ),
-      labelColor: Theme.of(context).colorScheme.primary,
-      unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
-      indicatorColor: Theme.of(context).colorScheme.primary,
-      dividerColor: Theme.of(context).dividerColor.withValues(alpha: 0.2),
-      tabs: [
-        Tab(text: l10n.installed),
-        Tab(text: l10n.repositories),
-      ],
-    );
-
-    final tabView = TabBarView(
-      controller: _tabController,
-      children: [
-        FocusTraversalGroup(
-          key: _tabKeys[0],
-          policy: ReadingOrderTraversalPolicy(),
-          child: _buildInstalledTab(context, ref, state),
-        ),
-        FocusTraversalGroup(
-          key: _tabKeys[1],
-          policy: ReadingOrderTraversalPolicy(),
-          child: _buildRepositoriesTab(context, ref, state),
-        ),
-      ],
     );
 
     if (widget.isEmbedded) {
-      return Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: LayoutConstants.dashboardContentPadding,
-            ),
-            alignment: Alignment.centerLeft,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 800),
-              child: tabBar,
-            ),
-          ),
-          Expanded(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 800),
-                child: tabView,
-              ),
-            ),
-          ),
-        ],
-      );
+      return body;
     }
 
     return Scaffold(
@@ -274,26 +187,11 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen>
         // route does not imply one either.
         automaticallyImplyLeading: false,
         title: const Text('Plugins'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 800),
-              child: tabBar,
-            ),
-          ),
-        ),
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: tabView,
-        ),
-      ),
+      body: body,
     );
   }
-
-  Widget _buildInstalledTab(
+  List<Widget> _installedWidgets(
     BuildContext context,
     WidgetRef ref,
     ExtensionsState state,
@@ -306,7 +204,7 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen>
       cloudStreamRepositoryProvider.select((s) => s.installed),
     );
     if (state is ExtensionsLoading && state.installedPlugins.isEmpty) {
-      return const Center(child: AppLoadingIndicator());
+      return [const Center(child: AppLoadingIndicator())];
     }
 
     final debugPlugins = state.installedPlugins
@@ -332,18 +230,19 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen>
         .where(
           (p) =>
               !p.isDebug &&
-              state.availablePlugins.isNotEmpty &&
+              state.availablePlugins.isEmpty == false &&
               !allAvailablePackageNames.contains(p.packageName),
         )
         .toList();
     final hasInstalledOnly = installedOnlyPlugins.isNotEmpty;
 
     if (state.installedPlugins.isEmpty && csInstalled.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.all(LayoutConstants.spacingLg),
-        children: [
-          const SizedBox(height: LayoutConstants.spacingLg),
-          _FocusableCard(
+      // No "Browse Repositories" button: this is one scroll now, and the
+      // Add Repository card sits right below this card.
+      return [
+        Padding(
+          padding: const EdgeInsets.all(LayoutConstants.spacingLg),
+          child: _FocusableCard(
             margin: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(LayoutConstants.spacingLg),
@@ -370,51 +269,41 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen>
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: LayoutConstants.spacingLg),
-                  FilledButton.icon(
-                    icon: const Icon(Icons.explore_outlined),
-                    label: Text(l10n.browseRepositories),
-                    onPressed: _showRepositoriesTab,
-                  ),
                 ],
               ),
             ),
           ),
-        ],
-      );
+        ),
+      ];
     }
 
-    return ListView(
-      padding: EdgeInsets.only(
-        bottom: LayoutConstants.shellBottomContentPadding(context),
-        top: LayoutConstants.spacingMd,
-      ),
-      addAutomaticKeepAlives: false,
-      children: [
-        if (hasDebug) _buildDebugSection(context, debugPlugins),
-        _buildInstalledSection(context, ref, installedPlugins),
-        if (hasInstalledOnly)
-          _buildInstalledOnlySection(
-            context,
-            ref,
-            installedOnlyPlugins,
-            hasRepos: state.repositories.isNotEmpty,
-          ),
-        if (csInstalled.isNotEmpty) const CloudStreamInstalledSection(),
-      ],
-    );
+    return [
+      if (hasDebug) _buildDebugSection(context, debugPlugins),
+      _buildInstalledSection(context, ref, installedPlugins),
+      if (hasInstalledOnly)
+        _buildInstalledOnlySection(
+          context,
+          ref,
+          installedOnlyPlugins,
+          hasRepos: state.repositories.isNotEmpty,
+        ),
+      if (csInstalled.isNotEmpty) const CloudStreamInstalledSection(),
+    ];
   }
 
-  Widget _buildRepositoriesTab(
+  List<Widget> _repositoryWidgets(
     BuildContext context,
     WidgetRef ref,
     ExtensionsState state,
   ) {
     final l10n = AppLocalizations.of(context)!;
     // CloudStream's repositories live in their own store, separate from
-    // ZoroX's extension system, and each store has its own section
-    // with its own add row below — a repository added in one section lands
-    // in that section only.
+    // ZoroX's extension system. ZoroX's section keeps its own add row
+    // below (a ZoroX manifest carries an id/packageName, which the
+    // CloudStream flow does not need); the CloudStream section's add row
+    // is hidden because the inline Add Repository card above already
+    // feeds that flow. A repository added in one section lands in that
+    // section only.
     final csRepositories = ref.watch(
       cloudStreamRepositoryProvider.select((s) => s.repositories),
     );
@@ -425,62 +314,154 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen>
         state.repositories.isEmpty &&
         csRepositories.isEmpty &&
         csLoading) {
-      return const Center(child: AppLoadingIndicator());
+      return [const Center(child: AppLoadingIndicator())];
     }
-    // Two separate sections, each with its own add flow, so a repository
-    // lands in the section it belongs to. ZoroX's own extension system
-    // takes a repository manifest (name + id/packageName + pluginLists) or
-    // a shortcode; CloudStream's store takes repo.json or a bare plugin
-    // list. The single add row used to feed only ZoroX's fetcher,
-    // which requires a manifest to carry an id/packageName — so no
-    // CloudStream repo.json could be added at all.
+    // Two separate sections, so a repository lands in the section it
+    // belongs to. ZoroX's own extension system takes a repository
+    // manifest (name + id/packageName + pluginLists) or a shortcode;
+    // CloudStream's store takes repo.json or a bare plugin list. The
+    // single add row used to feed only ZoroX's fetcher, which requires
+    // a manifest to carry an id/packageName — so no CloudStream
+    // repo.json could be added at all.
     // Both sections stay visible even with nothing in them yet, so each
     // add flow is always reachable.
-    return ListView(
-      padding: EdgeInsets.only(
-        bottom: LayoutConstants.shellBottomContentPadding(context),
-        top: LayoutConstants.spacingMd,
+    return [
+      // ZoroX's own extension system (repository manifest).
+      const RepositoryGroupHeader(
+        icon: Icons.extension_rounded,
+        label: 'ZoroX',
       ),
-      addAutomaticKeepAlives: false,
-      children: [
-        // ZoroX's own extension system (repository manifest).
-        const RepositoryGroupHeader(
-          icon: Icons.extension_rounded,
-          label: 'ZoroX',
-        ),
-        for (final repo in state.repositories)
-          _buildRepositoryCard(
-            context,
-            ref,
-            state,
-            repo,
-            state.availablePlugins[repo.url] ?? [],
-            l10n,
-          ),
-        // The section stays when its last repository is removed: the
-        // header and the add row remain, so a repository can be added
-        // back into this section.
-        if (state.repositories.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: LayoutConstants.spacingMd,
-              vertical: LayoutConstants.spacingSm,
-            ),
-            child: Text(
-              'No ZoroX repos yet',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        _buildAddRepoRow(
+      for (final repo in state.repositories)
+        _buildRepositoryCard(
           context,
-          title: l10n.addRepository,
-          onTap: () => _showAddRepoDialog(context, ref),
+          ref,
+          state,
+          repo,
+          state.availablePlugins[repo.url] ?? [],
+          l10n,
         ),
-        // CloudStream's store (repo.json): its own header, cards and add
-        // row live in [CloudStreamRepositoriesSection].
-        const CloudStreamRepositoriesSection(),
+      // The section stays when its last repository is removed: the
+      // header and the add row remain, so a repository can be added
+      // back into this section.
+      if (state.repositories.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: LayoutConstants.spacingMd,
+            vertical: LayoutConstants.spacingSm,
+          ),
+          child: Text(
+            l10n.noZoroxReposYet,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      _buildAddRepoRow(
+        context,
+        title: l10n.addRepository,
+        onTap: () => _showAddRepoDialog(context, ref),
+      ),
+      // CloudStream's store (repo.json): its own header and cards live
+      // in [CloudStreamRepositoriesSection]; its add row is hidden
+      // there (showAddRow: false) because the inline Add Repository
+      // card above already feeds the same CloudStream flow.
+      const CloudStreamRepositoriesSection(showAddRow: false),
+    ];
+  }
+
+  /// The preview's Add Repository card: a URL field and a solid gold Add
+  /// button, feeding the CloudStream (.cs3) flow. The ZoroX-manifest add
+  /// row stays in the Repositories section below for its own store.
+  Widget _buildAddRepositoryCard(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: LayoutConstants.spacingMd,
+        vertical: LayoutConstants.spacingSm,
+      ),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(LayoutConstants.spacingMd),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.addRepository.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.8,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: LayoutConstants.spacingMd),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _addRepoController,
+                      keyboardType: TextInputType.url,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      decoration: const InputDecoration(
+                        hintText: 'https://…/repo.json',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                      ),
+                      onSubmitted: (_) => _addCloudStreamRepo(),
+                    ),
+                  ),
+                  const SizedBox(width: LayoutConstants.spacingSm),
+                  FilledButton(
+                    onPressed: _isAddingRepo ? null : _addCloudStreamRepo,
+                    child: _isAddingRepo
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(l10n.add),
+                  ),
+                ],
+              ),
+              const SizedBox(height: LayoutConstants.spacingSm),
+              Text(
+                l10n.pasteRepoUrlHint,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The preview's More Sources card: Nuvio plugins and Stremio add-ons.
+  /// No SkyStream row — the user said nothing SkyStream-related.
+  Widget _buildMoreSourcesCard(BuildContext context) {
+    return SettingsGroup(
+      title: 'More Sources',
+      children: [
+        SettingsTile(
+          emoji: '🔌',
+          title: 'Nuvio Plugins',
+          subtitle: 'Scraper plugins for movies & shows',
+          onTap: () => const NuvioPluginsRoute().go(context),
+        ),
+        SettingsTile(
+          emoji: '🧲',
+          title: 'Stremio Add-ons',
+          subtitle: 'Install add-ons by manifest URL',
+          isLast: true,
+          onTap: () => const AddonsRoute().go(context),
+        ),
       ],
     );
   }
@@ -904,15 +885,11 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen>
       confirmLabel: l10n.addRepo,
     );
     if (url == null || url.isEmpty || !context.mounted) {
-      // Cancelled. The opener may still have been swapped out underneath the
-      // dialog, so check anyway - it is a no-op when focus is fine.
-      _restoreBodyFocusIfLost();
       return;
     }
     unawaited(
       ref.read(extensionsControllerProvider.notifier).addRepository(url),
     );
-    _restoreBodyFocusIfLost();
   }
 }
 

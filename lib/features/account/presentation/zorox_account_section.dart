@@ -21,54 +21,70 @@ class ZoroxAccountSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final account = ref.watch(zoroxAccountProvider);
-    return SettingsGroup(
-      title: 'ZoroX Account',
+    // The design preview's Accounts screen opens with a BACKUP card
+    // (Import backup). The account itself — log in, cloud sync, sync
+    // server — is ZoroX's own feature, not in the preview; it keeps its
+    // own card right below Backup rather than being dropped.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        SettingsTile(
-          icon: Icons.account_circle_rounded,
+        SettingsGroup(
+          title: 'Backup',
+          children: [
+            SettingsTile(
+              emoji: '📤',
+              title: 'Export backup',
+              subtitle: 'Save watch history, plugins & library to a file',
+              onTap: () => _exportBackup(context, ref),
+            ),
+            SettingsTile(
+              emoji: '⬆️',
+              title: 'Import backup',
+              subtitle: 'Restore from a backup file',
+              isLast: true,
+              onTap: () => _importBackup(context, ref),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        SettingsGroup(
           title: 'ZoroX Account',
-          subtitle: account.loggedIn
-              ? 'Logged in as ${account.email}'
-              : 'Back up watch history, plugins & library',
-          onTap: () => showDialog<void>(
-            context: context,
-            builder: (_) => const ZoroxAccountDialog(),
-          ),
-        ),
-        if (account.loggedIn)
-          SettingsTile(
-            icon: Icons.cloud_upload_rounded,
-            title: 'Sync now',
-            subtitle: account.cloudConfigured
-                ? (account.lastSyncedAt == null
-                      ? 'Never synced'
-                      : 'Last synced ${_formatLastSynced(account.lastSyncedAt!)}')
-                : 'Cloud sync not set up yet',
-            onTap: () => _syncNow(context, ref),
-          ),
-        SettingsTile(
-          icon: Icons.dns_rounded,
-          title: 'Sync server',
-          subtitle: account.cloudConfigured
-              ? account.workerUrl
-              : 'Not set up — cloud sync off',
-          onTap: () => showDialog<void>(
-            context: context,
-            builder: (_) => const ZoroxWorkerUrlDialog(),
-          ),
-        ),
-        SettingsTile(
-          icon: Icons.file_download_rounded,
-          title: 'Export backup',
-          subtitle: 'Save watch history, plugins & library to a file',
-          onTap: () => _exportBackup(context, ref),
-        ),
-        SettingsTile(
-          icon: Icons.file_upload_rounded,
-          title: 'Import backup',
-          subtitle: 'Restore from a backup file',
-          isLast: true,
-          onTap: () => _importBackup(context, ref),
+          children: [
+            SettingsTile(
+              emoji: '👤',
+              title: 'ZoroX Account',
+              subtitle: account.loggedIn
+                  ? 'Logged in as ${account.email}'
+                  : 'Back up watch history, plugins & library',
+              onTap: () => showDialog<void>(
+                context: context,
+                builder: (_) => const ZoroxAccountDialog(),
+              ),
+            ),
+            if (account.loggedIn)
+              SettingsTile(
+                emoji: '☁️',
+                title: 'Sync now',
+                subtitle: account.cloudConfigured
+                    ? (account.lastSyncedAt == null
+                          ? 'Never synced'
+                          : 'Last synced ${_formatLastSynced(account.lastSyncedAt!)}')
+                    : 'Cloud sync not set up yet',
+                onTap: () => _syncNow(context, ref),
+              ),
+            SettingsTile(
+              emoji: '🌐',
+              title: 'Sync server',
+              subtitle: account.cloudConfigured
+                  ? account.workerUrl
+                  : 'Not set up — cloud sync off',
+              isLast: true,
+              onTap: () => showDialog<void>(
+                context: context,
+                builder: (_) => const ZoroxWorkerUrlDialog(),
+              ),
+            ),
+          ],
         ),
       ],
     );
