@@ -30,6 +30,16 @@ class SettingsRepository {
     return _storageService.getAccentColor();
   }
 
+  /// Named theme variant name ('arenaGold', 'midnight', 'frost',
+  /// 'liquidGlass'). `null` = never picked.
+  Future<void> saveThemeVariant(String name) async {
+    await _storageService.saveThemeVariant(name);
+  }
+
+  String? getThemeVariant() {
+    return _storageService.getThemeVariant();
+  }
+
   Future<void> setSidebarExpanded(bool expanded) async {
     await _storageService.setSidebarExpanded(expanded);
   }

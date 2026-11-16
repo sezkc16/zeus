@@ -69,6 +69,9 @@ class AppLocalizationsEl extends AppLocalizations {
   String get appTheme => 'Θέμα εφαρμογής';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'Καταγραφή ιστορικού προβολών';
 
   @override

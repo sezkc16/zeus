@@ -69,6 +69,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get appTheme => 'مظهر التطبيق';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'سجل المشاهدة';
 
   @override

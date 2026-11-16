@@ -69,6 +69,9 @@ class AppLocalizationsId extends AppLocalizations {
   String get appTheme => 'Tema Aplikasi';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'Rekam Riwayat Tontonan';
 
   @override

@@ -34,6 +34,10 @@
   "startupError": "Startup Error",
   "general": "General",
   "appTheme": "App Theme",
+  "themeStyle": "Theme style",
+  "@themeStyle": {
+    "description": "Title of the Settings > General row and dialog that pick the named theme variant: Midnight / Arena Gold / Frost / Liquid Glass."
+  },
   "recordWatchHistory": "Record Watch History",
   "fullScreenMode": "Full screen mode",
   "@fullScreenMode": {

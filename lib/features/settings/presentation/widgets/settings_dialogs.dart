@@ -16,6 +16,7 @@ import '../../../../core/network/doh_service.dart';
 import '../../../../core/storage/settings_repository.dart';
 import '../../../../core/services/download_service.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../../core/theme/theme_variant.dart';
 import '../../../../core/utils/app_utils.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
 import '../../../player/domain/network_buffer.dart';
@@ -1360,6 +1361,70 @@ void showThemeDialog(
                 Navigator.pop<void>(context);
               }),
             ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop<void>(context),
+          child: Text(
+            l10n.cancel,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Shows a dialog to pick the named theme variant.
+///
+/// Each choice carries a line of its own, because the name alone does
+/// not say which brightness it is: Frost is the light one, the other
+/// three are dark. Picking one applies it at once — the variant notifier
+/// flips the theme mode to match its brightness, so the dialog closes
+/// onto the new look.
+void showThemeVariantDialog(
+  BuildContext context,
+  WidgetRef ref,
+  ZoroxThemeVariant current,
+) {
+  final l10n = AppLocalizations.of(context)!;
+  showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      surfaceTintColor: Colors.transparent,
+      title: Text(l10n.themeStyle),
+      content: RadioGroup<ZoroxThemeVariant>(
+        groupValue: current,
+        onChanged: (val) {
+          if (val == null) return;
+          ref.read(themeVariantProvider.notifier).setVariant(val);
+          Navigator.pop<void>(context);
+        },
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: ZoroxThemeVariant.values.map((variant) {
+              final bool isCurrent = variant == current;
+              return currentOption(
+                isCurrent: isCurrent,
+                child: ListTile(
+                  autofocus: isCurrent,
+                  title: Text(variant.label),
+                  subtitle: Text(variant.detail),
+                  leading: Radio<ZoroxThemeVariant>(value: variant),
+                  onTap: () {
+                    ref
+                        .read(themeVariantProvider.notifier)
+                        .setVariant(variant);
+                    Navigator.pop<void>(context);
+                  },
+                ),
+              );
+            }).toList(),
           ),
         ),
       ),

@@ -69,6 +69,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get appTheme => 'Тема приложения';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'Записывать историю просмотров';
 
   @override

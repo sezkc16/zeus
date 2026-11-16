@@ -291,6 +291,12 @@ abstract class AppLocalizations {
   /// **'App Theme'**
   String get appTheme;
 
+  /// Title of the Settings > General row and dialog that pick the named theme variant: Midnight / Arena Gold / Frost / Liquid Glass.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme style'**
+  String get themeStyle;
+
   /// No description provided for @recordWatchHistory.
   ///
   /// In en, this message translates to:

@@ -69,6 +69,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appTheme => '应用主题';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => '记录观看历史';
 
   @override

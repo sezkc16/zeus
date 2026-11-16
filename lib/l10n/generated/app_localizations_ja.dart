@@ -69,6 +69,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get appTheme => 'アプリのテーマ';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => '視聴履歴を記録する';
 
   @override

@@ -69,6 +69,9 @@ class AppLocalizationsBg extends AppLocalizations {
   String get appTheme => 'Тема на приложението';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'История на гледане';
 
   @override

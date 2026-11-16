@@ -69,6 +69,9 @@ class AppLocalizationsBe extends AppLocalizations {
   String get appTheme => 'Тэма праграмы';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'Запісваць гісторыю праглядаў';
 
   @override

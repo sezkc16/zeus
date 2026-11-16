@@ -69,6 +69,9 @@ class AppLocalizationsHr extends AppLocalizations {
   String get appTheme => 'Tema aplikacije';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'Snimaj povijest gledanja';
 
   @override

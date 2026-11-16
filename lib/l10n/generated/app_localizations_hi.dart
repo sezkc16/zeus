@@ -69,6 +69,9 @@ class AppLocalizationsHi extends AppLocalizations {
   String get appTheme => 'ऐप थीम';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'वॉच हिस्ट्री रिकॉर्ड करें';
 
   @override

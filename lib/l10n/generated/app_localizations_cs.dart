@@ -69,6 +69,9 @@ class AppLocalizationsCs extends AppLocalizations {
   String get appTheme => 'Motiv aplikace';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'Zaznamenávat historii sledování';
 
   @override

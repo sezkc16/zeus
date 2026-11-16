@@ -69,6 +69,9 @@ class AppLocalizationsRo extends AppLocalizations {
   String get appTheme => 'Tema aplicației';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'Înregistrează istoricul vizionărilor';
 
   @override

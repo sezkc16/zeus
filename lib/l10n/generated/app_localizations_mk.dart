@@ -69,6 +69,9 @@ class AppLocalizationsMk extends AppLocalizations {
   String get appTheme => 'Тема на апликацијата';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'Снимај историја на гледање';
 
   @override

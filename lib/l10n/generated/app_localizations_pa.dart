@@ -69,6 +69,9 @@ class AppLocalizationsPa extends AppLocalizations {
   String get appTheme => 'ਐਪ ਥੀਮ';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'ਦੇਖਣ ਦਾ ਇਤਿਹਾਸ ਰਿਕਾਰਡ ਕਰੋ';
 
   @override

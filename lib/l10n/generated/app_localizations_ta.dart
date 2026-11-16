@@ -69,6 +69,9 @@ class AppLocalizationsTa extends AppLocalizations {
   String get appTheme => 'பயன்பாட்டு தீம்';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'பார்த்த வரலாற்றைப் பதிவு செய்';
 
   @override

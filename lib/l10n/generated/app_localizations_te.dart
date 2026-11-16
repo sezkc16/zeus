@@ -69,6 +69,9 @@ class AppLocalizationsTe extends AppLocalizations {
   String get appTheme => 'యాప్ థీమ్';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'చూసిన చరిత్రను రికార్డ్ చేయండి';
 
   @override

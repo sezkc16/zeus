@@ -69,6 +69,9 @@ class AppLocalizationsKn extends AppLocalizations {
   String get appTheme => 'ಆಪ್ ಥೀಮ್';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'ವೀಕ್ಷಣೆಯ ಇತಿಹಾಸವನ್ನು ದಾಖಲಿಸಿ';
 
   @override

@@ -69,6 +69,9 @@ class AppLocalizationsUk extends AppLocalizations {
   String get appTheme => 'Тема додатка';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'Записувати історію переглядів';
 
   @override

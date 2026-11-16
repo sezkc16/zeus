@@ -69,6 +69,9 @@ class AppLocalizationsBn extends AppLocalizations {
   String get appTheme => 'অ্যাপ থিম';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'দেখার ইতিহাস রেকর্ড করুন';
 
   @override

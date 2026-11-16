@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/utils/layout_constants.dart';
 import '../../../core/theme/theme_provider.dart';
+import '../../../core/theme/theme_variant.dart';
 
 import 'widgets/settings_widgets.dart';
 import 'widgets/settings_dialogs.dart';
@@ -29,6 +30,7 @@ class SettingsScreen extends ConsumerWidget {
 
     final versionAsync = ref.watch(appVersionProvider);
     final themeMode = ref.watch(appThemeModeProvider);
+    final themeVariant = ref.watch(themeVariantProvider);
     final generalSettings = ref.watch(generalSettingsProvider);
 
     return Scaffold(
@@ -52,6 +54,7 @@ class SettingsScreen extends ConsumerWidget {
                   ref,
                   l10n,
                   themeMode,
+                  themeVariant,
                   generalSettings,
                 ),
                 const SizedBox(height: LayoutConstants.spacingLg),
@@ -94,6 +97,7 @@ class SettingsScreen extends ConsumerWidget {
     WidgetRef ref,
     AppLocalizations l10n,
     ThemeMode themeMode,
+    ZoroxThemeVariant themeVariant,
     GeneralSettings generalSettings,
   ) {
     final fullScreenModeEnabled = ref.watch(fullScreenModeProvider);
@@ -107,6 +111,16 @@ class SettingsScreen extends ConsumerWidget {
               ? l10n.system
               : (themeMode == ThemeMode.dark ? l10n.dark : l10n.light),
           onTap: () => showThemeDialog(context, ref, themeMode),
+        ),
+        // Named theme variant (Midnight / Arena Gold / Frost / Liquid
+        // Glass). Sits right under the App Theme tile — it is the
+        // theme's look, not a separate section. Picking one applies it
+        // at once (the mode flips to match its brightness).
+        SettingsTile(
+          icon: Icons.palette_rounded,
+          title: l10n.themeStyle,
+          subtitle: themeVariant.label,
+          onTap: () => showThemeVariantDialog(context, ref, themeVariant),
         ),
         // Accent color (ZoroX v7): Gold by default, 8 presets. Sits right
         // under the Theme tile — it is the theme's accent, not a separate

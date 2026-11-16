@@ -69,6 +69,9 @@ class AppLocalizationsUr extends AppLocalizations {
   String get appTheme => 'ایپ تھیم';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'دیکھنے کی تاریخ ریکارڈ کریں';
 
   @override

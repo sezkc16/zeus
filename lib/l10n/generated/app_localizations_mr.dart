@@ -69,6 +69,9 @@ class AppLocalizationsMr extends AppLocalizations {
   String get appTheme => 'अ‍ॅप थीम';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'पाहिलेला इतिहास जतन करा';
 
   @override

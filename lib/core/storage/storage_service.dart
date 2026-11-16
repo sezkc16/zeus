@@ -211,6 +211,20 @@ class StorageService {
     return _settingsBox.get('accent_color') as String?;
   }
 
+  /// Named theme variant (Settings → General): the selected variant
+  /// name ('arenaGold', 'midnight', 'frost', 'liquidGlass'). `null` means
+  /// the user never picked one — Arena Gold. Stored by name (not by
+  /// index) so a variant can be reordered later without orphaning saved
+  /// choices. Survives app restart; it does NOT survive reinstall — app
+  /// settings are not part of the v1 backup.
+  Future<void> saveThemeVariant(String name) async {
+    await _settingsBox.put('theme_variant', name);
+  }
+
+  String? getThemeVariant() {
+    return _settingsBox.get('theme_variant') as String?;
+  }
+
   // --- Sidebar State ---
   Future<void> setSidebarExpanded(bool expanded) async {
     await _settingsBox.put('sidebar_expanded', expanded);

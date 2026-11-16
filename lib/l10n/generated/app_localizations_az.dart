@@ -69,6 +69,9 @@ class AppLocalizationsAz extends AppLocalizations {
   String get appTheme => 'Tətbiq teması';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'Baxış tarixçəsini yaz';
 
   @override

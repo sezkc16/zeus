@@ -17,6 +17,7 @@ import 'package:challenge_browser/challenge_browser.dart' show PageDialog;
 
 import 'core/theme/theme_provider.dart';
 import 'core/theme/accent_color.dart';
+import 'core/theme/theme_variant.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/storage/storage_service.dart';
@@ -599,6 +600,7 @@ class _MyAppState extends ConsumerState<MyApp> {
     BootTrace.markOnce('myapp-build', 'MYAPP build start');
     final themeMode = ref.watch(appThemeModeProvider);
     final accent = ref.watch(accentColorProvider);
+    final themeVariant = ref.watch(themeVariantProvider);
     final appRouter = ref.watch(appRouterProvider);
     final locale = ref.watch(localeProvider);
     final profileAsync = ref.watch(deviceProfileProvider);
@@ -640,11 +642,20 @@ class _MyAppState extends ConsumerState<MyApp> {
           debugShowCheckedModeBanner: false,
           themeMode: themeMode,
           theme: lightDynamic != null
-              ? AppTheme.createLightTheme(lightDynamic, accent: accent.color)
-              : AppTheme.createLightTheme(null, accent: accent.color),
+              ? AppTheme.createLightTheme(
+                  lightDynamic,
+                  accent: accent.color,
+                  variant: themeVariant,
+                )
+              : AppTheme.createLightTheme(
+                  null,
+                  accent: accent.color,
+                  variant: themeVariant,
+                ),
           darkTheme: AppTheme.createDarkTheme(
             darkScheme,
             seedColor: accent.color,
+            variant: themeVariant,
           ),
           routerConfig: appRouter,
           locale: locale,

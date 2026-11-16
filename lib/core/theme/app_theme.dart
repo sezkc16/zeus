@@ -4,6 +4,65 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 import '../../shared/focus/app_focus.dart';
+import 'theme_variant.dart';
+
+/// The surfaces a dark variant paints on.
+///
+/// Arena Gold is the palette the app has shipped since the rebrand
+/// (obsidian scaffold, #161618 cards). Midnight takes the same structure
+/// to near-black; Liquid Glass keeps the structure with a cooler tint,
+/// its glass-ness carried by [ZoroxThemeExtension] rather than by these
+/// colours. Text and accent colours are identical across all three —
+/// only surfaces move.
+class _DarkPalette {
+  const _DarkPalette({
+    required this.scaffold,
+    required this.surface,
+    required this.dialog,
+    required this.card,
+    required this.inputFill,
+    required this.divider,
+    required this.appBar,
+  });
+
+  final Color scaffold;
+  final Color surface;
+  final Color dialog;
+  final Color card;
+  final Color inputFill;
+  final Color divider;
+  final Color appBar;
+}
+
+const _arenaGoldPalette = _DarkPalette(
+  scaffold: Color(0xFF0A0A0B),
+  surface: Color(0xFF161618),
+  dialog: Color(0xFF17171A),
+  card: Color(0xFF161618),
+  inputFill: Color(0xFF17171A),
+  divider: Color(0xFF1E1E21),
+  appBar: Color(0xFF0A0A0B),
+);
+
+const _midnightPalette = _DarkPalette(
+  scaffold: Color(0xFF000000),
+  surface: Color(0xFF0A0A0A),
+  dialog: Color(0xFF0A0A0A),
+  card: Color(0xFF0A0A0A),
+  inputFill: Color(0xFF111113),
+  divider: Color(0xFF1C1C1E),
+  appBar: Color(0xFF000000),
+);
+
+const _liquidGlassPalette = _DarkPalette(
+  scaffold: Color(0xFF0B0D12),
+  surface: Color(0xFF15181F),
+  dialog: Color(0xFF171B23),
+  card: Color(0xFF15181F),
+  inputFill: Color(0xFF171B23),
+  divider: Color(0xFF1F2430),
+  appBar: Color(0xFF0B0D12),
+);
 
 class AppTheme {
   /// The bundled application type family.
@@ -61,10 +120,19 @@ class AppTheme {
   static const Color lightTextSecondary = Color(0xFF5C5C5C); // onSurfaceVariant
   static const Color lightCoral = Color(0xFFC63523); // Coral Accent
 
-  static SnackBarThemeData snackBarThemeFor(ColorScheme colorScheme) {
+  /// The variant's surface, when the caller builds a dark theme whose
+  /// surface is not Arena Gold's (Midnight, Liquid Glass). Defaults to
+  /// [surface] — the existing behaviour for every caller that does not
+  /// pass one.
+  static SnackBarThemeData snackBarThemeFor(
+    ColorScheme colorScheme, {
+    Color? surfaceColor,
+  }) {
     final isDark = colorScheme.brightness == Brightness.dark;
     return SnackBarThemeData(
-      backgroundColor: isDark ? surface : colorScheme.surfaceContainerHigh,
+      backgroundColor: isDark
+          ? (surfaceColor ?? surface)
+          : colorScheme.surfaceContainerHigh,
       contentTextStyle: TextStyle(
         color: isDark ? onSurface : colorScheme.onSurface,
       ),
@@ -129,21 +197,38 @@ class AppTheme {
   static TabBarThemeData _tabBarTheme(ColorScheme cs) =>
       TabBarThemeData(overlayColor: AppFocus.overlay(cs));
 
+  /// Builds the dark theme for [variant].
+  ///
+  /// Arena Gold is the palette this method has always built (the
+  /// default, so existing callers are unchanged). Midnight and Liquid
+  /// Glass swap the surfaces only — the seed/accent handling, text
+  /// colours and every sub-theme below are identical. Frost is the
+  /// light variant and has no dark palette: a dark theme asked for
+  /// Frost falls back to Arena Gold rather than inventing one (the
+  /// variant picker also flips the mode to light when Frost is picked,
+  /// so this is only reached when the mode is later switched back).
   static ThemeData createDarkTheme(
     ColorScheme? dynamicScheme, {
     Color seedColor = const Color(0xFFD4AF37),
+    ZoroxThemeVariant variant = ZoroxThemeVariant.arenaGold,
   }) {
     _registerFontLicence();
+    final palette = switch (variant) {
+      ZoroxThemeVariant.midnight => _midnightPalette,
+      ZoroxThemeVariant.liquidGlass => _liquidGlassPalette,
+      // Arena Gold, and Frost (light-only — see above).
+      _ => _arenaGoldPalette,
+    };
     var colorScheme =
         dynamicScheme ??
         ColorScheme.fromSeed(
           seedColor: seedColor, // Accent seed (Gold by default, v7 picker)
           brightness: Brightness.dark,
-          surface: const Color(0xFF161618), // Cards
+          surface: palette.surface, // Cards
         );
 
     // Cards / list items in the design's surface colour.
-    colorScheme = colorScheme.copyWith(surface: const Color(0xFF161618));
+    colorScheme = colorScheme.copyWith(surface: palette.surface);
 
     // White/Black accents (v20+37): ColorScheme.fromSeed builds a tonal
     // palette from the seed and the seed itself never becomes `primary` —
@@ -182,14 +267,13 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       fontFamily: fontFamily,
-      scaffoldBackgroundColor: const Color(
-        0xFF0A0A0B,
-      ), // Obsidian Background for Screens
+      scaffoldBackgroundColor: palette.scaffold,
+      // Obsidian Background for Screens
       // Dialog Theme (Premium Grey)
-      dialogTheme: const DialogThemeData(
-        backgroundColor: Color(0xFF17171A),
+      dialogTheme: DialogThemeData(
+        backgroundColor: palette.dialog,
         surfaceTintColor: Colors.transparent,
-        titleTextStyle: TextStyle(
+        titleTextStyle: const TextStyle(
           fontFamily: fontFamily,
           fontSize: 20,
           fontWeight: FontWeight.w600,
@@ -198,18 +282,18 @@ class AppTheme {
       ),
 
       // Bottom Sheet Theme (Premium Grey)
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: Color(0xFF17171A),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: palette.dialog,
         surfaceTintColor: Colors.transparent,
-        modalBackgroundColor: Color(0xFF17171A),
+        modalBackgroundColor: palette.dialog,
       ),
 
       // Card Theme (Surface for List Items)
-      cardTheme: const CardThemeData(
-        color: Color(0xFF161618),
+      cardTheme: CardThemeData(
+        color: palette.card,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
 
       // Material 3 Color Scheme
@@ -285,8 +369,8 @@ class AppTheme {
           ),
 
       // AppBar
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF0A0A0B),
+      appBarTheme: AppBarTheme(
+        backgroundColor: palette.appBar,
         elevation: 0,
         centerTitle: false,
         scrolledUnderElevation: 0,
@@ -295,9 +379,8 @@ class AppTheme {
 
       // Bottom Navigation
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: const Color(
-          0xFF0A0A0B,
-        ), // Pure Black matches background
+        backgroundColor: palette.scaffold,
+        // Pure Black matches background
         selectedItemColor: colorScheme.primary,
         unselectedItemColor: colorScheme.onSurfaceVariant,
         type: BottomNavigationBarType.fixed,
@@ -309,12 +392,15 @@ class AppTheme {
 
       // Keep SnackBars visually consistent with the dark application instead
       // of Material's default inverse (light) surface.
-      snackBarTheme: snackBarThemeFor(colorScheme),
+      snackBarTheme: snackBarThemeFor(
+        colorScheme,
+        surfaceColor: palette.surface,
+      ),
 
       // Input Decoration
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFF17171A), // Slightly lighter grey for fields
+        fillColor: palette.inputFill, // Slightly lighter grey for fields
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(13),
           borderSide: BorderSide.none,
@@ -333,11 +419,11 @@ class AppTheme {
         ),
       ),
 
-      dividerColor: const Color(0xFF1E1E21),
-      dividerTheme: const DividerThemeData(
+      dividerColor: palette.divider,
+      dividerTheme: DividerThemeData(
         thickness: 1,
         space: 1,
-        color: Color(0xFF1E1E21),
+        color: palette.divider,
       ),
 
       // One focus indicator for every Material control. See
@@ -367,12 +453,31 @@ class AppTheme {
           return null;
         }),
       ),
+
+      // Which variant this theme is, for widgets that key a treatment
+      // off it (the glass nav reads `isGlass`). Every variant carries
+      // the extension; only Liquid Glass sets it.
+      extensions: <ThemeExtension<dynamic>>[
+        ZoroxThemeExtension(
+          isGlass: variant == ZoroxThemeVariant.liquidGlass,
+        ),
+      ],
     );
   }
 
+  /// Builds the light theme — Frost, the only light variant.
+  ///
+  /// [variant] does not change the light palette: the light theme is
+  /// Frost whatever the variant, so a dark variant under a light system
+  /// still gets this exact palette (the variant picker also flips the
+  /// mode to dark when a dark variant is picked, so this is only reached
+  /// when the mode is later switched back). It does carry through to the
+  /// glass extension, so Liquid Glass keeps its glass treatment even on
+  /// a light system.
   static ThemeData createLightTheme(
     ColorScheme? dynamicScheme, {
     Color? accent,
+    ZoroxThemeVariant variant = ZoroxThemeVariant.arenaGold,
   }) {
     _registerFontLicence();
     var colorScheme = const ColorScheme.light(
@@ -630,6 +735,14 @@ class AppTheme {
       // Every bare [InkWell] and [ListTile] in the app reads this one, so a
       // row that is not a button still shows where the remote is.
       focusColor: colorScheme.onSurface.withValues(alpha: 0.16),
+
+      // Which variant this theme is — see [createDarkTheme]. The palette
+      // here is always Frost; only the glass flag follows the variant.
+      extensions: <ThemeExtension<dynamic>>[
+        ZoroxThemeExtension(
+          isGlass: variant == ZoroxThemeVariant.liquidGlass,
+        ),
+      ],
     );
   }
 }

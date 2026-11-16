@@ -69,6 +69,9 @@ class AppLocalizationsSv extends AppLocalizations {
   String get appTheme => 'App-tema';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'Spara tittarhistorik';
 
   @override

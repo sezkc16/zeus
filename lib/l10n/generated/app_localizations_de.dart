@@ -69,6 +69,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get appTheme => 'App-Design';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'Verlauf speichern';
 
   @override

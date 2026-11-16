@@ -69,6 +69,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get appTheme => '앱 테마';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => '시청 기록 남기기';
 
   @override

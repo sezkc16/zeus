@@ -69,6 +69,9 @@ class AppLocalizationsHu extends AppLocalizations {
   String get appTheme => 'Alkalmazás témája';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'Megtekintési előzmények rögzítése';
 
   @override

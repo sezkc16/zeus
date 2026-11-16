@@ -69,6 +69,9 @@ class AppLocalizationsLv extends AppLocalizations {
   String get appTheme => 'Lietotnes motīvs';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'Ierakstīt skatīšanās vēsturi';
 
   @override

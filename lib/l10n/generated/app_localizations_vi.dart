@@ -69,6 +69,9 @@ class AppLocalizationsVi extends AppLocalizations {
   String get appTheme => 'Chủ đề ứng dụng';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'Lưu lịch sử xem';
 
   @override

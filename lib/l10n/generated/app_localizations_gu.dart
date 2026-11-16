@@ -69,6 +69,9 @@ class AppLocalizationsGu extends AppLocalizations {
   String get appTheme => 'એપ્લિકેશન થીમ';
 
   @override
+  String get themeStyle => 'Theme style';
+
+  @override
   String get recordWatchHistory => 'જોયેલો ઇતિહાસ સાચવો';
 
   @override

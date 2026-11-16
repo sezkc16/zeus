@@ -151,7 +151,9 @@ enum VideoOutputPreset {
 
   /// The stored advanced values ([videoCustomToneMapping] /
   /// [videoCustomTargetPeak]); with none stored it behaves as Native EDR.
-  /// Advanced controls follow in a later build.
+  /// The advanced controls live in the Video panel's Custom preset (see
+  /// `golden_video_drawer.dart`): tone mapping and target peak below the
+  /// presets.
   custom,
 }
 
@@ -306,7 +308,7 @@ class PlayerSettings {
 
   /// The Custom preset's stored tone-mapping value, or null when the
   /// viewer has never set one (Custom then behaves as Native EDR).
-  /// Advanced controls follow in a later build.
+  /// Set from the Video panel's Custom advanced controls.
   final String? videoCustomToneMapping;
 
   /// The Custom preset's stored target peak, or null when never set.
@@ -1004,8 +1006,8 @@ class PlayerSettingsNotifier extends _$PlayerSettingsNotifier {
     _update((PlayerSettings c) => c.copyWith(videoOutputPreset: preset));
   }
 
-  /// The Custom preset's stored tone-mapping value. Advanced controls
-  /// follow in a later build; nothing writes this yet. Null clears it.
+  /// The Custom preset's stored tone-mapping value, written by the
+  /// Video panel's Custom advanced controls. Null clears it.
   Future<void> setVideoCustomToneMapping(String? value) async {
     await _repository.setPlayerSetting(
       'player_video_custom_tone_mapping',
