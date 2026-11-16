@@ -1,0 +1,45 @@
+workflows:
+  ios-unsigned:
+    name: ZoroX iOS (unsigned)
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+
+    environment:
+      flutter: 3.47.7
+      xcode: latest
+      cocoapods: default
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: master
+          include: true
+
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+
+      - name: Generate Dart files
+        script: |
+          dart run build_runner build --delete-conflicting-outputs
+
+      - name: Install CocoaPods dependencies
+        script: |
+          cd ios && pod install --repo-update
+
+      - name: Build iOS unsigned
+        script: |
+          flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        script: |
+          test -d build/ios/iphoneos/Runner.app || { echo "ERROR: Runner.app not found at build/ios/iphoneos/Runner.app"; exit 1; }
+          mkdir -p Payload
+          mv build/ios/iphoneos/Runner.app Payload/
+          VERSION=$(grep '^version:' pubspec.yaml | cut -d ' ' -f 2 | cut -d '+' -f 1)
+          zip -r -y "ZoroX-${VERSION}-unsigned.ipa" Payload
+          ls -lh *.ipa
+
+    artifacts:
+      - ZoroX-*.ipa
