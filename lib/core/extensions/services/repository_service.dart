@@ -19,7 +19,7 @@ class RepositoryService {
   /// Resolves the actual URL from shortcodes, bare hosts or custom schemes.
   ///
   /// Previously this accepted exactly two shapes — a full `https://…` URL, or
-  /// a bare alphanumeric code looked up as `cutt.ly/zorox-CODE`. Anything else
+  /// a bare alphanumeric code looked up as `cutt.ly/sky-CODE`. Anything else
   /// (`raw.githubusercontent.com/…`, `github.com/user/repo`, a `cutt.ly/xyz`
   /// link that already carries the prefix) was rejected as "Invalid URL
   /// format", and a shortener answering 200 with a meta-refresh instead of a
@@ -52,17 +52,19 @@ class RepositoryService {
       return _address('https://$fixedUrl');
     }
 
-    // Shortcode: the ZoroX namespace first, then the bare code - each as
+    // Shortcode: the sky- namespace first, then the bare code - each as
     // typed, then in lower case. Codes are case-sensitive, and a television
-    // keyboard or a phone's may capitalise the first letter; ZoroX's own
+    // keyboard or a phone's may capitalise the first letter; the app's own
     // code in lower case still comes before a bare one, which is anyone's
-    // (cutt.ly/Universe is a stranger's form).
+    // (cutt.ly/Universe is a stranger's form). The namespace stays sky-:
+    // those short links are already registered on cutt.ly under that prefix,
+    // and a rebrand cannot rename a live short link.
     if (RegExp(r'^[a-zA-Z0-9!_-]+$').hasMatch(fixedUrl)) {
       final lower = fixedUrl.toLowerCase();
       return _findShortcode(
         <String>{
-          'https://cutt.ly/zorox-$fixedUrl',
-          'https://cutt.ly/zorox-$lower',
+          'https://cutt.ly/sky-$fixedUrl',
+          'https://cutt.ly/sky-$lower',
           'https://cutt.ly/$fixedUrl',
           'https://cutt.ly/$lower',
         }.toList(),
