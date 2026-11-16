@@ -1,0 +1,96 @@
+# ZoroX (own app) — unsigned iOS IPA build for sideloading (ESign / SideStore).
+#
+# Adapted from the ZoroX fork's .github/workflows/ios.yml (which builds the
+# same app from the v20-* branches). Differences from the fork:
+# - Trigger: pushes to master only. This repo has no v20-* branches.
+# - No dart-defines file: the own app has no TMDB/Trakt/Simkl API secrets,
+#   so those integrations run without keys (they degrade gracefully).
+# - The .cs3 engine's OpenJDK Zero VM is vendored as
+#   packages/cs3_engine/ios/Frameworks/OpenJDKRuntime.xcframework and
+#   embedded by the cs3_engine podspec (vendored_frameworks), and
+#   MobileVLCKit is vendored via ios/vendor/MobileVLCKit.podspec.json
+#   (downloaded from download.videolan.org by `pod install`, sha256-pinned).
+#   `flutter build ios` runs `pod install`, so no manual embedding step is
+#   needed — the workflow only verifies both vendored pieces are present
+#   before building, so a missing piece fails fast with a clear message
+#   instead of a cryptic Xcode error.
+#
+# No code signing anywhere: the IPA is unsigned and the user signs it with
+# ESign, exactly like the MLBB IPA. No secrets are used.
+#
+# Trigger: every push to master, or manual Run workflow.
+
+name: Build ZoroX iOS (Unsigned IPA)
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: 3.47.7
+
+jobs:
+  ios:
+    name: iOS Build (Unsigned)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select Latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install Dependencies
+        run: |
+          flutter pub get
+          flutter gen-l10n
+          dart run build_runner build --delete-conflicting-outputs
+
+      # Fail fast if either vendored iOS piece is missing from the checkout:
+      # the .cs3 engine's OpenJDK runtime (both slices) and the vendored
+      # MobileVLCKit podspec. Both are embedded automatically — the
+      # xcframework by the cs3_engine podspec, MobileVLCKit by `pod install`
+      # downloading the pinned tarball from download.videolan.org — so this
+      # step only checks presence, it embeds nothing.
+      - name: Verify Vendored iOS Pieces
+        run: |
+          test -d packages/cs3_engine/ios/Frameworks/OpenJDKRuntime.xcframework/ios-arm64/OpenJDKRuntime.framework || { echo "Missing OpenJDKRuntime device slice"; exit 1; }
+          test -d packages/cs3_engine/ios/Frameworks/OpenJDKRuntime.xcframework/ios-arm64-simulator/OpenJDKRuntime.framework || { echo "Missing OpenJDKRuntime simulator slice"; exit 1; }
+          test -f ios/vendor/MobileVLCKit.podspec.json || { echo "Missing ios/vendor/MobileVLCKit.podspec.json"; exit 1; }
+          echo "Vendored iOS pieces present."
+
+      # Desktop TorrServer binaries (~104 MB) cannot run on iOS; iOS runs
+      # TorrServer from the plugin's own vendored
+      # packages/flutter_torrent_server/ios/TorrServer.xcframework instead.
+      - name: Strip Desktop Binaries
+        run: rm -f packages/flutter_torrent_server/assets/torrserver/TorrServer-*
+
+      # No dart-defines file: the own app has no TMDB/Trakt/Simkl API secrets,
+      # so those integrations run without keys (they degrade gracefully).
+      - name: Build iOS (No Codesign)
+        run: |
+          flutter build ios --release --no-codesign
+          mkdir -p Payload
+          mv build/ios/iphoneos/Runner.app Payload/
+          VERSION=$(grep '^version:' pubspec.yaml | cut -d ' ' -f 2 | cut -d '+' -f 1)
+          zip -r "ZoroX-${VERSION}-unsigned.ipa" Payload
+          ls -lh *.ipa
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZoroX-iOS-unsigned
+          path: ZoroX-*-unsigned.ipa
+          retention-days: 30
