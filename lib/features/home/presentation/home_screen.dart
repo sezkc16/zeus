@@ -389,6 +389,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     onNavigateUp: () => _firstActionFocusNode.requestFocus(),
                     onControllerReady: (c) =>
                         setState(() => _carouselController = c),
+                    showPreviewActions: true,
+                    onPlay: (item) {
+                      // Play opens details and starts playback once the
+                      // item's streams resolve (DetailsRoute autoPlay).
+                      DetailsRoute(
+                        $extra: DetailsRouteExtra(
+                          item: item,
+                          autoPlay: true,
+                        ),
+                      ).push<void>(context);
+                    },
                     onTap: (item) {
                       DetailsRoute($extra: DetailsRouteExtra(item: item))
                           .push<void>(context);
@@ -403,6 +414,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     onNavigateUp: () => _firstActionFocusNode.requestFocus(),
                     onControllerReady: (c) =>
                         setState(() => _carouselController = c),
+                    showPreviewActions: true,
+                    onPlay: (item) {
+                      DetailsRoute(
+                        $extra: DetailsRouteExtra(
+                          item: item,
+                          autoPlay: true,
+                        ),
+                      ).push<void>(context);
+                    },
                     onTap: (item) {
                       DetailsRoute($extra: DetailsRouteExtra(item: item))
                           .push<void>(context);

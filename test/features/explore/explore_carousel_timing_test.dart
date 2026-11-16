@@ -23,6 +23,9 @@ MultimediaItem _movie(int i) => MultimediaItem(
   posterUrl: '',
   bannerUrl: '',
   contentType: MultimediaContentType.movie,
+  // A distinct year per slide: the poster-only hero (+42) has no title
+  // text, so the meta line ('Movie • 2000') is the per-slide marker.
+  year: 2000 + i,
 );
 
 void main() {
@@ -59,20 +62,20 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text('TITLE 0'), findsOneWidget);
+    expect(find.text('Movie • 2000'), findsOneWidget);
 
     // A second in: still the first slide. Scaled to 5%, the dwell had already
     // run out four times over by now.
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('TITLE 0'), findsOneWidget);
-    expect(find.text('TITLE 1'), findsNothing);
+    expect(find.text('Movie • 2000'), findsOneWidget);
+    expect(find.text('Movie • 2001'), findsNothing);
 
     // Past the five seconds, it moves on - once.
     await tester.pump(const Duration(seconds: 4));
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.text('TITLE 1'), findsOneWidget);
-    expect(find.text('TITLE 2'), findsNothing);
+    expect(find.text('Movie • 2001'), findsOneWidget);
+    expect(find.text('Movie • 2002'), findsNothing);
 
     await tester.pumpWidget(const SizedBox());
   });

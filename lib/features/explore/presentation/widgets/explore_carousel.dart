@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
@@ -15,6 +17,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../shared/widgets/thumbnail_error_placeholder.dart';
 import '../../../../core/domain/entity/multimedia_item.dart';
+import '../../../library/presentation/library_provider.dart';
+import '../../../library/presentation/library_state.dart';
 
 /// Lightweight controller for the hero carousel.
 /// API-compatible with the old CarouselSliderController (nextPage/previousPage).
@@ -37,6 +41,16 @@ class ExploreCarousel extends ConsumerStatefulWidget {
   /// so the parent can drive prev/next from an external UI (e.g. header arrows).
   final void Function(HeroCarouselController controller)? onControllerReady;
 
+  /// Restores the full preview hero (user decision 2026-11-16): big title,
+  /// type badge pill and Play / My List / Info actions. Off by default —
+  /// Explore, AniList and Addons keep the +42 poster-only hero.
+  final bool showPreviewActions;
+
+  /// Play handler for the preview hero. Home pushes the details screen with
+  /// autoPlay, so Play resolves the item's streams and starts playback.
+  /// Falls back to [onTap] / details when null.
+  final void Function(MultimediaItem)? onPlay;
+
   const ExploreCarousel({
     super.key,
     required this.movies,
@@ -44,6 +58,8 @@ class ExploreCarousel extends ConsumerStatefulWidget {
     this.onTap,
     this.onNavigateUp,
     this.onControllerReady,
+    this.showPreviewActions = false,
+    this.onPlay,
   });
 
   @override
@@ -710,11 +726,16 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
           : null;
     }
 
-    // +42: the hero shows the poster only — no big overlaid title text,
-    // no badge pills. The poster's own artwork (or its TMDB logo, when
-    // one exists) is the title. The type lives in the meta line now.
+    // +42: the poster-only hero shows no big overlaid title text and no
+    // badge pills. The poster's own artwork (or its TMDB logo, when one
+    // exists) is the title, and the type lives in the meta line.
+    // The preview hero (showPreviewActions, Home only) restores the
+    // pre-+42 layout instead: the type moves up into a gold badge pill,
+    // the title comes back as big text when there is no logo, and Play /
+    // My List / Info actions sit under the meta line.
+    final showPreview = widget.showPreviewActions;
     final metaParts = <String>[
-      if (type != null) type,
+      if (!showPreview && type != null) type,
       if (genres.isNotEmpty) genres,
       if (year.isNotEmpty) year,
     ];
@@ -726,14 +747,57 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
           ? CrossAxisAlignment.start
           : CrossAxisAlignment.center,
       children: [
+        // Preview hero only: the type as a gold badge pill above the title.
+        if (showPreview && type != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 5,
+              ),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                type.toUpperCase(),
+                style: TextStyle(
+                  color: theme.colorScheme.onPrimary,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+          ),
         // The item's own title logo, when TMDB has one. When there is
-        // none, nothing is rendered here — no giant fallback text: the
-        // backdrop artwork itself is the title (see the CLAYFACE
-        // reference: the red logo is part of the poster).
+        // none, the preview hero falls back to the big title text; the
+        // poster-only hero renders nothing here — the backdrop artwork
+        // itself is the title (see the CLAYFACE reference: the red logo
+        // is part of the poster).
         if (logoUrl != null)
           Padding(
             padding: const EdgeInsets.only(bottom: LayoutConstants.spacingLg),
             child: _buildLogo(logoUrl, isDesktop: isDesktop),
+          )
+        else if (showPreview)
+          Padding(
+            padding: const EdgeInsets.only(bottom: LayoutConstants.spacingLg),
+            child: Text(
+              movie.title.toUpperCase(),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: isDesktop ? TextAlign.left : TextAlign.center,
+              style: (isDesktop
+                      ? theme.textTheme.displaySmall
+                      : theme.textTheme.headlineMedium)
+                  ?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    height: 1.05,
+                  ),
+            ),
           ),
         if (meta.isNotEmpty)
           Padding(
@@ -749,21 +813,100 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
               ),
             ),
           ),
-        // View Details — same destination as tapping the poster.
-        ElevatedButton(
-          onPressed: () => _openMovie(context, movie),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black87,
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-            shape: const StadiumBorder(),
-            textStyle: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
+        if (showPreview)
+          _buildPreviewActions(context, movie, theme, isDesktop)
+        else
+          // View Details — same destination as tapping the poster.
+          ElevatedButton(
+            onPressed: () => _openMovie(context, movie),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black87,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 28,
+                vertical: 12,
+              ),
+              shape: const StadiumBorder(),
+              textStyle: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
             ),
+            child: const Text('View Details'),
           ),
-          child: const Text('View Details'),
+      ],
+    );
+  }
+
+  /// Play / My List / Info for the preview hero (Home only).
+  ///
+  /// Play is the primary gold button; My List and Info are dark glass
+  /// pills. 'My List' and 'Info' have no l10n keys yet, so they are
+  /// hardcoded like the 'View Details' label this file already carries.
+  Widget _buildPreviewActions(
+    BuildContext context,
+    MultimediaItem movie,
+    ThemeData theme,
+    bool isDesktop,
+  ) {
+    // My List state for the current slide, watched the same way the
+    // details screen watches it (library match on the item URL).
+    final isBookmarked = ref.watch(
+      libraryProvider.select(
+        (state) =>
+            state is LibrarySuccess &&
+            state.items.any((i) => i.url == movie.url),
+      ),
+    );
+
+    const buttonPadding = EdgeInsets.symmetric(horizontal: 20, vertical: 12);
+    const buttonText = TextStyle(fontSize: 15, fontWeight: FontWeight.w700);
+    final glassStyle = FilledButton.styleFrom(
+      backgroundColor: Colors.white.withValues(alpha: 0.16),
+      foregroundColor: Colors.white,
+      elevation: 0,
+      padding: buttonPadding,
+      shape: const StadiumBorder(),
+      textStyle: buttonText,
+    );
+
+    return Wrap(
+      alignment: isDesktop ? WrapAlignment.start : WrapAlignment.center,
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        // Play — primary gold button; Home wires it to details + autoPlay.
+        FilledButton.icon(
+          onPressed: () => _playMovie(context, movie),
+          icon: const Icon(Icons.play_arrow_rounded),
+          label: const Text('Play'),
+          style: FilledButton.styleFrom(
+            backgroundColor: theme.colorScheme.primary,
+            foregroundColor: theme.colorScheme.onPrimary,
+            elevation: 0,
+            padding: buttonPadding,
+            shape: const StadiumBorder(),
+            textStyle: buttonText,
+          ),
+        ),
+        // My List — filled bookmark once the item is saved.
+        FilledButton.icon(
+          onPressed: () => _toggleLibrary(movie),
+          icon: Icon(
+            isBookmarked
+                ? Icons.bookmark_added_rounded
+                : Icons.bookmark_add_outlined,
+          ),
+          label: const Text('My List'),
+          style: glassStyle,
+        ),
+        // Info — same destination as tapping the poster.
+        FilledButton.icon(
+          onPressed: () => _openMovie(context, movie),
+          icon: const Icon(Icons.info_outline_rounded),
+          label: const Text('Info'),
+          style: glassStyle,
         ),
       ],
     );
@@ -776,6 +919,28 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
       widget.onTap!(movie);
     } else {
       _navigateToDetails(context, movie);
+    }
+  }
+
+  /// Play for the preview hero: the caller's handler when one is set (Home
+  /// pushes details with autoPlay), otherwise the same destination as
+  /// tapping the poster.
+  void _playMovie(BuildContext context, MultimediaItem movie) {
+    if (widget.onPlay != null) {
+      widget.onPlay!(movie);
+    } else {
+      _openMovie(context, movie);
+    }
+  }
+
+  /// My List toggle for the preview hero: the same library the details
+  /// screen and the Library tab read, matched on the item URL.
+  void _toggleLibrary(MultimediaItem movie) {
+    final notifier = ref.read(libraryProvider.notifier);
+    if (notifier.isBookmarked(movie.url)) {
+      unawaited(notifier.removeItem(movie.url));
+    } else {
+      unawaited(notifier.addItem(movie));
     }
   }
 
