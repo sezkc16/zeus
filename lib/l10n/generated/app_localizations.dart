@@ -504,7 +504,7 @@ abstract class AppLocalizations {
   /// The GPL notice on the licence page: copyright, the licence, no warranty, where the source is.
   ///
   /// In en, this message translates to:
-  /// **'Copyright © 2025–2026 ZoroX contributors.\nZoroX is free software: you can redistribute it and modify it under the terms of the GNU General Public License, version 3. It comes with ABSOLUTELY NO WARRANTY. Its source code is at github.com/sezkc16/zorox.'**
+  /// **'Copyright © 2025–2026 ZoroX contributors.\nZoroX is free software: you can redistribute it and modify it under the terms of the GNU General Public License, version 3. It comes with ABSOLUTELY NO WARRANTY. Its source code is at github.com/sezkc16/zorox-app.'**
   String get appLegalese;
 
   /// No description provided for @enabled.
@@ -608,6 +608,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'View Details'**
   String get viewDetails;
+
+  /// The hero's My List button: saves the title to the user's list, or removes it.
+  ///
+  /// In en, this message translates to:
+  /// **'My List'**
+  String get myList;
+
+  /// The hero's Info button: opens the title's details page.
+  ///
+  /// In en, this message translates to:
+  /// **'Info'**
+  String get info;
+
+  /// The compact banner on Home when no provider is installed: the title of the call to add one.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a plugin'**
+  String get addPlugin;
+
+  /// The compact banner on Home when no provider is installed: what adding a provider unlocks.
+  ///
+  /// In en, this message translates to:
+  /// **'Install a provider to unlock more'**
+  String get addPluginSubtitle;
+
+  /// The badge on the first hero slide, as the design draws it. A rank badge, not a sentence.
+  ///
+  /// In en, this message translates to:
+  /// **'#1 TRENDING TODAY'**
+  String get trendingTodayBadge;
 
   /// No description provided for @clearAll.
   ///

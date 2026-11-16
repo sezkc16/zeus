@@ -9,9 +9,13 @@
 /// Accounts screen went behind the pill.
 library;
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:zorox/core/domain/entity/multimedia_item.dart';
 import 'package:zorox/core/providers/device_info_provider.dart';
 import 'package:zorox/core/services/notification_service.dart';
@@ -67,6 +71,15 @@ class _QuietSettings extends SettingsRepository {
 
   @override
   bool getDevLoadAssets() => false;
+
+  // The theme variant and accent providers read these on build; the base
+  // implementations touch the Hive box, which is never initialised here.
+  // Nothing chosen yet → the fresh-install defaults.
+  @override
+  String? getThemeVariant() => null;
+
+  @override
+  String? getAccentColor() => null;
 }
 
 class _NoTokens extends SecureTokenStorage {
@@ -108,12 +121,46 @@ class _FakeLibrary extends Library {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+
+  /// The real thing over a real Hive box in a temp directory. The settings
+  /// screens watch providers that read storage directly — history, the
+  /// account section — not just through the repository fake, so those need
+  /// a service that is actually initialised. The repository fake above
+  /// still answers the theme/accent reads itself, so no box is touched
+  /// for those.
+  late Directory dir;
+  late StorageService storage;
+
+  setUp(() async {
+    dir = Directory.systemTemp.createTempSync('shell_bottom_clearance');
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/path_provider'),
+      (call) async => dir.path,
+    );
+    storage = StorageService();
+    await storage.init();
+  });
+
+  tearDown(() async {
+    await Hive.close();
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/path_provider'),
+      null,
+    );
+    if (dir.existsSync()) dir.deleteSync(recursive: true);
+  });
+
   /// Pumps [screen] the way the mobile shell hosts it: full screen, with the
   /// bar's height riding on the media padding.
   Future<void> pump(WidgetTester tester, Widget screen) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          storageServiceProvider.overrideWithValue(storage),
           settingsRepositoryProvider.overrideWithValue(_QuietSettings()),
           secureTokenStorageProvider.overrideWithValue(_NoTokens()),
           notificationServiceProvider.overrideWithValue(NotificationService()),

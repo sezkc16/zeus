@@ -210,7 +210,17 @@ class _Scan {
       if (_isComment(i)) continue;
       final Match? at = _textEditingControllerCtor.firstMatch(lines[i]);
       if (at == null) continue;
-      final String target = lines[i].substring(0, at.start);
+      var target = lines[i].substring(0, at.start);
+      if (target.trim().isEmpty) {
+        // The initializer wrapped: `= TextEditingController()` on its own
+        // line, because dart format wraps at 80 columns. The assignment
+        // target lives on the previous non-empty line.
+        var j = i - 1;
+        while (j >= 0 && lines[j].trim().isEmpty) {
+          j--;
+        }
+        if (j >= 0) target = lines[j];
+      }
 
       final int decl = declaration[i];
       if (decl == -1 || !_stateClass.hasMatch(_declarationHeader(decl))) {

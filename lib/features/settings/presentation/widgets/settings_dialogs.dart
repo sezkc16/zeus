@@ -2003,7 +2003,10 @@ void showDeveloperDialog(BuildContext context) {
                   ?.copyWith(fontWeight: FontWeight.bold, letterSpacing: 0.5),
             ),
             const SizedBox(height: 24),
-            // Social Links
+            // Social Links — GitHub only. The Discord / Telegram buttons
+            // the fork shipped opened SkyStream's own servers; this app
+            // is not SkyStream's, so they stay out until ZoroX has its
+            // own community links.
             Wrap(
               alignment: WrapAlignment.center,
               spacing: 12,
@@ -2016,26 +2019,6 @@ void showDeveloperDialog(BuildContext context) {
                   ), // GitHub Official Black/Dark Grey
                   onTap: () => launchUrl(
                     Uri.parse('https://github.com/sezkc16'),
-                    mode: LaunchMode.externalApplication,
-                  ),
-                ),
-                _SocialButton(
-                  svgUrl: 'https://raw.githubusercontent.com/simple-icons/simple-icons/11.10.0/icons/discord.svg',
-                  color: const Color(
-                    0xFF5865F2,
-                  ), // Discord Blurple
-                  onTap: () => launchUrl(
-                    Uri.parse('https://discord.gg/73XGA8Mxn9'),
-                    mode: LaunchMode.externalApplication,
-                  ),
-                ),
-                _SocialButton(
-                  svgUrl: 'https://raw.githubusercontent.com/simple-icons/simple-icons/11.10.0/icons/telegram.svg',
-                  color: const Color(
-                    0xFF5baae3,
-                  ), // Telegram Official Blue
-                  onTap: () => launchUrl(
-                    Uri.parse('https://t.me/+Ez5Vsv2pUUFjZmNl'),
                     mode: LaunchMode.externalApplication,
                   ),
                 ),

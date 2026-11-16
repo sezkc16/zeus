@@ -275,6 +275,9 @@ class AnilistRepository {
       contentType: contentType,
       year: media['seasonYear'] as int?,
       score: score,
+      // AniList duration is minutes — the episode length for a series,
+      // the full runtime for a movie. The hero renders it as "2h 46m".
+      duration: media['duration'] as int?,
       status: status,
       tags: genres,
       tmdbId: media['id'] as int?,

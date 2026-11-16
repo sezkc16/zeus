@@ -100,10 +100,32 @@ Future<void> _settle([int turns = 64]) async {
   }
 }
 
+/// Waits for the home state to reach [predicate], giving the event loop
+/// real turns. A plain [_settle] is not enough after a provider change:
+/// the rebuild is scheduled, and the key-free fetch that follows it is an
+/// async chain of its own — both need event-loop turns, not just drained
+/// microtasks.
+Future<void> _waitForHome(
+  ProviderContainer container,
+  bool Function(HomeState) predicate,
+) async {
+  for (var i = 0; i < 100; i++) {
+    if (predicate(container.read(homeDataProvider))) return;
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+  fail('homeDataProvider did not reach the expected state');
+}
+
 ProviderContainer _containerWith(SkyStreamProvider? active) {
   final container = ProviderContainer(
     overrides: [
       activeProviderProvider.overrideWith(() => _FakeActiveProvider(active)),
+      // The key-free feed needs the network; pin it empty so a deselect
+      // lands deterministically instead of hanging on a socket these tests
+      // never let complete.
+      keyFreeHomeFeedProvider.overrideWith(
+        (ref) async => const <String, List<MultimediaItem>>{},
+      ),
     ],
   );
   addTearDown(container.dispose);
@@ -261,21 +283,57 @@ void main() {
       await _settle();
       expect(slow.callCount, 1);
 
-      // Provider uninstalled / deselected: build() returns HomeNoProvider and
-      // schedules no fetch of its own, so only the token bumped in build()
-      // can retire the in-flight one.
+      // Provider uninstalled / deselected: Home falls back to the key-free
+      // feed (pinned empty here, so the state becomes its error), and only
+      // the token bumped in build() can retire the in-flight provider
+      // fetch — the empty state is gone.
       unawaited(container.read(activeProviderProvider.notifier).set(null));
-      await _settle();
-      expect(container.read(homeDataProvider), isA<HomeNoProvider>());
+      await _waitForHome(container, (state) => state is HomeError);
 
       slow.resolve(0, 'Slow');
       await _settle();
 
       expect(
         container.read(homeDataProvider),
-        isA<HomeNoProvider>(),
+        isA<HomeError>(),
         reason: 'a fetch from the removed provider must not resurrect a grid',
       );
+    });
+
+    test('no provider serves the key-free feed, not the empty state', () async {
+      final feed = <String, List<MultimediaItem>>{
+        'Trending': [
+          MultimediaItem(
+            title: 'A',
+            url: 'anilist:1',
+            posterUrl: '',
+            contentType: MultimediaContentType.anime,
+          ),
+        ],
+        'Popular Anime': [
+          MultimediaItem(
+            title: 'B',
+            url: 'anilist:2',
+            posterUrl: '',
+            contentType: MultimediaContentType.anime,
+          ),
+        ],
+      };
+      final container = ProviderContainer(
+        overrides: [
+          activeProviderProvider.overrideWith(
+            () => _FakeActiveProvider(null),
+          ),
+          keyFreeHomeFeedProvider.overrideWith((ref) async => feed),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(homeDataProvider, (_, _) {});
+      await _settle();
+
+      final state = container.read(homeDataProvider);
+      expect(state, isA<HomeSuccess>());
+      expect(_sectionsOf(state), {'Trending', 'Popular Anime'});
     });
 
     test('a result arriving after dispose does not throw', () async {

@@ -178,7 +178,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get appLegalese =>
-      'कॉपीराइट © 2025–2026 ZoroX योगदानकर्ता।\nZoroX मुफ़्त सॉफ़्टवेयर है: आप इसे GNU जनरल पब्लिक लाइसेंस, संस्करण 3 की शर्तों के तहत फिर से वितरित और संशोधित कर सकते हैं। यह बिना किसी वारंटी के आता है। इसका सोर्स कोड github.com/sezkc16/zorox पर है।';
+      'कॉपीराइट © 2025–2026 ZoroX योगदानकर्ता।\nZoroX मुफ़्त सॉफ़्टवेयर है: आप इसे GNU जनरल पब्लिक लाइसेंस, संस्करण 3 की शर्तों के तहत फिर से वितरित और संशोधित कर सकते हैं। यह बिना किसी वारंटी के आता है। इसका सोर्स कोड github.com/sezkc16/zorox-app पर है।';
 
   @override
   String get enabled => 'सक्षम';
@@ -232,6 +232,21 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get viewDetails => 'विवरण देखें';
+
+  @override
+  String get myList => 'My List';
+
+  @override
+  String get info => 'Info';
+
+  @override
+  String get addPlugin => 'Add a plugin';
+
+  @override
+  String get addPluginSubtitle => 'Install a provider to unlock more';
+
+  @override
+  String get trendingTodayBadge => '#1 TRENDING TODAY';
 
   @override
   String get clearAll => 'सभी साफ़ करें';

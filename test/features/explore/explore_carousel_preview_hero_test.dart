@@ -20,6 +20,7 @@ import 'package:zorox/core/domain/entity/multimedia_item.dart';
 import 'package:zorox/core/storage/library_repository.dart';
 import 'package:zorox/core/storage/storage_service.dart';
 import 'package:zorox/features/explore/presentation/widgets/explore_carousel.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 MultimediaItem _movie(int i) => MultimediaItem(
@@ -28,6 +29,22 @@ MultimediaItem _movie(int i) => MultimediaItem(
   posterUrl: '',
   bannerUrl: '',
   contentType: MultimediaContentType.movie,
+);
+
+/// A movie with the metadata the preview hero's meta line renders:
+/// score 8.7 → "87% Match", year 2024, 166 minutes → "2h 46m", genres,
+/// and an HTML description (AniList ships them that way) for the synopsis.
+MultimediaItem _richMovie() => MultimediaItem(
+  title: 'Rich Title',
+  url: 'https://fake.test/rich',
+  posterUrl: '',
+  bannerUrl: '',
+  contentType: MultimediaContentType.movie,
+  year: 2024,
+  score: 8.7,
+  duration: 166,
+  tags: const ['Sci-Fi'],
+  description: 'A <i>short</i> synopsis<br>across lines.',
 );
 
 /// In-memory stand-in for the library box: same keying (one entry per URL),
@@ -87,6 +104,8 @@ void main() {
           ),
         ],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: ExploreCarousel(
               movies: movies,
@@ -115,12 +134,62 @@ void main() {
       );
 
       expect(find.text('TITLE 0'), findsOneWidget);
-      expect(find.text('MOVIE'), findsOneWidget);
+      // The first slide wears the "#1 TRENDING TODAY" badge, not the
+      // type pill — the type pill is for the later slides.
+      expect(find.text('#1 TRENDING TODAY'), findsOneWidget);
+      expect(find.text('MOVIE'), findsNothing);
       expect(find.text('Play'), findsOneWidget);
       expect(find.text('My List'), findsOneWidget);
       expect(find.text('Info'), findsOneWidget);
       // The poster-only call to action is gone.
       expect(find.text('View Details'), findsNothing);
+    });
+
+    testWidgets('the second slide wears the type badge', (tester) async {
+      await pumpCarousel(
+        tester,
+        movies: [_movie(0), _movie(1)],
+        showPreviewActions: true,
+      );
+
+      expect(find.text('#1 TRENDING TODAY'), findsOneWidget);
+      expect(find.text('MOVIE'), findsNothing);
+
+      // The 5 s auto-advance dwell, then the 400 ms slide transition. The
+      // dwell fires on the frame after the clock passes 5 s, and the
+      // crossfade keeps the old slide mounted until the transition
+      // finishes, so the extra second settles both.
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.text('#1 TRENDING TODAY'), findsNothing);
+      expect(find.text('MOVIE'), findsOneWidget);
+    });
+
+    testWidgets('preview meta and synopsis read like the design', (
+      tester,
+    ) async {
+      await pumpCarousel(
+        tester,
+        movies: [_richMovie()],
+        showPreviewActions: true,
+      );
+
+      // "98% Match · 2024 · 2h 46m · 4K · Dolby Vision · Sci-Fi", as one
+      // clamped line — the match, year, runtime and genres come from the
+      // item, the 4K / Dolby Vision badges from the preview's design.
+      // The meta is a standalone RichText, which textContaining ignores
+      // unless findRichText is passed.
+      expect(find.textContaining('87% Match', findRichText: true), findsOneWidget);
+      expect(find.textContaining('2024', findRichText: true), findsOneWidget);
+      expect(find.textContaining('2h 46m', findRichText: true), findsOneWidget);
+      expect(find.textContaining('4K', findRichText: true), findsOneWidget);
+      expect(find.textContaining('Dolby Vision', findRichText: true), findsOneWidget);
+      expect(find.textContaining('Sci-Fi', findRichText: true), findsOneWidget);
+      // The HTML in the description is stripped, not printed raw.
+      expect(find.text('A short synopsis across lines.'), findsOneWidget);
+      expect(find.textContaining('<i>'), findsNothing);
     });
 
     testWidgets('Play calls onPlay once and does not fire the slide tap', (

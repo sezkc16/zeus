@@ -78,7 +78,7 @@
   "version": "Version",
   "openSourceLicences": "Open-source licences",
   "openSourceLicencesSubtitle": "ZoroX is free software under the GNU GPL v3",
-  "appLegalese": "Copyright © 2025–2026 ZoroX contributors.\nZoroX is free software: you can redistribute it and modify it under the terms of the GNU General Public License, version 3. It comes with ABSOLUTELY NO WARRANTY. Its source code is at github.com/sezkc16/zorox.",
+  "appLegalese": "Copyright © 2025–2026 ZoroX contributors.\nZoroX is free software: you can redistribute it and modify it under the terms of the GNU General Public License, version 3. It comes with ABSOLUTELY NO WARRANTY. Its source code is at github.com/sezkc16/zorox-app.",
   "@appLegalese": {
     "description": "The GPL notice on the licence page: copyright, the licence, no warranty, where the source is."
   },
@@ -106,6 +106,26 @@
   "close": "Close",
   "delete": "Delete",
   "viewDetails": "View Details",
+  "myList": "My List",
+  "@myList": {
+    "description": "The hero's My List button: saves the title to the user's list, or removes it."
+  },
+  "info": "Info",
+  "@info": {
+    "description": "The hero's Info button: opens the title's details page."
+  },
+  "addPlugin": "Add a plugin",
+  "@addPlugin": {
+    "description": "The compact banner on Home when no provider is installed: the title of the call to add one."
+  },
+  "addPluginSubtitle": "Install a provider to unlock more",
+  "@addPluginSubtitle": {
+    "description": "The compact banner on Home when no provider is installed: what adding a provider unlocks."
+  },
+  "trendingTodayBadge": "#1 TRENDING TODAY",
+  "@trendingTodayBadge": {
+    "description": "The badge on the first hero slide, as the design draws it. A rank badge, not a sentence."
+  },
   "clearAll": "Clear All",
   "clearAllHistory": "Clear All History",
   "all": "All",

@@ -26,7 +26,9 @@ UpdateService updateService(Ref ref) {
 class UpdateService {
   final Dio _dio;
   static const String _owner = 'sezkc16';
-  static const String _repo = 'zorox';
+  // The own app's repo — not the fork's. Checking the fork here would
+  // offer a fork build as an update to this app.
+  static const String _repo = 'zorox-app';
 
   UpdateService(this._dio);
 

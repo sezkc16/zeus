@@ -1,10 +1,11 @@
 /// The four named theme variants (Settings → General).
 ///
-/// Arena Gold is the theme the app has always shipped — the default.
-/// Midnight takes the same structure to near-black, Frost is the light
-/// theme, Liquid Glass is dark with a glass treatment. The accent still
-/// drives `primary` in all four, and picking a variant applies it live
-/// (the theme mode flips to match its brightness) and persists it.
+/// Liquid Glass is the fresh-install default (the approved design preview
+/// wears the glass pill nav); Arena Gold is the theme the app shipped
+/// before and stays selectable. Midnight takes the same structure to
+/// near-black, Frost is the light theme. The accent still drives `primary`
+/// in all four, and picking a variant applies it live (the theme mode
+/// flips to match its brightness) and persists it.
 ///
 /// These tests drive the real [StorageService] against a real Hive box in
 /// a temp directory, so "nothing recorded yet" is the genuine state rather
@@ -58,11 +59,11 @@ void main() {
       }
     });
 
-    test('fromName falls back to Arena Gold for null or unknown', () {
-      expect(ZoroxThemeVariant.fromName(null), ZoroxThemeVariant.arenaGold);
+    test('fromName falls back to Liquid Glass for null or unknown', () {
+      expect(ZoroxThemeVariant.fromName(null), ZoroxThemeVariant.liquidGlass);
       expect(
         ZoroxThemeVariant.fromName('sepia'),
-        ZoroxThemeVariant.arenaGold,
+        ZoroxThemeVariant.liquidGlass,
       );
     });
   });
@@ -296,10 +297,10 @@ void main() {
       return container;
     }
 
-    test('nothing chosen yet comes up Arena Gold', () {
+    test('nothing chosen yet comes up Liquid Glass', () {
       expect(storage.getThemeVariant(), isNull, reason: 'nothing recorded yet');
 
-      expect(boot().read(themeVariantProvider), ZoroxThemeVariant.arenaGold);
+      expect(boot().read(themeVariantProvider), ZoroxThemeVariant.liquidGlass);
     });
 
     test('every variant round-trips through storage', () async {
@@ -314,15 +315,18 @@ void main() {
       }
     });
 
-    test('a value no release ever wrote falls back to Arena Gold', () async {
+    test('a value no release ever wrote falls back to Liquid Glass', () async {
       await storage.saveThemeVariant('sepia');
 
-      expect(boot().read(themeVariantProvider), ZoroxThemeVariant.arenaGold);
+      expect(boot().read(themeVariantProvider), ZoroxThemeVariant.liquidGlass);
     });
 
     test('choosing a variant records it and applies it live', () async {
       final container = boot();
-      expect(container.read(themeVariantProvider), ZoroxThemeVariant.arenaGold);
+      expect(
+        container.read(themeVariantProvider),
+        ZoroxThemeVariant.liquidGlass,
+      );
 
       await container
           .read(themeVariantProvider.notifier)

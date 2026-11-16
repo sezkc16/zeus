@@ -223,11 +223,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ),
 
-          // 2. Provider / Extension Pill Selector (after Search button, using matching search button design)
+          // 2. Provider / Extension Pill Selector (after Search button, using matching search button design).
+          // The preview's header has no provider pill at all — and with no
+          // provider the fork's "None" pill is exactly the fork-ism the
+          // user rejected — so the pill only renders while a provider is
+          // active. Adding a provider still goes through the Home banner.
           Consumer(
             builder: (context, ref, _) {
               final activeProvider = ref.watch(activeProviderProvider);
-              final isDebug = activeProvider?.isDebug ?? false;
+              if (activeProvider == null) return const SizedBox.shrink();
+              final isDebug = activeProvider.isDebug;
               return Padding(
                 padding: const EdgeInsets.only(
                   right: LayoutConstants.spacingMd,
@@ -253,7 +258,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          activeProvider?.name ?? l10n.none,
+                          activeProvider.name,
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 12,
@@ -348,9 +353,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       );
     }
 
-    if (ref.watch(activeProviderProvider) == null) {
-      return _buildNoProviderState(context, l10n, isWidescreen: isWidescreen);
-    }
+    // No early no-provider return: with no provider HomeData serves the
+    // key-free feed, so Home renders the populated preview Home (hero +
+    // rows) and the "Add a plugin" banner below them — never the fork's
+    // full-screen "Current provider: None" empty state.
+    final hasNoProvider = ref.watch(activeProviderProvider) == null;
 
     return switch (state) {
       HomeLoading() => _checkGate(
@@ -366,10 +373,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
         ),
       ),
-      HomeNoProvider() => _buildNoProviderState(
+      HomeNoProvider() => _buildErrorState(
         context,
-        l10n,
-        isWidescreen: isWidescreen,
+        l10n.noPluginsMessage,
+        ref,
       ),
       HomeOffline() => _buildErrorState(context, l10n.noInternetError, ref),
       HomeError(:final message) => _checkGate(
@@ -485,6 +492,92 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 ),
               ),
 
+              // No provider yet: the "Add a plugin" CTA stays, but as a
+              // compact banner below the rows — the feed above is the
+              // preview's populated Home, not an empty state.
+              if (hasNoProvider)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      LayoutConstants.spacingMd,
+                      LayoutConstants.spacingLg,
+                      LayoutConstants.spacingMd,
+                      0,
+                    ),
+                    child: CardsWrapper(
+                      onTap: () =>
+                          const ExtensionsRoute().push<void>(context),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest
+                              .withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outline.withValues(alpha: 0.1),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withValues(alpha: 0.16),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.extension_rounded,
+                                color: Theme.of(context).colorScheme.primary,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 11),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    l10n.addPlugin,
+                                    style: const TextStyle(
+                                      fontSize: 15.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    l10n.addPluginSubtitle,
+                                    style: TextStyle(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                      fontSize: 12.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
               SliverPadding(
                 padding: EdgeInsets.only(
                   bottom: LayoutConstants.shellBottomContentPadding(context),
@@ -540,169 +633,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   /// No provider yet: the preview's provider-first home, not the bare
-  /// "Select a provider" screen — greeting, the provider card, and a chip
-  /// for every installed provider, so the home is never empty.
-  ///
-  /// The two labels are the preview's own ("Current provider",
-  /// "Change ›") — there is no l10n key for them and the mock the user
-  /// approved uses exactly these words.
-  Widget _buildNoProviderState(
-    BuildContext context,
-    AppLocalizations l10n, {
-    bool isWidescreen = false,
-  }) {
-    final cs = Theme.of(context).colorScheme;
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        LayoutConstants.spacingMd,
-        isWidescreen
-            ? 8
-            : MediaQuery.of(context).padding.top + kToolbarHeight + 8,
-        LayoutConstants.spacingMd,
-        LayoutConstants.shellBottomContentPadding(context),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Provider card (preview): current provider + "Change".
-          Consumer(
-            builder: (context, ref, _) {
-              final active = ref.watch(activeProviderProvider);
-              final name = active?.name ?? l10n.none;
-              return CardsWrapper(
-                onTap: () => _showProviderSelector(context, ref),
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: cs.outline.withValues(alpha: 0.1),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: cs.primary.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          name.isEmpty ? '?' : name[0].toUpperCase(),
-                          style: TextStyle(
-                            color: cs.primary,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 11),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Current provider',
-                              style: TextStyle(
-                                color: cs.onSurfaceVariant,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.05,
-                              ),
-                            ),
-                            Text(
-                              name,
-                              style: const TextStyle(
-                                fontSize: 15.5,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        'Change ›',
-                        style: TextStyle(
-                          color: cs.primary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          // Provider chips (preview): every installed provider, gold = active.
-          Consumer(
-            builder: (context, ref, _) {
-              // Rebuild when installs change; the provider list itself comes
-              // from the extension manager, the same source as the selector.
-              ref.watch(extensionsControllerProvider);
-              final active = ref.watch(activeProviderProvider);
-              final providers =
-                  List<SkyStreamProvider>.from(
-                    ref
-                        .read(extensionManagerProvider.notifier)
-                        .getAllProviders(),
-                  )..sort(
-                    (a, b) =>
-                        a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-                  );
-              if (providers.isEmpty) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.noPluginsMessage,
-                      style: TextStyle(color: cs.onSurfaceVariant),
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton.icon(
-                      onPressed: () =>
-                          const ExtensionsRoute().push<void>(context),
-                      icon: const Icon(Icons.extension_rounded),
-                      label: Text(l10n.goToExtensions),
-                    ),
-                  ],
-                );
-              }
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (final p in providers) ...[
-                      _ProviderChip(
-                        label: p.name,
-                        selected: active?.packageName == p.packageName,
-                        onTap: () {
-                          ref.read(activeProviderProvider.notifier).set(p);
-                          ref.invalidate(homeDataProvider);
-                        },
-                      ),
-                      const SizedBox(width: 7),
-                    ],
-                  ],
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          Text(
-            l10n.tapExtensionIcon,
-            style: TextStyle(color: cs.onSurfaceVariant),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildErrorState(BuildContext context, String error, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final bool isOffline = error == l10n.noInternetError;
@@ -936,50 +866,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 }
 
 /// A provider chip in the preview's style: dark pill, gold when selected.
-class _ProviderChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _ProviderChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Material(
-      color: selected ? cs.primary : cs.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(999),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: selected
-                  ? cs.primary
-                  : cs.outline.withValues(alpha: 0.1),
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: selected ? cs.onPrimary : cs.onSurface,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Opens the provider picker. Public only so a widget test can drive the
 /// dialog through a pop mid-transition; [_HomeScreenState] is the caller
 /// that matters and resolves the provider list first.

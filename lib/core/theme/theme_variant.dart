@@ -14,7 +14,7 @@ part 'theme_variant.g.dart';
 /// layer existed:
 ///
 /// * [arenaGold] — the theme the app has shipped since the rebrand:
-///   obsidian background, gold accent. The default.
+///   obsidian background, gold accent. Still selectable in Settings.
 /// * [midnight] — the same structure with backgrounds and surfaces taken
 ///   to near-black; the gold accent stays.
 /// * [frost] — the light theme, unchanged from the one that shipped
@@ -25,10 +25,13 @@ part 'theme_variant.g.dart';
 ///   and this variant marks the theme glass through
 ///   [ZoroxThemeExtension] so widgets can key their background
 ///   treatment off it instead of guessing from the variant name.
+///   The fresh-install default: the approved design preview wears the
+///   glass pill nav, so a first launch must look like the preview, not
+///   the fork's Arena Gold.
 enum ZoroxThemeVariant {
   arenaGold(
     'Arena Gold',
-    'Dark with the gold accent — the theme the app ships with',
+    'Dark with the gold accent',
     isDark: true,
   ),
   midnight(
@@ -58,16 +61,18 @@ enum ZoroxThemeVariant {
   /// Whether the variant is a dark theme. Frost is the only light one.
   final bool isDark;
 
-  /// The saved variant name, or Arena Gold for anything this release
+  /// The saved variant name, or Liquid Glass for anything this release
   /// never wrote. Storage outlives downgrades and hand-editing, so an
   /// unrecognised value is reachable; it says no more than an absent one
-  /// does, and lands in the same place.
+  /// does, and lands in the same place. Liquid Glass is the fresh-install
+  /// default (the approved design preview wears the glass pill nav);
+  /// Arena Gold stays selectable in Settings.
   static ZoroxThemeVariant fromName(String? name) {
-    if (name == null) return ZoroxThemeVariant.arenaGold;
+    if (name == null) return ZoroxThemeVariant.liquidGlass;
     for (final variant in ZoroxThemeVariant.values) {
       if (variant.name == name) return variant;
     }
-    return ZoroxThemeVariant.arenaGold;
+    return ZoroxThemeVariant.liquidGlass;
   }
 }
 

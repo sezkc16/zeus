@@ -152,34 +152,38 @@ class DashboardHeaderBar extends ConsumerWidget {
             ),
           ),
 
-          const SizedBox(width: 12),
-
-          HoverBorderGradient(
-            onTap: onShowProviderSelector,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.extension,
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white
-                      : Colors.black,
-                  size: 16,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  activeProvider?.name ?? l10n.none,
-                  style: TextStyle(
+          // Provider pill — only while a provider is active. The preview's
+          // header has no provider pill, and with no provider the fork's
+          // "None" pill is exactly the fork-ism the user rejected.
+          if (activeProvider != null) ...[
+            const SizedBox(width: 12),
+            HoverBorderGradient(
+              onTap: onShowProviderSelector,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.extension,
                     color: Theme.of(context).brightness == Brightness.dark
                         ? Colors.white
                         : Colors.black,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    size: 16,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Text(
+                    activeProvider.name,
+                    style: TextStyle(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white
+                          : Colors.black,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

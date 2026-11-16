@@ -179,7 +179,7 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get appLegalese =>
-      'ಹಕ್ಕುಸ್ವಾಮ್ಯ © 2025–2026 ZoroX ಕೊಡುಗೆದಾರರು.\nZoroX ಉಚಿತ ತಂತ್ರಾಂಶ: GNU ಜನರಲ್ ಪಬ್ಲಿಕ್ ಲೈಸೆನ್ಸ್, ಆವೃತ್ತಿ 3 ರ ನಿಯಮಗಳ ಅಡಿಯಲ್ಲಿ ನೀವು ಇದನ್ನು ಮರುಹಂಚಿಕೆ ಮಾಡಬಹುದು ಮತ್ತು ಮಾರ್ಪಡಿಸಬಹುದು. ಇದು ಯಾವುದೇ ಖಾತರಿ ಇಲ್ಲದೆ ಬರುತ್ತದೆ. ಇದರ ಮೂಲ ಕೋಡ್ github.com/sezkc16/zorox ನಲ್ಲಿದೆ.';
+      'ಹಕ್ಕುಸ್ವಾಮ್ಯ © 2025–2026 ZoroX ಕೊಡುಗೆದಾರರು.\nZoroX ಉಚಿತ ತಂತ್ರಾಂಶ: GNU ಜನರಲ್ ಪಬ್ಲಿಕ್ ಲೈಸೆನ್ಸ್, ಆವೃತ್ತಿ 3 ರ ನಿಯಮಗಳ ಅಡಿಯಲ್ಲಿ ನೀವು ಇದನ್ನು ಮರುಹಂಚಿಕೆ ಮಾಡಬಹುದು ಮತ್ತು ಮಾರ್ಪಡಿಸಬಹುದು. ಇದು ಯಾವುದೇ ಖಾತರಿ ಇಲ್ಲದೆ ಬರುತ್ತದೆ. ಇದರ ಮೂಲ ಕೋಡ್ github.com/sezkc16/zorox-app ನಲ್ಲಿದೆ.';
 
   @override
   String get enabled => 'ಸಕ್ರಿಯಗೊಳಿಸಲಾಗಿದೆ';
@@ -233,6 +233,21 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get viewDetails => 'ವಿವರಗಳನ್ನು ವೀಕ್ಷಿಸಿ';
+
+  @override
+  String get myList => 'My List';
+
+  @override
+  String get info => 'Info';
+
+  @override
+  String get addPlugin => 'Add a plugin';
+
+  @override
+  String get addPluginSubtitle => 'Install a provider to unlock more';
+
+  @override
+  String get trendingTodayBadge => '#1 TRENDING TODAY';
 
   @override
   String get clearAll => 'ಎಲ್ಲವನ್ನೂ ತೆರವುಗೊಳಿಸಿ';

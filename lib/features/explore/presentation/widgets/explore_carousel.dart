@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
+import 'package:html_unescape/html_unescape.dart';
 
 import '../../../../core/router/app_router.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -464,9 +466,21 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
   }) {
     final movie = widget.movies[index];
     if (widget.scrollController == null) {
-      return _buildStaticItem(context, movie, height, isDesktop: isDesktop);
+      return _buildStaticItem(
+        context,
+        movie,
+        height,
+        isDesktop: isDesktop,
+        isFirstSlide: index == 0,
+      );
     }
-    return _buildCarouselItem(context, movie, height, isDesktop: isDesktop);
+    return _buildCarouselItem(
+      context,
+      movie,
+      height,
+      isDesktop: isDesktop,
+      isFirstSlide: index == 0,
+    );
   }
 
   void _navigateToDetails(BuildContext context, MultimediaItem movie) {
@@ -486,6 +500,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
     MultimediaItem movie,
     double height, {
     bool isDesktop = false,
+    bool isFirstSlide = false,
   }) {
     final theme = Theme.of(context);
     final scaffoldColor = theme.scaffoldBackgroundColor;
@@ -520,6 +535,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
               opacity: opacity,
               scaffoldColor: scaffoldColor,
               theme: theme,
+              isFirstSlide: isFirstSlide,
             );
           },
         ),
@@ -532,6 +548,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
     MultimediaItem movie,
     double height, {
     bool isDesktop = false,
+    bool isFirstSlide = false,
   }) {
     final theme = Theme.of(context);
     return GestureDetector(
@@ -553,6 +570,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
         opacity: 1.0,
         scaffoldColor: theme.scaffoldBackgroundColor,
         theme: theme,
+        isFirstSlide: isFirstSlide,
       ),
     );
   }
@@ -567,6 +585,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
     required double opacity,
     required Color scaffoldColor,
     required ThemeData theme,
+    required bool isFirstSlide,
   }) {
     final imageUrl = movie.backdropImageUrl;
     final title = movie.title;
@@ -683,6 +702,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
                       movie: movie,
                       theme: theme,
                       context: context,
+                      isFirstSlide: isFirstSlide,
                     )
                   : Opacity(
                       opacity: opacity,
@@ -691,6 +711,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
                         movie: movie,
                         theme: theme,
                         context: context,
+                        isFirstSlide: isFirstSlide,
                       ),
                     ),
             ),
@@ -705,7 +726,9 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
     required MultimediaItem movie,
     required ThemeData theme,
     required BuildContext context,
+    required bool isFirstSlide,
   }) {
+    final l10n = AppLocalizations.of(context)!;
     final logoUrl = movie.logoUrl;
     final year = movie.year?.toString() ?? '';
     final genres = movie.tags?.join(' • ') ?? '';
@@ -734,6 +757,21 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
     // the title comes back as big text when there is no logo, and Play /
     // My List / Info actions sit under the meta line.
     final showPreview = widget.showPreviewActions;
+    // Preview hero meta, as the approved design draws it:
+    // "98% Match · 2024 · 2h 46m · 4K · Dolby Vision · Sci-Fi".
+    // Match comes from the score, runtime from the duration; the 4K /
+    // Dolby Vision badges are presentational — the feed carries no
+    // per-title quality data, and the preview draws them on every hero.
+    final match = movie.score != null && movie.score! > 0
+        ? '${(movie.score! * 10).round()}% Match'
+        : null;
+    final runtime = _formatRuntime(movie.duration);
+    final synopsis = showPreview ? _plainSynopsis(movie.description) : null;
+    // The first slide wears the trending badge; the rest wear the type as
+    // a gold badge pill above the title.
+    final badgeLabel = isFirstSlide
+        ? l10n.trendingTodayBadge
+        : type?.toUpperCase();
     final metaParts = <String>[
       if (!showPreview && type != null) type,
       if (genres.isNotEmpty) genres,
@@ -747,8 +785,8 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
           ? CrossAxisAlignment.start
           : CrossAxisAlignment.center,
       children: [
-        // Preview hero only: the type as a gold badge pill above the title.
-        if (showPreview && type != null)
+        // Preview hero only: the badge pill above the title.
+        if (showPreview && badgeLabel != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Container(
@@ -761,7 +799,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
-                type.toUpperCase(),
+                badgeLabel,
                 style: TextStyle(
                   color: theme.colorScheme.onPrimary,
                   fontSize: 11.5,
@@ -799,7 +837,28 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
                   ),
             ),
           ),
-        if (meta.isNotEmpty)
+        if (showPreview)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: RichText(
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: isDesktop ? TextAlign.left : TextAlign.center,
+              text: TextSpan(
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontWeight: FontWeight.w600,
+                ),
+                children: _previewMetaSpans(
+                  match: match,
+                  year: year,
+                  runtime: runtime,
+                  genres: genres,
+                ),
+              ),
+            ),
+          )
+        else if (meta.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
@@ -810,6 +869,21 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
               style: theme.textTheme.labelLarge?.copyWith(
                 color: Colors.white.withValues(alpha: 0.9),
                 fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        // Preview hero only: the two-line synopsis under the meta.
+        if (synopsis != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Text(
+              synopsis,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: isDesktop ? TextAlign.left : TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.white.withValues(alpha: 0.85),
+                height: 1.35,
               ),
             ),
           ),
@@ -833,23 +907,95 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
                 fontWeight: FontWeight.w700,
               ),
             ),
-            child: const Text('View Details'),
+            child: Text(l10n.viewDetails),
           ),
       ],
     );
   }
 
+  /// The preview hero's meta line, as one ellipsis-clamped line:
+  /// "[match] · [year] · [runtime] · 4K · Dolby Vision · [genres]".
+  /// Segments that have nothing to say are skipped, so a bare item still
+  /// reads as the preview's line instead of a row of stray separators.
+  List<InlineSpan> _previewMetaSpans({
+    required String? match,
+    required String year,
+    required String? runtime,
+    required String genres,
+  }) {
+    final spans = <InlineSpan>[];
+    void add(String text, {TextStyle? style}) {
+      if (spans.isNotEmpty) {
+        spans.add(const TextSpan(text: ' · '));
+      }
+      spans.add(TextSpan(text: text, style: style));
+    }
+
+    if (match != null) {
+      add(
+        match,
+        style: const TextStyle(
+          color: Color(0xFF46D369),
+          fontWeight: FontWeight.w800,
+        ),
+      );
+    }
+    if (year.isNotEmpty) add(year);
+    if (runtime != null) add(runtime);
+    // Presentational quality badges, as the preview draws them on every
+    // hero slide (see the note on the meta above).
+    add(
+      '4K',
+      style: const TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.w800,
+      ),
+    );
+    add(
+      'Dolby Vision',
+      style: const TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.w800,
+      ),
+    );
+    if (genres.isNotEmpty) add(genres);
+    return spans;
+  }
+
+  /// Minutes as the preview's runtime ("2h 46m", "24m"), or null when the
+  /// item carries no duration.
+  String? _formatRuntime(int? minutes) {
+    if (minutes == null || minutes <= 0) return null;
+    if (minutes < 60) return '${minutes}m';
+    final hours = minutes ~/ 60;
+    final rest = minutes % 60;
+    return rest == 0 ? '${hours}h' : '${hours}h ${rest}m';
+  }
+
+  /// A description as plain text for the hero synopsis: AniList ships
+  /// descriptions as HTML (`<br>`, `<i>`, …), which a Text widget would
+  /// print raw. Tags become spaces, entities are unescaped, and runs of
+  /// whitespace collapse, so the two-line clamp counts real words.
+  String? _plainSynopsis(String? raw) {
+    if (raw == null) return null;
+    final text = HtmlUnescape()
+        .convert(raw.replaceAll(RegExp('<[^>]*>'), ' '))
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return text.isEmpty ? null : text;
+  }
+
   /// Play / My List / Info for the preview hero (Home only).
   ///
   /// Play is the primary gold button; My List and Info are dark glass
-  /// pills. 'My List' and 'Info' have no l10n keys yet, so they are
-  /// hardcoded like the 'View Details' label this file already carries.
+  /// pills. All four labels come from l10n.
   Widget _buildPreviewActions(
     BuildContext context,
     MultimediaItem movie,
     ThemeData theme,
     bool isDesktop,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     // My List state for the current slide, watched the same way the
     // details screen watches it (library match on the item URL).
     final isBookmarked = ref.watch(
@@ -880,7 +1026,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
         FilledButton.icon(
           onPressed: () => _playMovie(context, movie),
           icon: const Icon(Icons.play_arrow_rounded),
-          label: const Text('Play'),
+          label: Text(l10n.play),
           style: FilledButton.styleFrom(
             backgroundColor: theme.colorScheme.primary,
             foregroundColor: theme.colorScheme.onPrimary,
@@ -898,14 +1044,14 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
                 ? Icons.bookmark_added_rounded
                 : Icons.bookmark_add_outlined,
           ),
-          label: const Text('My List'),
+          label: Text(l10n.myList),
           style: glassStyle,
         ),
         // Info — same destination as tapping the poster.
         FilledButton.icon(
           onPressed: () => _openMovie(context, movie),
           icon: const Icon(Icons.info_outline_rounded),
-          label: const Text('Info'),
+          label: Text(l10n.info),
           style: glassStyle,
         ),
       ],

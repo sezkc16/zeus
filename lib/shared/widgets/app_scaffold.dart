@@ -419,14 +419,25 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
 
         // Mobile uses Bottom Navigation
         final mq = MediaQuery.of(context);
+        // The preview hides the pill on the Settings screens (Settings and
+        // its sub-routes — Player, Accounts, … — all live on branch 5), so
+        // the pill is only painted on the five tab branches. Hiding it also
+        // removes the surface the Settings text glitch warped through: a
+        // row scrolling under the translucent glass showed through it
+        // distorted. The Settings AppBar carries its own back button, so
+        // hiding the pill never strands the user on the branch.
+        final showNavBar = widget.navigationShell.currentIndex != 5;
         // Content must clear the pill top (see
         // [CustomBottomNavBar.contentClearance]); the real safe-area
         // padding is already in mq.padding.bottom, so only the remainder
-        // is added.
-        final navBarTotalHeight = math.max(
-          CustomBottomNavBar.contentClearance - mq.padding.bottom,
-          0.0,
-        );
+        // is added. With the pill hidden there is nothing to clear, so the
+        // content keeps just the real safe area.
+        final navBarTotalHeight = showNavBar
+            ? math.max(
+                CustomBottomNavBar.contentClearance - mq.padding.bottom,
+                0.0,
+              )
+            : 0.0;
 
         return PopScope(
           canPop: false,
@@ -471,17 +482,18 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
                 // a render object between the Stack and the Positioned
                 // throws "Incorrect use of ParentDataWidget" on every
                 // frame and freezes the app — that was +15..+19.
-                MediaQuery(
-                  data: mq.copyWith(
-                    padding: mq.padding.copyWith(
-                      bottom: CustomBottomNavBar.navPaddingBottom(context),
+                if (showNavBar)
+                  MediaQuery(
+                    data: mq.copyWith(
+                      padding: mq.padding.copyWith(
+                        bottom: CustomBottomNavBar.navPaddingBottom(context),
+                      ),
+                    ),
+                    child: CustomBottomNavBar(
+                      currentIndex: widget.navigationShell.currentIndex,
+                      onTap: (index) => _onItemTapped(index, context),
                     ),
                   ),
-                  child: CustomBottomNavBar(
-                    currentIndex: widget.navigationShell.currentIndex,
-                    onTap: (index) => _onItemTapped(index, context),
-                  ),
-                ),
               ],
             ),
           ),
