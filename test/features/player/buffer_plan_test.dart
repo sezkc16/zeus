@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/providers/device_info_provider.dart';
-import 'package:skystream/core/providers/device_memory.dart';
-import 'package:skystream/features/player/domain/network_buffer.dart';
+import 'package:zorox/core/providers/device_info_provider.dart';
+import 'package:zorox/core/providers/device_memory.dart';
+import 'package:zorox/features/player/domain/network_buffer.dart';
 
 /// A device with [ramMb] installed and [freeMb] free now.
 DeviceMemory device(int ramMb, {int? freeMb}) =>

@@ -824,7 +824,7 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
   bool _restorePending = false;
 
   /// The subtitle files of what is playing - the source's and any the viewer
-  /// added - which SkyStream draws itself rather than handing to libVLC. See
+  /// added - which ZoroX draws itself rather than handing to libVLC. See
   /// [SideCarSubtitles].
   late final SideCarSubtitles _sideCars = SideCarSubtitles(
     fetch: (url, headers) => _read(sideCarFetchProvider)(url, headers),
@@ -2085,7 +2085,7 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
       _qualityMedia = (uri: mediaUri, headers: headers, source: stream.url);
     }
 
-    // The source's subtitle files are read and drawn by SkyStream rather than
+    // The source's subtitle files are read and drawn by ZoroX rather than
     // handed to libVLC, which drew them into the picture - so Zoom cut them
     // off - and could not open the ones behind a playlist or headers at all.
     // Listed here and fetched when first shown; see [SideCarSubtitles].
@@ -2201,7 +2201,7 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
   /// opened stays on. The viewer is looking at the subtitle list when it
   /// happens, which is the one moment they can undo it.
   ///
-  /// The same rule keeps libVLC's own subtitle off while SkyStream draws a
+  /// The same rule keeps libVLC's own subtitle off while ZoroX draws a
   /// side-car: two subtitles on screen at once is never what anyone chose,
   /// and the media can put an embedded track on at any time - when its
   /// streams appear, after a seek, at an HLS discontinuity. Picking a track
@@ -2724,7 +2724,7 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
     unawaited(_sideCars.select(sources.last, from: _controller.value.position));
   }
 
-  /// A side-car in a format SkyStream does not read - MicroDVD, VobSub, TTML
+  /// A side-car in a format ZoroX does not read - MicroDVD, VobSub, TTML
   /// - goes to libVLC, as every side-car once did. libVLC's add selects what
   /// it adds, and it arrives as one of the video's own tracks.
   void _handSideCarToEngine(SideCarTrack track) {
@@ -5719,7 +5719,7 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
     unawaited(() async {
       var playlist = await _readOpenedPlaylist(media.uri, media.headers);
       if (playlist != null && targetDurationOf(playlist) == null) {
-        // A master served through SkyStream's proxy names its variants
+        // A master served through ZoroX's proxy names its variants
         // relative to the real address, which the proxy carries in its query.
         final real = media.uri.path == '/proxy'
             ? Uri.tryParse(media.uri.queryParameters['url'] ?? '')

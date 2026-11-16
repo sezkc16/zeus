@@ -39,7 +39,7 @@ class KeepChallenge extends BrokerAnswer {
 
 /// The app's side of a bot check, for engines that send their own requests:
 /// CloudStream's (its `webRequest` events) and Nuvio's workers. The shared
-/// HTTP client decides the same way for SkyStream's own requests
+/// HTTP client decides the same way for ZoroX's own requests
 /// (`ClearanceInterceptor`).
 class ClearanceBroker {
   ClearanceBroker(this.clearance);

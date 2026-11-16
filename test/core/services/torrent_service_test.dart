@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_torrent_server/flutter_torrent_server.dart';
 import 'package:http/http.dart' as http;
-import 'package:skystream/core/services/torrent_service.dart';
+import 'package:zorox/core/services/torrent_service.dart';
 
 import 'fake_torr_server.dart';
 

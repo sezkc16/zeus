@@ -492,13 +492,13 @@ abstract class AppLocalizations {
   /// No description provided for @openSourceLicencesSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'SkyStream is free software under the GNU GPL v3'**
+  /// **'ZoroX is free software under the GNU GPL v3'**
   String get openSourceLicencesSubtitle;
 
   /// The GPL notice on the licence page: copyright, the licence, no warranty, where the source is.
   ///
   /// In en, this message translates to:
-  /// **'Copyright © 2025–2026 SkyStream contributors.\nSkyStream is free software: you can redistribute it and modify it under the terms of the GNU General Public License, version 3. It comes with ABSOLUTELY NO WARRANTY. Its source code is at github.com/akashdh11/skystream.'**
+  /// **'Copyright © 2025–2026 ZoroX contributors.\nZoroX is free software: you can redistribute it and modify it under the terms of the GNU General Public License, version 3. It comes with ABSOLUTELY NO WARRANTY. Its source code is at github.com/sezkc16/zorox.'**
   String get appLegalese;
 
   /// No description provided for @enabled.
@@ -3576,7 +3576,7 @@ abstract class AppLocalizations {
   /// **'Not a video'**
   String get playerSourceNotVideo;
 
-  /// Title of the Nuvio source card on a TMDB details screen. Sits beside the 'Available sources' card, which is the SkyStream plugin system; the two are peers. 'Nuvio' is the name of the third-party scraper project and is never translated.
+  /// Title of the Nuvio source card on a TMDB details screen. Sits beside the 'Available sources' card, which is the ZoroX plugin system; the two are peers. 'Nuvio' is the name of the third-party scraper project and is never translated.
   ///
   /// In en, this message translates to:
   /// **'Nuvio plugins'**
@@ -3660,16 +3660,16 @@ abstract class AppLocalizations {
   /// **'No installed add-on matches \"{query}\".'**
   String addonManageNoMatch(String query);
 
-  /// Name of CloudStream, the app whose extensions SkyStream runs; a proper noun, never translated. Shown on the CloudStream screen and on badges marking its providers.
+  /// Name of CloudStream, the app whose extensions ZoroX runs; a proper noun, never translated. Shown on the CloudStream screen and on badges marking its providers.
   ///
   /// In en, this message translates to:
   /// **'CloudStream'**
   String get cloudStream;
 
-  /// Search: tag on a section of SkyStream extensions' results; the app's name, never translated.
+  /// Search: tag on a section of ZoroX extensions' results; the app's name, never translated.
   ///
   /// In en, this message translates to:
-  /// **'SkyStream'**
+  /// **'ZoroX'**
   String get searchTagSkyStream;
 
   /// Search: tag on a section of a Stremio add-on's results; a proper noun, never translated.
@@ -4020,10 +4020,10 @@ abstract class AppLocalizations {
   /// **'This device\'s browser is too old for this site\'s check'**
   String get checkStateTooOld;
 
-  /// A site's row: its check passed, but the site still refuses requests; SkyStream waits before trying again.
+  /// A site's row: its check passed, but the site still refuses requests; ZoroX waits before trying again.
   ///
   /// In en, this message translates to:
-  /// **'The check passed, but this site still refuses SkyStream. Trying again in a few minutes.'**
+  /// **'The check passed, but this site still refuses ZoroX. Trying again in a few minutes.'**
   String get checkStateIneffective;
 
   /// A site's row: its check came back after every clearance, even after a fresh start.
@@ -4074,10 +4074,10 @@ abstract class AppLocalizations {
   /// **'{site} needs a quick check'**
   String checkLineNeedsYou(String site);
 
-  /// In an extension's settings sheet, in place of a part SkyStream can't draw yet (a web page).
+  /// In an extension's settings sheet, in place of a part ZoroX can't draw yet (a web page).
   ///
   /// In en, this message translates to:
-  /// **'This part can\'t be shown in SkyStream yet.'**
+  /// **'This part can\'t be shown in ZoroX yet.'**
   String get extensionSheetCantShow;
 
   /// Closes the top window of an extension's settings sheet.

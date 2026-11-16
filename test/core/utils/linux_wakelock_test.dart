@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/utils/linux_wakelock.dart';
+import 'package:zorox/core/utils/linux_wakelock.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:wakelock_plus_platform_interface/wakelock_plus_platform_interface.dart';
 
@@ -42,7 +42,7 @@ void main() {
 
   test("the plugin alone leaks: an enable while one is held leaves the first open after the disable", () async {
     // The finding, from the follow-ups' second review: after an alt-tab during a film or a game, the screen never
-    // slept again until SkyStream quit.
+    // slept again until ZoroX quit.
     await portal.toggle(enable: true);
     await portal.toggle(enable: true);
     await portal.toggle(enable: false);

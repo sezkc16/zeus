@@ -25,8 +25,8 @@ UpdateService updateService(Ref ref) {
 
 class UpdateService {
   final Dio _dio;
-  static const String _owner = 'akashdh11';
-  static const String _repo = 'skystream';
+  static const String _owner = 'sezkc16';
+  static const String _repo = 'zorox';
 
   UpdateService(this._dio);
 
@@ -233,12 +233,12 @@ class UpdateService {
     return null;
   }
 
-  /// How SkyStream runs on Linux, from its [environment] and the path of its
+  /// How ZoroX runs on Linux, from its [environment] and the path of its
   /// [executable].
   ///
   /// The AppImage runtime sets `APPIMAGE` and `APPDIR` and runs the binary
-  /// from inside `APPDIR`. Both variables pass to whatever SkyStream starts, so
-  /// the binary's own path decides: another AppImage that started SkyStream
+  /// from inside `APPDIR`. Both variables pass to whatever ZoroX starts, so
+  /// the binary's own path decides: another AppImage that started ZoroX
   /// leaves them behind for a binary outside its `APPDIR`.
   @visibleForTesting
   static LinuxInstall linuxInstallOf({
@@ -255,8 +255,8 @@ class UpdateService {
     return LinuxInstall.tarball;
   }
 
-  /// Where the .deb installs SkyStream (fastforge's `/opt/<package_name>`).
-  static const _debInstallDir = '/opt/skystream';
+  /// Where the .deb installs ZoroX (fastforge's `/opt/<package_name>`).
+  static const _debInstallDir = '/opt/zorox';
 
   /// The Linux asset an update of [install] downloads: its own format, built
   /// for its architecture, so an update never installs a second copy beside
@@ -285,7 +285,7 @@ class UpdateService {
   }
 }
 
-/// How SkyStream was installed on Linux. An update comes in the same form.
+/// How ZoroX was installed on Linux. An update comes in the same form.
 enum LinuxInstall {
   /// An AppImage.
   appImage('.appimage'),

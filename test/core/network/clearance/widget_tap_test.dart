@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/network/clearance/widget_tap.dart';
+import 'package:zorox/core/network/clearance/widget_tap.dart';
 
 void main() {
   group('tapPoint', () {

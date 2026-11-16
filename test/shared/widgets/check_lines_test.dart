@@ -2,13 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/network/clearance/clearance.dart';
-import 'package:skystream/core/network/clearance/clearance_solver.dart';
-import 'package:skystream/core/network/clearance/clearance_store.dart';
-import 'package:skystream/core/network/clearance/site_checks.dart';
-import 'package:skystream/core/network/clearance/site_keys.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
-import 'package:skystream/shared/widgets/check_line.dart';
+import 'package:zorox/core/network/clearance/clearance.dart';
+import 'package:zorox/core/network/clearance/clearance_solver.dart';
+import 'package:zorox/core/network/clearance/clearance_store.dart';
+import 'package:zorox/core/network/clearance/site_checks.dart';
+import 'package:zorox/core/network/clearance/site_keys.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
+import 'package:zorox/shared/widgets/check_line.dart';
 
 /// Every site a set of extensions met a check on, a line each: Nuvio's
 /// scrapers in the sources dialog, the add-ons a sources sheet asked.

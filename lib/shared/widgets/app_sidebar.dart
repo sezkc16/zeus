@@ -2,8 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
-import 'package:skystream/core/utils/layout_constants.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/utils/layout_constants.dart';
 
 import '../focus/app_focus.dart';
 

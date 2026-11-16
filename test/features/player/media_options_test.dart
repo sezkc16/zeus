@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/providers/device_memory.dart';
-import 'package:skystream/features/player/domain/media_options.dart';
-import 'package:skystream/features/player/domain/network_buffer.dart';
+import 'package:zorox/core/providers/device_memory.dart';
+import 'package:zorox/features/player/domain/media_options.dart';
+import 'package:zorox/features/player/domain/network_buffer.dart';
 
 BufferPlan plan(BufferMedia media) => bufferPlanFor(
   media: media,

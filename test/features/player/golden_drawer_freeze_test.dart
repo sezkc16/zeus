@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/features/player/presentation/mpv/golden_drawer.dart';
-import 'package:skystream/features/player/presentation/mpv/golden_options_drawer.dart';
-import 'package:skystream/features/player/presentation/mpv/golden_player_theme.dart';
-import 'package:skystream/features/player/presentation/vlc/panel/player_panel_data.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/features/player/presentation/mpv/golden_drawer.dart';
+import 'package:zorox/features/player/presentation/mpv/golden_options_drawer.dart';
+import 'package:zorox/features/player/presentation/mpv/golden_player_theme.dart';
+import 'package:zorox/features/player/presentation/vlc/panel/player_panel_data.dart';
 
 /// Repro for the v20+2 drawer-open freeze (user phone report 2026-11-14):
 /// tapping any drawer button (CC / Episodes / Audio / Sources) freezes the

@@ -154,7 +154,7 @@ object TvChannelUtils {
             .setDisplayName(context.getString(R.string.app_name))
             .setAppLinkIntent(Intent(Intent.ACTION_VIEW).apply {
                 // Adjust to match your app's deep link if needed
-                data = "skystreamapp://open".toUri()
+                data = "zoroxapp://open".toUri()
             })
             .setInputId(inputId)
             .build()

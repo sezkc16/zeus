@@ -95,9 +95,9 @@ class CloudStreamState {
 
 /// CloudStream extension repositories and installed plugins.
 ///
-/// Like Nuvio and Stremio, this sits beside SkyStream's own plugin system and is managed
-/// separately. Unlike them, its providers join SkyStream's provider list, so their home pages,
-/// search, details and streams go through the same screens as SkyStream plugins.
+/// Like Nuvio and Stremio, this sits beside ZoroX's own plugin system and is managed
+/// separately. Unlike them, its providers join ZoroX's provider list, so their home pages,
+/// search, details and streams go through the same screens as ZoroX plugins.
 @Riverpod(keepAlive: true)
 class CloudStreamRepository extends _$CloudStreamRepository {
   static const String _source = 'cloudstream';
@@ -107,7 +107,7 @@ class CloudStreamRepository extends _$CloudStreamRepository {
   static const String _homeKey = 'cloudstream_home_provider_v1';
 
   /// The repository URLs the user removed, so a plugin that adds repositories (MegaRepo's) does
-  /// not bring them back - as SkyStream's collections do not.
+  /// not bring them back - as ZoroX's collections do not.
   static const String removedReposKey = 'cloudstream_removed_repos_v1';
 
   /// Where repositories were kept before `repositories.json`: SharedPreferences rewrites all it
@@ -255,9 +255,9 @@ class CloudStreamRepository extends _$CloudStreamRepository {
   /// the official CloudStream providers repository is the "CloudStream"
   /// option. The owner's repo (TojiX) is a CloudStream-format repository
   /// too, so it is shown under its manifest name ("TojiX Repo") in the
-  /// CloudStream section — it used to be labelled "SkyStream" because the
-  /// label was computed from its URL, which put a CloudStream repo under
-  /// the wrong section. A manifest's own `name` is what a refresh stores,
+  /// CloudStream section — it used to be labelled with the app's old name
+  /// because the label was computed from its URL, which put a CloudStream
+  /// repo under the wrong section. A manifest's own `name` is what a refresh stores,
   /// so a stored rename would not survive one, which is why the label for
   /// the official repository is still computed from the URL at display
   /// time. Anything else is shown under its manifest name.
@@ -334,7 +334,7 @@ class CloudStreamRepository extends _$CloudStreamRepository {
     }
   }
 
-  /// Hands the current providers to SkyStream's provider list (none while switched off).
+  /// Hands the current providers to ZoroX's provider list (none while switched off).
   void _publish() {
     final next = <String, CloudStreamProvider>{};
     if (state.enabled) {
@@ -404,7 +404,7 @@ class CloudStreamRepository extends _$CloudStreamRepository {
 
   /// What the user entered as a repository: a URL (the scheme may be left out), a
   /// `cloudstreamrepo://` or `https://cs.repo/` link, or a CloudStream shortcode. Shortcodes are
-  /// looked up online, like SkyStream's, so new ones work without an app update: `CODE` at
+  /// looked up online, like ZoroX's, so new ones work without an app update: `CODE` at
   /// cutt.ly and `!CODE` at py.md, where CloudStream looks them up.
   Future<String> resolveUrl(String input) async {
     final text = input.trim();
@@ -834,7 +834,7 @@ class CloudStreamRepository extends _$CloudStreamRepository {
     }
   }
 
-  /// The launch-time pass, beside SkyStream's own: brings installed plugins up to date from their
+  /// The launch-time pass, beside ZoroX's own: brings installed plugins up to date from their
   /// repositories, and runs the utility plugins again as CloudStream's launch does (MegaRepo's
   /// then adds what is new to its list, announced through [watchNews]). Returns the plugins
   /// updated. Switched off or with nothing installed, it does nothing, and nothing starts the

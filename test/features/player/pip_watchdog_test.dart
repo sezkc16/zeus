@@ -2,8 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/presentation/vlc/vlc_player_controls.dart';
-import 'package:skystream/features/player/presentation/widgets/player_control_components.dart'
+import 'package:zorox/features/player/presentation/vlc/vlc_player_controls.dart';
+import 'package:zorox/features/player/presentation/widgets/player_control_components.dart'
     show PlayerActionButton;
 
 import 'fake_vlc_engine.dart';

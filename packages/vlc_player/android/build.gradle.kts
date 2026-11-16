@@ -6,7 +6,7 @@ version = "1.0-SNAPSHOT"
 // Upstream pinned AGP 9.0.1 / Kotlin 2.3.20 on its own classpath. A Flutter
 // plugin is built as a subproject of the host app, so the host's plugin
 // management already supplies both — and a second, different version on the
-// plugin's classpath conflicts with it. SkyStream is on AGP 9.1 since
+// plugin's classpath conflicts with it. ZoroX is on AGP 9.1 since
 // 2026-10-02, once flutter_inappwebview_android (whose
 // `getDefaultProguardFile('proguard-android.txt')` AGP 9 rejects) left the app,
 // with Flutter's builtInKotlin/newDsl opt-outs in gradle.properties.

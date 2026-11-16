@@ -123,8 +123,8 @@ private final class PipHostView: UIView {
 /// layer-flush theory (the window never went black) or the gate
 /// (proven open by the burned-in subtitle).
 ///
-/// Own channel `dev.akash.skystream.player/pip_mpv_ios` — deliberately NOT
-/// `dev.akash.skystream.player/pip`, which the libVLC side already uses;
+/// Own channel `dev.toji.zorox.player/pip_mpv_ios` — deliberately NOT
+/// `dev.toji.zorox.player/pip`, which the libVLC side already uses;
 /// reusing that name would replace its handler.
 public class ZoroxMpvPipPlugin: NSObject, FlutterPlugin,
   AVPictureInPictureControllerDelegate,
@@ -132,7 +132,7 @@ public class ZoroxMpvPipPlugin: NSObject, FlutterPlugin,
 {
   public static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(
-      name: "dev.akash.skystream.player/pip_mpv_ios",
+      name: "dev.toji.zorox.player/pip_mpv_ios",
       binaryMessenger: registrar.messenger()
     )
     let instance = ZoroxMpvPipPlugin(channel: channel)

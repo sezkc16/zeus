@@ -131,12 +131,12 @@ class PlayerPlatformService {
   /// Shared with `MainActivity.CHANNEL`. Traffic runs both ways over it:
   /// `enterPip`/`setPipState` out, transport actions and `pipModeChanged` back.
   static const MethodChannel _pipChannel = MethodChannel(
-    'dev.akash.skystream.player/pip',
+    'dev.toji.zorox.player/pip',
   );
 
   /// `AppDelegate.swift`'s: asks iOS to turn to the device's orientation.
   static const MethodChannel _orientationChannel = MethodChannel(
-    'dev.akash.skystream/orientation',
+    'dev.toji.zorox/orientation',
   );
 
   static const List<DeviceOrientation> _landscape = [

@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/search/domain/search_fold.dart';
-import 'package:skystream/features/search/domain/search_fold_table.dart';
+import 'package:zorox/features/search/domain/search_fold.dart';
+import 'package:zorox/features/search/domain/search_fold_table.dart';
 
 /// Search folds a title and a query the same way before it compares them, so
 /// the spellings people type and the ones sites write come out the same.

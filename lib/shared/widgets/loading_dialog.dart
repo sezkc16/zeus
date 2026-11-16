@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'custom_widgets.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 import 'loading_indicator.dart';
 
 class LoadingDialog extends StatelessWidget {

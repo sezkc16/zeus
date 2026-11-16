@@ -1,10 +1,10 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/features/player/domain/playback_recovery.dart'
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/features/player/domain/playback_recovery.dart'
     show kFirstFrameDeadline;
-import 'package:skystream/features/player/presentation/vlc/vlc_player_controls.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/features/player/presentation/vlc/vlc_player_controls.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import 'fake_vlc_engine.dart';
 import 'vlc_screen_harness.dart';
@@ -112,7 +112,7 @@ void main() {
     variant: texturePlatform,
     (tester) async {
       // One iOS open in about sixty never reached libVLC, and retrying the
-      // same player never helped (SkyStream's QoE suite, 2026-10-13).
+      // same player never helped (ZoroX's QoE suite, 2026-10-13).
       final l10n = await english();
       final engine = FakeVlcEngine()..distinctViews = true;
       installEngineMocks(engine: engine);

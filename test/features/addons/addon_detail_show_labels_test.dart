@@ -5,9 +5,9 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/addons/models/addon_meta.dart';
-import 'package:skystream/core/models/tmdb_details.dart';
-import 'package:skystream/features/details/data/tmdb_details_provider.dart';
+import 'package:zorox/core/addons/models/addon_meta.dart';
+import 'package:zorox/core/models/tmdb_details.dart';
+import 'package:zorox/features/details/data/tmdb_details_provider.dart';
 
 import 'stremio_page_fakes.dart';
 

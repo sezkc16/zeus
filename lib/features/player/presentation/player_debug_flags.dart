@@ -54,16 +54,16 @@ Color get playerBackdropColor =>
 /// Every switch here is off unless its variable is set, so a normal launch
 /// behaves exactly as it did.
 ///
-///   SKYSTREAM_VLC_VERBOSE=1
+///   ZOROX_VLC_VERBOSE=1
 ///       Raises libVLC from `--quiet` to `--verbose=2`. libVLC writes its own
 ///       log to stderr, so this turns a silent run into a transcript of demux,
 ///       decoder and video-output negotiation. VLCKit (iOS, macOS) drops that
 ///       log unless a logger is set, so there the plugin sets one: the console,
 ///       and on iOS also `vlc-verbose.log` in the app's caches. A phone's or a
 ///       tablet's app gets no environment from whoever starts it, so this one is
-///       also a build define: `--dart-define=SKYSTREAM_VLC_VERBOSE=true`.
+///       also a build define: `--dart-define=ZOROX_VLC_VERBOSE=true`.
 ///
-///   SKYSTREAM_NO_VIDEO=1
+///   ZOROX_NO_VIDEO=1
 ///       Keeps the whole engine - creation, media, audio, controls, position -
 ///       and stops only the video surface being painted. The player widget
 ///       stays mounted, because it is what attaches the native player on the
@@ -75,13 +75,13 @@ Color get playerBackdropColor =>
 ///       dies without it puts the fault in the texture/compositor path rather
 ///       than in demux or decode.
 ///
-///   SKYSTREAM_LIVE_DELAY_MS=6000
+///   ZOROX_LIVE_DELAY_MS=6000
 ///       How far behind the live edge live HLS and DASH start, in
 ///       milliseconds, instead of the shipped `kLiveDelayMs`: for measuring
 ///       it (spec 1.9), and for trying a live stream that stalls at the
 ///       shipped value. Also a build define, for phones and tablets, whose
 ///       apps get no environment:
-///       `--dart-define=SKYSTREAM_LIVE_DELAY_MS=6000`. Anything but a
+///       `--dart-define=ZOROX_LIVE_DELAY_MS=6000`. Anything but a
 ///       positive whole number is ignored.
 abstract final class PlayerDiagnostics {
   /// The environment the switches are read from.
@@ -102,18 +102,18 @@ abstract final class PlayerDiagnostics {
 
   /// Whether libVLC should log at `--verbose=2` instead of `--quiet`.
   static bool get verboseVlcLog =>
-      _isOn('SKYSTREAM_VLC_VERBOSE') ||
-      const bool.fromEnvironment('SKYSTREAM_VLC_VERBOSE');
+      _isOn('ZOROX_VLC_VERBOSE') ||
+      const bool.fromEnvironment('ZOROX_VLC_VERBOSE');
 
-  static bool get suppressVideoSurface => _isOn('SKYSTREAM_NO_VIDEO');
+  static bool get suppressVideoSurface => _isOn('ZOROX_NO_VIDEO');
 
   /// The live delay to ask libVLC for instead of the shipped one, in
-  /// milliseconds; null unless `SKYSTREAM_LIVE_DELAY_MS` is a positive whole
+  /// milliseconds; null unless `ZOROX_LIVE_DELAY_MS` is a positive whole
   /// number.
   static int? get liveDelayMs {
     final ms =
-        int.tryParse(environment['SKYSTREAM_LIVE_DELAY_MS']?.trim() ?? '') ??
-        const int.fromEnvironment('SKYSTREAM_LIVE_DELAY_MS');
+        int.tryParse(environment['ZOROX_LIVE_DELAY_MS']?.trim() ?? '') ??
+        const int.fromEnvironment('ZOROX_LIVE_DELAY_MS');
     return ms > 0 ? ms : null;
   }
 }

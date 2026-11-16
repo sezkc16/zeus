@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/nuvio/models/nuvio_models.dart';
-import 'package:skystream/features/nuvio/presentation/nuvio_scraper_settings_dialog.dart';
+import 'package:zorox/core/nuvio/models/nuvio_models.dart';
+import 'package:zorox/features/nuvio/presentation/nuvio_scraper_settings_dialog.dart';
 
 /// A scraper's settings, on a television: a text setting doesn't hold the
 /// remote, so Save stays in reach.

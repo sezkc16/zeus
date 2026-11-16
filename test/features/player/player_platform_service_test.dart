@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/providers/device_info_provider.dart';
-import 'package:skystream/features/player/presentation/player_platform_service.dart';
+import 'package:zorox/core/providers/device_info_provider.dart';
+import 'package:zorox/features/player/presentation/player_platform_service.dart';
 
-const _pipChannel = 'dev.akash.skystream.player/pip';
+const _pipChannel = 'dev.toji.zorox.player/pip';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -708,7 +708,7 @@ void main() {
       tester,
     ) async {
       upright(tester);
-      const followChannel = MethodChannel('dev.akash.skystream/orientation');
+      const followChannel = MethodChannel('dev.toji.zorox/orientation');
       final calls = <String>[];
       messenger.setMockMethodCallHandler(followChannel, (call) async {
         calls.add('${call.method} ${call.arguments}');
@@ -759,7 +759,7 @@ void main() {
     }) async {
       tester.view.physicalSize = const Size(1080, 1920);
       addTearDown(tester.view.reset);
-      const followChannel = MethodChannel('dev.akash.skystream/orientation');
+      const followChannel = MethodChannel('dev.toji.zorox/orientation');
       final calls = <String>[];
       messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
         if (call.method == 'SystemChrome.setPreferredOrientations') {
@@ -929,7 +929,7 @@ void main() {
       // Phase 7c's §5: the owner's one exception to no pins outside the player (2026-10-08).
       tester.view.physicalSize = const Size(1080, 1920);
       addTearDown(tester.view.reset);
-      const followChannel = MethodChannel('dev.akash.skystream/orientation');
+      const followChannel = MethodChannel('dev.toji.zorox/orientation');
       final calls = <String>[];
       messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
         if (call.method == 'SystemChrome.setPreferredOrientations') calls.add('preferred ${call.arguments}');

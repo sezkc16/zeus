@@ -5,13 +5,13 @@ library;
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/addons/data/addon_client.dart';
-import 'package:skystream/core/addons/data/addon_subtitle_service.dart';
-import 'package:skystream/core/addons/models/addon_manifest.dart';
-import 'package:skystream/core/addons/models/addon_stream_source.dart';
-import 'package:skystream/features/player/data/addon_subtitles_provider.dart';
-import 'package:skystream/features/player/presentation/subtitle_search_provider.dart';
-import 'package:skystream/features/settings/presentation/player_settings_provider.dart';
+import 'package:zorox/core/addons/data/addon_client.dart';
+import 'package:zorox/core/addons/data/addon_subtitle_service.dart';
+import 'package:zorox/core/addons/models/addon_manifest.dart';
+import 'package:zorox/core/addons/models/addon_stream_source.dart';
+import 'package:zorox/features/player/data/addon_subtitles_provider.dart';
+import 'package:zorox/features/player/presentation/subtitle_search_provider.dart';
+import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
 
 /// Answers every add-on with [tracks] and notes what it was asked.
 class _Service extends AddonSubtitleService {

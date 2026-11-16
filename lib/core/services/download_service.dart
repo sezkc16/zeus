@@ -683,7 +683,7 @@ class DownloadService {
 
       if (isIOS && !hasCustomDir) {
         baseDir = BaseDirectory.applicationDocuments;
-        // On iOS, 'directory' (from getDownloadPath(absolute: false)) is relative: "Skystream/Title"
+        // On iOS, 'directory' (from getDownloadPath(absolute: false)) is relative: "ZoroX/Title"
         taskDirectory = directory;
       } else {
         // Android, Windows, macOS, Linux: use absolute paths with BaseDirectory.root
@@ -809,19 +809,19 @@ class DownloadService {
     final baseRoot = hasCustomDir ? customDir.trim() : publicDir;
 
     if (Platform.isIOS && !hasCustomDir) {
-      path = p.join("Skystream", sanitizedTitle);
+      path = p.join("ZoroX", sanitizedTitle);
       if (absolute) {
         path = p.join(baseRoot, path);
       }
     } else if (Platform.isAndroid && !hasCustomDir) {
-      path = p.join("Skystream", sanitizedTitle);
+      path = p.join("ZoroX", sanitizedTitle);
       if (absolute) {
         path = p.join(baseRoot, path);
       }
     } else if (hasCustomDir) {
-      path = p.join(baseRoot, "Skystream", sanitizedTitle);
+      path = p.join(baseRoot, "ZoroX", sanitizedTitle);
     } else {
-      path = p.join(dir.path, "Skystream", sanitizedTitle);
+      path = p.join(dir.path, "ZoroX", sanitizedTitle);
     }
 
     // Add Season subdirectory if it's a series and we have an episode
@@ -914,12 +914,12 @@ class DownloadService {
 
   Future<void> _deleteEmptyParentDirectories(Directory directory) async {
     try {
-      // 1. Safety check: Only delete if it's within a 'Skystream' folder
-      if (!directory.path.contains('Skystream')) return;
+      // 1. Safety check: Only delete if it's within a 'ZoroX' folder
+      if (!directory.path.contains('ZoroX')) return;
 
-      // 2. Stop at the main 'Skystream' root to avoid deleting the base app directory
-      if (directory.path.endsWith('Skystream') ||
-          directory.path.endsWith('Skystream/')) {
+      // 2. Stop at the main 'ZoroX' root to avoid deleting the base app directory
+      if (directory.path.endsWith('ZoroX') ||
+          directory.path.endsWith('ZoroX/')) {
         return;
       }
 

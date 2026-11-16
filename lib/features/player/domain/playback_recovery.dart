@@ -106,7 +106,7 @@ const Duration kTorrentStallRecoverAfter = Duration(minutes: 3);
 /// throwing away the read-ahead: 4.6-5.0 MB per stall in every Part 1 and
 /// Part 2 run, on every platform. Predictive then chooses a rendition from
 /// the emptied buffer, a rung lower, and the seek lands up to a segment early
-/// (SkyStream's research, 2026-10-15). A stall that ends needs nothing:
+/// (ZoroX's research, 2026-10-15). A stall that ends needs nothing:
 /// libVLC's own download carries on when the data does.
 StallAction stallActionFor({
   required Duration stalledFor,

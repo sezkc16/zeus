@@ -2,14 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/providers/device_info_provider.dart';
-import 'package:skystream/core/services/download_service.dart';
-import 'package:skystream/features/player/presentation/player_platform_service.dart';
-import 'package:skystream/features/player/presentation/widgets/player_control_components.dart'
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/providers/device_info_provider.dart';
+import 'package:zorox/core/services/download_service.dart';
+import 'package:zorox/features/player/presentation/player_platform_service.dart';
+import 'package:zorox/features/player/presentation/widgets/player_control_components.dart'
     show PlayerBottomBar, PlayerIconButton;
-import 'package:skystream/features/settings/presentation/player_settings_provider.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import 'vlc_screen_harness.dart';
 

@@ -5,7 +5,7 @@ import 'package:archive/archive.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
-import 'package:skystream/core/extensions/services/plugin_storage_service.dart';
+import 'package:zorox/core/extensions/services/plugin_storage_service.dart';
 
 /// An install keeps the address of the repository it came from, so that only
 /// that repository's listing can update the plugin later.

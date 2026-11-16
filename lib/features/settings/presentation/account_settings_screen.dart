@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/layout_constants.dart';
 import '../../../core/router/app_router.dart';
 
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import 'widgets/settings_widgets.dart';
 import 'widgets/settings_dialogs.dart';
@@ -54,7 +54,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
     super.dispose();
   }
 
-  /// Signs in to [provider] in SkyStream's own browser, in the check sheet.
+  /// Signs in to [provider] in ZoroX's own browser, in the check sheet.
   /// See lib/features/tracking/sign_in/.
   Future<SignInResult> _signIn(
     BuildContext context,
@@ -637,7 +637,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                     title: 'Download location',
                     subtitle:
                         generalSettings.downloadDirectory ??
-                        'System Downloads/Skystream',
+                        'System Downloads/ZoroX',
                     onTap: () => showDownloadLocationDialog(
                       context,
                       ref,

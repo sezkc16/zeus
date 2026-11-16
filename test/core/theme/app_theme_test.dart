@@ -6,8 +6,8 @@ import 'package:flutter/foundation.dart' show LicenseRegistry;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/theme/app_theme.dart';
-import 'package:skystream/features/player/presentation/widgets/hotstar_player_style.dart';
+import 'package:zorox/core/theme/app_theme.dart';
+import 'package:zorox/features/player/presentation/widgets/hotstar_player_style.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -122,7 +122,7 @@ void main() {
       },
     );
 
-    test('SkyStream\'s own licence ships and is on the licence page', () async {
+    test('ZoroX\'s own licence ships and is on the licence page', () async {
       // Flutter's licence page lists what dependencies declare, never the app
       // itself, so the app's GPL-3.0 text has to be registered by hand.
       final licence = await rootBundle.loadString('LICENSE');
@@ -131,7 +131,7 @@ void main() {
 
       AppTheme.createDarkTheme(null);
       final entries = await LicenseRegistry.licenses.toList();
-      final own = entries.where((e) => e.packages.contains('SkyStream'));
+      final own = entries.where((e) => e.packages.contains('ZoroX'));
       expect(own, hasLength(1), reason: 'registered once, however often a theme is built');
       expect(
         own.single.paragraphs.map((p) => p.text).join('\n'),

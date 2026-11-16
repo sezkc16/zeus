@@ -28,35 +28,35 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart' show Override;
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/extensions/extension_manager.dart';
-import 'package:skystream/core/services/download_service.dart';
-import 'package:skystream/core/storage/episode_watch_repository.dart';
-import 'package:skystream/core/storage/history_repository.dart';
-import 'package:skystream/core/storage/settings_repository.dart';
-import 'package:skystream/core/storage/storage_service.dart';
-import 'package:skystream/core/providers/device_info_provider.dart';
-import 'package:skystream/core/providers/device_memory.dart';
-import 'package:skystream/features/library/presentation/history_provider.dart';
-import 'package:skystream/features/player/domain/source_check.dart';
-import 'package:skystream/features/player/domain/stream_resolver.dart'
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/extensions/extension_manager.dart';
+import 'package:zorox/core/services/download_service.dart';
+import 'package:zorox/core/storage/episode_watch_repository.dart';
+import 'package:zorox/core/storage/history_repository.dart';
+import 'package:zorox/core/storage/settings_repository.dart';
+import 'package:zorox/core/storage/storage_service.dart';
+import 'package:zorox/core/providers/device_info_provider.dart';
+import 'package:zorox/core/providers/device_memory.dart';
+import 'package:zorox/features/library/presentation/history_provider.dart';
+import 'package:zorox/features/player/domain/source_check.dart';
+import 'package:zorox/features/player/domain/stream_resolver.dart'
     show ProbeOutcome;
-import 'package:skystream/features/player/presentation/vlc/panel/player_panel.dart'
+import 'package:zorox/features/player/presentation/vlc/panel/player_panel.dart'
     show SubtitleStyleBinding;
-import 'package:skystream/features/player/presentation/vlc/side_car_fetch.dart';
-import 'package:skystream/features/player/presentation/vlc/source_check_provider.dart';
-import 'package:skystream/features/player/presentation/vlc/vlc_player_screen.dart';
-import 'package:skystream/features/player/presentation/vlc/vlc_player_controls.dart';
-import 'package:skystream/features/settings/presentation/player_settings_provider.dart';
-import 'package:skystream/features/tracking/data/sync_manager.dart';
-import 'package:skystream/features/tracking/data/tracking_service.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/features/player/presentation/vlc/side_car_fetch.dart';
+import 'package:zorox/features/player/presentation/vlc/source_check_provider.dart';
+import 'package:zorox/features/player/presentation/vlc/vlc_player_screen.dart';
+import 'package:zorox/features/player/presentation/vlc/vlc_player_controls.dart';
+import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
+import 'package:zorox/features/tracking/data/sync_manager.dart';
+import 'package:zorox/features/tracking/data/tracking_service.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import 'fake_vlc_engine.dart';
 
 const MethodChannel vlcChannel = MethodChannel('vlc_player');
 const MethodChannel pipChannel = MethodChannel(
-  'dev.akash.skystream.player/pip',
+  'dev.toji.zorox.player/pip',
 );
 
 /// The texture path names its own view: `create` answers with the id, so a

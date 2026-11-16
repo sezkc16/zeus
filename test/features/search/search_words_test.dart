@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/search/presentation/search_provider.dart';
+import 'package:zorox/features/search/presentation/search_provider.dart';
 
 /// Search keeps a result only when every word of the query begins a word of
 /// its title, or, in a script written without spaces, is anywhere in it.

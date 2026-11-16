@@ -10,14 +10,14 @@ library;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/presentation/mpv/mpv_ios_options.dart';
-import 'package:skystream/features/settings/presentation/player_settings_provider.dart';
+import 'package:zorox/features/player/presentation/mpv/mpv_ios_options.dart';
+import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
 import 'package:zorox_mpv_pip/zorox_mpv_pip.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const channelName = 'dev.akash.skystream.player/pip_mpv_ios';
+  const channelName = 'dev.toji.zorox.player/pip_mpv_ios';
   const channel = MethodChannel(channelName);
 
   group('mpvIosHwdec', () {

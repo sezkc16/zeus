@@ -7,14 +7,14 @@ library;
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/storage/secure_token_storage.dart';
-import 'package:skystream/core/storage/storage_service.dart';
-import 'package:skystream/features/tracking/data/simkl_service.dart';
-import 'package:skystream/features/tracking/data/sync_manager.dart';
-import 'package:skystream/features/tracking/data/sync_outbox.dart';
-import 'package:skystream/features/tracking/data/tracking_service.dart';
-import 'package:skystream/features/tracking/domain/sync_ids.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/storage/secure_token_storage.dart';
+import 'package:zorox/core/storage/storage_service.dart';
+import 'package:zorox/features/tracking/data/simkl_service.dart';
+import 'package:zorox/features/tracking/data/sync_manager.dart';
+import 'package:zorox/features/tracking/data/sync_outbox.dart';
+import 'package:zorox/features/tracking/data/tracking_service.dart';
+import 'package:zorox/features/tracking/domain/sync_ids.dart';
 
 /// No tokens, and no platform storage behind them.
 class _NoTokens extends SecureTokenStorage {

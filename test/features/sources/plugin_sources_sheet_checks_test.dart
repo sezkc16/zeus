@@ -4,19 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/network/clearance/clearance.dart';
-import 'package:skystream/core/network/clearance/clearance_solver.dart';
-import 'package:skystream/core/network/clearance/clearance_store.dart';
-import 'package:skystream/core/network/clearance/site_checks.dart';
-import 'package:skystream/core/network/clearance/site_keys.dart';
-import 'package:skystream/core/network/link_probe_service.dart';
-import 'package:skystream/core/nuvio/data/nuvio_repository.dart';
-import 'package:skystream/core/nuvio/data/nuvio_stream_service.dart';
-import 'package:skystream/core/nuvio/models/nuvio_models.dart';
-import 'package:skystream/features/settings/presentation/player_settings_provider.dart';
-import 'package:skystream/features/sources/presentation/plugin_sources_sheet.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/network/clearance/clearance.dart';
+import 'package:zorox/core/network/clearance/clearance_solver.dart';
+import 'package:zorox/core/network/clearance/clearance_store.dart';
+import 'package:zorox/core/network/clearance/site_checks.dart';
+import 'package:zorox/core/network/clearance/site_keys.dart';
+import 'package:zorox/core/network/link_probe_service.dart';
+import 'package:zorox/core/nuvio/data/nuvio_repository.dart';
+import 'package:zorox/core/nuvio/data/nuvio_stream_service.dart';
+import 'package:zorox/core/nuvio/models/nuvio_models.dart';
+import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
+import 'package:zorox/features/sources/presentation/plugin_sources_sheet.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 class _Repo extends NuvioRepository {
   @override

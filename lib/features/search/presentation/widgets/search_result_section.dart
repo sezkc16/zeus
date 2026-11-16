@@ -4,14 +4,14 @@ import 'package:flutter/foundation.dart';
 import '../../../cloudstream/presentation/cloudstream_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:skystream/core/utils/responsive_breakpoints.dart';
+import 'package:zorox/core/utils/responsive_breakpoints.dart';
 
-import 'package:skystream/core/extensions/extension_manager.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/router/app_router.dart';
-import 'package:skystream/core/utils/image_fallbacks.dart';
-import 'package:skystream/shared/widgets/desktop_scroll_wrapper.dart';
-import 'package:skystream/shared/widgets/multimedia_card.dart';
+import 'package:zorox/core/extensions/extension_manager.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/router/app_router.dart';
+import 'package:zorox/core/utils/image_fallbacks.dart';
+import 'package:zorox/shared/widgets/desktop_scroll_wrapper.dart';
+import 'package:zorox/shared/widgets/multimedia_card.dart';
 
 import '../search_sources.dart';
 import 'search_source_tag.dart';
@@ -43,7 +43,7 @@ class SearchResultSection extends ConsumerStatefulWidget {
            kind ??
            (CloudStreamBadge.isCloudStream(providerId)
                ? SearchSourceKind.cloudstream
-               : SearchSourceKind.skystream);
+               : SearchSourceKind.zorox);
 
   @override
   ConsumerState<SearchResultSection> createState() =>

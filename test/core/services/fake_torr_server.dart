@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_torrent_server/flutter_torrent_server.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:skystream/core/services/torrent_service.dart';
+import 'package:zorox/core/services/torrent_service.dart';
 
 /// A TorrServer for the torrent service's tests: the plugin's calls on one
 /// side, the server's HTTP API on the other ([client]), over one state.

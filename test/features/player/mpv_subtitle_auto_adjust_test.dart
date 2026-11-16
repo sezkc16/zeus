@@ -17,11 +17,11 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:media_kit_video/media_kit_video.dart';
-import 'package:skystream/core/storage/storage_service.dart';
-import 'package:skystream/features/player/domain/subtitle_style.dart';
-import 'package:skystream/features/player/presentation/mpv/golden_subtitle_style_drawer.dart';
-import 'package:skystream/features/player/presentation/mpv/mpv_subtitle_style.dart';
-import 'package:skystream/features/settings/presentation/player_settings_provider.dart';
+import 'package:zorox/core/storage/storage_service.dart';
+import 'package:zorox/features/player/domain/subtitle_style.dart';
+import 'package:zorox/features/player/presentation/mpv/golden_subtitle_style_drawer.dart';
+import 'package:zorox/features/player/presentation/mpv/mpv_subtitle_style.dart';
+import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
 import 'package:vlc_player/vlc_player.dart';
 
 import 'fake_vlc_engine.dart';

@@ -4,12 +4,12 @@ import 'package:challenge_browser/challenge_browser.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/cloudstream/extension_ui/extension_pages.dart';
-import 'package:skystream/core/cloudstream/extension_ui/extension_ui_session.dart';
-import 'package:skystream/core/cloudstream/extension_ui/ui_tree.dart';
-import 'package:skystream/features/cloudstream/presentation/extension_ui/extension_page_view.dart';
-import 'package:skystream/features/cloudstream/presentation/extension_ui/ui_node_view.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/cloudstream/extension_ui/extension_pages.dart';
+import 'package:zorox/core/cloudstream/extension_ui/extension_ui_session.dart';
+import 'package:zorox/core/cloudstream/extension_ui/ui_tree.dart';
+import 'package:zorox/features/cloudstream/presentation/extension_ui/extension_page_view.dart';
+import 'package:zorox/features/cloudstream/presentation/extension_ui/ui_node_view.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import '../../../core/cloudstream/extension_ui/fake_page_browser.dart';
 
@@ -175,7 +175,7 @@ void main() {
   });
 
   testWidgets(
-    "on Windows and Linux every page steps aside while SkyStream shows a page's dialog, which it would cover",
+    "on Windows and Linux every page steps aside while ZoroX shows a page's dialog, which it would cover",
     (tester) async {
       // Phase 7c's §8: a page that is a window of its own is drawn over anything Flutter shows.
       final person = Completer<({bool accept, String? text})>();
@@ -241,7 +241,7 @@ void main() {
       () => failing.open({'rid': 3, 'session': session.id, 'node': 7, 'url': 'x'}, PageReports().call),
     );
     await show(tester, session, UiNode.fromJson(_page));
-    expect(find.text("This part can't be shown in SkyStream yet."), findsOneWidget);
+    expect(find.text("This part can't be shown in ZoroX yet."), findsOneWidget);
   });
 
   testWidgets('the page view is kept across trees while its node stays', (tester) async {

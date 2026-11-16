@@ -13,7 +13,7 @@ import 'test_support.dart';
 /// The two scans slowed each other: the first picture of a fresh install took
 /// 32 s on the phone emulator, past the player screen's 30 s first-frame
 /// deadline, whose reopen then stranded the first player inside its scan
-/// (SkyStream's QoE suite, 2026-10-14). The build alone takes 12-13 s there.
+/// (ZoroX's QoE suite, 2026-10-14). The build alone takes 12-13 s there.
 /// `flutter test` installs the app afresh, so the build is running when this
 /// test opens its video.
 void main() {

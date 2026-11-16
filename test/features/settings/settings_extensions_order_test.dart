@@ -1,4 +1,4 @@
-/// Settings' Extensions group, in the owner's order: SkyStream, CloudStream,
+/// Settings' Extensions group, in the owner's order: ZoroX, CloudStream,
 /// Nuvio, Stremio - with CloudStream marked BETA, as the skip-time providers
 /// are under Accounts.
 library;
@@ -6,20 +6,20 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/providers/device_info_provider.dart';
-import 'package:skystream/core/services/notification_service.dart';
-import 'package:skystream/core/storage/secure_token_storage.dart';
-import 'package:skystream/core/storage/settings_repository.dart';
-import 'package:skystream/core/storage/storage_service.dart';
-import 'package:skystream/core/theme/theme_provider.dart';
-import 'package:skystream/features/settings/presentation/app_version_provider.dart';
-import 'package:skystream/features/settings/presentation/cache_provider.dart';
-import 'package:skystream/features/settings/presentation/general_settings_provider.dart';
-import 'package:skystream/features/settings/presentation/player_settings_provider.dart';
-import 'package:skystream/features/settings/presentation/settings_screen.dart';
-import 'package:skystream/features/settings/presentation/widgets/settings_widgets.dart';
-import 'package:skystream/features/tracking/presentation/tracking_auth_provider.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/providers/device_info_provider.dart';
+import 'package:zorox/core/services/notification_service.dart';
+import 'package:zorox/core/storage/secure_token_storage.dart';
+import 'package:zorox/core/storage/settings_repository.dart';
+import 'package:zorox/core/storage/storage_service.dart';
+import 'package:zorox/core/theme/theme_provider.dart';
+import 'package:zorox/features/settings/presentation/app_version_provider.dart';
+import 'package:zorox/features/settings/presentation/cache_provider.dart';
+import 'package:zorox/features/settings/presentation/general_settings_provider.dart';
+import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
+import 'package:zorox/features/settings/presentation/settings_screen.dart';
+import 'package:zorox/features/settings/presentation/widgets/settings_widgets.dart';
+import 'package:zorox/features/tracking/presentation/tracking_auth_provider.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 /// Enough of a repository to render the screen, and nothing that touches a
 /// box: [StorageService] here is never initialised.
@@ -107,7 +107,7 @@ void main() {
         )
         .toList();
     expect(tiles.map((t) => t.title), [
-      'SkyStream Providers',
+      'ZoroX Providers',
       'CloudStream Extensions',
       'Nuvio Plugins',
       'Stremio Add-ons',

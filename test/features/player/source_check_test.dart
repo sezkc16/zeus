@@ -5,9 +5,9 @@ import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/features/player/domain/source_check.dart';
-import 'package:skystream/features/player/domain/stream_resolver.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/features/player/domain/source_check.dart';
+import 'package:zorox/features/player/domain/stream_resolver.dart';
 
 StreamResult _film([String name = 'film.mp4']) => StreamResult(
   url: 'https://cdn.test/$name',

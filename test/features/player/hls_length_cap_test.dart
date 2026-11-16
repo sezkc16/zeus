@@ -2,8 +2,8 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/network/dio_client_provider.dart';
-import 'package:skystream/features/player/presentation/vlc/vlc_player_controls.dart';
+import 'package:zorox/core/network/dio_client_provider.dart';
+import 'package:zorox/features/player/presentation/vlc/vlc_player_controls.dart';
 
 import 'fake_vlc_engine.dart';
 import 'vlc_screen_harness.dart';

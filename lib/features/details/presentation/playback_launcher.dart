@@ -21,7 +21,7 @@ import '../../../core/services/download_service.dart';
 import '../../../shared/widgets/loading_dialog.dart';
 import '../../../core/utils/app_utils.dart';
 
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import '../../../core/services/notification_service.dart';
 

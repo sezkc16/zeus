@@ -1,6 +1,6 @@
 /// Who runs a site's bot check, from what a page shows.
 enum CheckVendor {
-  /// Cloudflare's challenge: the only one with a checkbox SkyStream taps.
+  /// Cloudflare's challenge: the only one with a checkbox ZoroX taps.
   cloudflare,
   ddosGuard,
 
@@ -17,7 +17,7 @@ enum CheckVendor {
   /// HostAdmin's proof of work, which clears by itself.
   hostAdmin,
 
-  /// A check SkyStream knows only by its title ("Checking your browser").
+  /// A check ZoroX knows only by its title ("Checking your browser").
   other,
 }
 

@@ -32,7 +32,7 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/presentation/mpv/golden_player_controls.dart';
+import 'package:zorox/features/player/presentation/mpv/golden_player_controls.dart';
 
 void main() {
   group('pinch zoom on the Golden player', () {

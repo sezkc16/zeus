@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/utils/layout_constants.dart';
 import '../../../core/theme/theme_provider.dart';
@@ -13,7 +12,7 @@ import 'full_screen_mode_provider.dart';
 import 'general_settings_provider.dart';
 import 'app_version_provider.dart';
 
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import '../../../core/providers/locale_provider.dart';
 import '../../../core/router/app_router.dart';
@@ -58,7 +57,7 @@ class SettingsScreen extends ConsumerWidget {
                 SettingsGroup(
                   title: l10n.extensions,
                   children: [
-                    // v20+37: the SkyStream Providers and CloudStream
+                    // v20+37: the ZoroX Providers and CloudStream
                     // Extensions rows are gone from Settings — the
                     // Providers screen lives on the bottom-nav Plugins tab
                     // only. Nuvio Plugins and Stremio Add-ons stay.
@@ -245,36 +244,18 @@ class SettingsScreen extends ConsumerWidget {
         SettingsTile(
           icon: Icons.person_outline_rounded,
           title: l10n.developer,
-          subtitle: l10n.developedBy('Akash'),
+          subtitle: l10n.developedBy('Toji'),
           onTap: () => showDeveloperDialog(context),
         ),
-        SettingsTile(
-          icon: Icons.forum_outlined,
-          title: l10n.discord,
-          subtitle: l10n.discordSubtitle,
-          onTap: () => launchUrl(
-            Uri.parse('https://discord.gg/73XGA8Mxn9'),
-            mode: LaunchMode.externalApplication,
-          ),
-        ),
-        SettingsTile(
-          icon: Icons.send_rounded,
-          title: l10n.telegram,
-          subtitle: l10n.telegramSubtitle,
-          onTap: () => launchUrl(
-            Uri.parse('https://t.me/+Ez5Vsv2pUUFjZmNl'),
-            mode: LaunchMode.externalApplication,
-          ),
-        ),
         // GPL-3.0 asks an interactive program to show its legal notices. The
-        // page lists SkyStream's licence beside every dependency's.
+        // page lists ZoroX's licence beside every dependency's.
         SettingsTile(
           icon: Icons.gavel_rounded,
           title: l10n.openSourceLicences,
           subtitle: l10n.openSourceLicencesSubtitle,
           onTap: () => showLicensePage(
             context: context,
-            applicationName: 'SkyStream',
+            applicationName: 'ZoroX',
             applicationVersion: versionAsync.value,
             applicationLegalese: l10n.appLegalese,
           ),

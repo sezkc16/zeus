@@ -18,7 +18,7 @@ enum SignInResult {
   failed,
 }
 
-/// Signs in to MyAnimeList or AniList in SkyStream's own browser ([run]) and
+/// Signs in to MyAnimeList or AniList in ZoroX's own browser ([run]) and
 /// saves the token the provider sends back.
 class TrackerSignIn {
   TrackerSignIn({

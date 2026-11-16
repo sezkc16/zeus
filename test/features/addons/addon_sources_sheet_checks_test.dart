@@ -4,19 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/addons/data/addon_repository.dart';
-import 'package:skystream/core/addons/data/addon_stream_service.dart';
-import 'package:skystream/core/addons/models/addon_manifest.dart';
-import 'package:skystream/core/addons/models/addon_stream_source.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/network/clearance/clearance.dart';
-import 'package:skystream/core/network/clearance/clearance_solver.dart';
-import 'package:skystream/core/network/clearance/clearance_store.dart';
-import 'package:skystream/core/network/clearance/site_checks.dart';
-import 'package:skystream/core/network/clearance/site_keys.dart';
-import 'package:skystream/core/network/link_probe_service.dart';
-import 'package:skystream/features/addons/presentation/addon_sources_sheet.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/addons/data/addon_repository.dart';
+import 'package:zorox/core/addons/data/addon_stream_service.dart';
+import 'package:zorox/core/addons/models/addon_manifest.dart';
+import 'package:zorox/core/addons/models/addon_stream_source.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/network/clearance/clearance.dart';
+import 'package:zorox/core/network/clearance/clearance_solver.dart';
+import 'package:zorox/core/network/clearance/clearance_store.dart';
+import 'package:zorox/core/network/clearance/site_checks.dart';
+import 'package:zorox/core/network/clearance/site_keys.dart';
+import 'package:zorox/core/network/link_probe_service.dart';
+import 'package:zorox/features/addons/presentation/addon_sources_sheet.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 final _addon = ManagedAddon(
   manifestUrl: 'https://addon.test/manifest.json',

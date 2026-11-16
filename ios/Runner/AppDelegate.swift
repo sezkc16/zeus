@@ -39,7 +39,7 @@ import UserNotifications
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
 
     let channel = FlutterMethodChannel(
-      name: "dev.akash.skystream/download_continued_processing",
+      name: "dev.toji.zorox/download_continued_processing",
       binaryMessenger: engineBridge.applicationRegistrar.messenger()
     )
 
@@ -163,7 +163,7 @@ import UserNotifications
     // allowed and does not turn an interface that is already up, so a film
     // never actually rotated to landscape on play.
     let orientationChannel = FlutterMethodChannel(
-      name: "dev.akash.skystream/orientation",
+      name: "dev.toji.zorox/orientation",
       binaryMessenger: engineBridge.applicationRegistrar.messenger()
     )
     orientationChannel.setMethodCallHandler { call, result in
@@ -192,7 +192,7 @@ import UserNotifications
 
     // What the player sizes its read-ahead from (lib/core/providers/device_memory.dart).
     let memoryChannel = FlutterMethodChannel(
-      name: "dev.akash.skystream/device_memory",
+      name: "dev.toji.zorox/device_memory",
       binaryMessenger: engineBridge.applicationRegistrar.messenger()
     )
     memoryChannel.setMethodCallHandler { call, result in

@@ -5,16 +5,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:skystream/core/storage/settings_repository.dart';
-import 'package:skystream/core/storage/storage_service.dart';
-import 'package:skystream/core/theme/theme_provider.dart';
-import 'package:skystream/features/settings/presentation/app_version_provider.dart';
-import 'package:skystream/features/settings/presentation/cache_provider.dart';
-import 'package:skystream/features/settings/presentation/general_settings_provider.dart';
-import 'package:skystream/features/settings/presentation/settings_screen.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/storage/settings_repository.dart';
+import 'package:zorox/core/storage/storage_service.dart';
+import 'package:zorox/core/theme/theme_provider.dart';
+import 'package:zorox/features/settings/presentation/app_version_provider.dart';
+import 'package:zorox/features/settings/presentation/cache_provider.dart';
+import 'package:zorox/features/settings/presentation/general_settings_provider.dart';
+import 'package:zorox/features/settings/presentation/settings_screen.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
-/// SkyStream is GPL-3.0, and the GPL asks an interactive program to show its
+/// ZoroX is GPL-3.0, and the GPL asks an interactive program to show its
 /// legal notices: who holds the copyright, that there is no warranty, that it
 /// may be shared under the GPL, and where the licence is. Settings' About
 /// group is where they are, on Flutter's licence page.
@@ -67,7 +67,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('About opens the licence page with SkyStream\'s notice', (
+  testWidgets('About opens the licence page with ZoroX\'s notice', (
     tester,
   ) async {
     await pumpSettings(tester);
@@ -81,7 +81,7 @@ void main() {
     // jump out.
     await tester.pump();
     expect(
-      find.text('SkyStream is free software under the GNU GPL v3'),
+      find.text('ZoroX is free software under the GNU GPL v3'),
       findsOneWidget,
     );
 

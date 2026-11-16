@@ -842,7 +842,7 @@ class StorageService {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // If keepRepos is true, preserve SkyStream extensions, Nuvio plugins, and Stremio addons
+      // If keepRepos is true, preserve ZoroX extensions, Nuvio plugins, and Stremio addons
       List<String>? savedExtensionRepos;
       List<String>? savedRemovedExtensionRepos;
       final savedExtensionRepoStrings = <String, String>{};
@@ -961,7 +961,7 @@ class StorageService {
         if (kDebugMode) debugPrint("Error clearing cache manager: $e");
       }
 
-      // SkyStream's own temporary files (downloaded subtitles and plugins).
+      // ZoroX's own temporary files (downloaded subtitles and plugins).
       await _clearAppTemp();
     } catch (e) {
       if (kDebugMode) debugPrint('Error clearing preferences: $e');
@@ -997,7 +997,7 @@ class StorageService {
     try {
       final supportDir = await getApplicationSupportDirectory();
 
-      // 1. Delete the extensions folder (SkyStream plugins, CloudStream's
+      // 1. Delete the extensions folder (ZoroX plugins, CloudStream's
       //    extensions) and 2. Nuvio's plugins folder. A file still open
       //    (Windows will not delete one) must not keep the steps below from
       //    running, so each folder fails on its own.
@@ -1063,7 +1063,7 @@ class StorageService {
     await _clearAppTemp();
   }
 
-  /// Deletes SkyStream's own temporary files ([appTempDirectory]), and on the
+  /// Deletes ZoroX's own temporary files ([appTempDirectory]), and on the
   /// desktops nothing else in the temporary directory.
   Future<void> _clearAppTemp() async {
     try {

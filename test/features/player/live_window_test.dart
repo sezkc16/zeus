@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/domain/live_window.dart';
+import 'package:zorox/features/player/domain/live_window.dart';
 import 'package:vlc_player/vlc_player.dart';
 
 /// A live HLS value: a [lengthS]-second window, [fraction] of the way in.

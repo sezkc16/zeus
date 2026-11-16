@@ -1449,7 +1449,7 @@ class _VlcPlayerController extends VlcPlayerController
   /// it is now. The window's end - the live edge - runs on with the clock
   /// from where it was at the join, and its start is the end less its
   /// length: a full window moves on as fast as the clock, while one still
-  /// filling up keeps its start (SkyStream's harness and suite, 2026-10-13:
+  /// filling up keeps its start (ZoroX's harness and suite, 2026-10-13:
   /// every reading within a second, and a window seek on a filling playlist
   /// landed 9.5 s off when the start was taken to move).
   ///
@@ -1917,7 +1917,7 @@ class _VlcPlayerController extends VlcPlayerController
   /// (Darwin, Windows, Linux) count those lines and send the refused time,
   /// so the seek goes again about a second after it was sent, rather than
   /// after [_watchSeekLanding]'s dozen moves: about five seconds on an HLS
-  /// stream with WebVTT subtitles (SkyStream's QoE suite, 2026-10-13).
+  /// stream with WebVTT subtitles (ZoroX's QoE suite, 2026-10-13).
   /// libvlc-android exposes no log, so Android keeps the dozen.
   void _followSeekRefusal(
     Map<Object?, Object?> event, {
@@ -1987,7 +1987,7 @@ class _VlcPlayerController extends VlcPlayerController
 
   /// Whether [position] is libVLC saying nothing yet about where a seek to
   /// [target] went: an adaptive stream's time reads 0 for half a second or
-  /// so after a seek, while libVLC finds it again (SkyStream's harness,
+  /// so after a seek, while libVLC finds it again (ZoroX's harness,
   /// 2026-10-13), and 0 is far past a step back's target in the step's
   /// direction. A target this close to the start can land at 0.
   static bool _timeNotKnownYet(Duration position, Duration target) =>

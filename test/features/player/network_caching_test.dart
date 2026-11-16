@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/features/player/domain/media_options.dart'
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/features/player/domain/media_options.dart'
     show kLiveCachingMs, kVodCachingMs;
 
 import 'fake_vlc_engine.dart';

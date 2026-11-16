@@ -13,7 +13,7 @@ import '../../../search/presentation/search_provider.dart';
 import '../../../search/presentation/widgets/search_suggestion_row.dart';
 import '../../../../shared/focus/text_field_keys.dart';
 
-import 'package:skystream/shared/widgets/multimedia_card.dart';
+import 'package:zorox/shared/widgets/multimedia_card.dart';
 
 import '../../../../core/network/clearance/clearance.dart';
 import '../../../../shared/widgets/check_line.dart';

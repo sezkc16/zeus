@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/utils/latest_value_sender.dart';
+import 'package:zorox/core/utils/latest_value_sender.dart';
 
 /// A finger on a rail or a held key asks for a new level many times a second,
 /// and each one is a platform call: one goes at a time, and only the newest

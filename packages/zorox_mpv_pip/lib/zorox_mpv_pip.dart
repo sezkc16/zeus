@@ -30,7 +30,7 @@ import 'package:flutter/services.dart';
 /// (the same convention as `PlayerPlatformService`).
 class MpvPipIos {
   static const MethodChannel _channel = MethodChannel(
-    'dev.akash.skystream.player/pip_mpv_ios',
+    'dev.toji.zorox.player/pip_mpv_ios',
   );
 
   bool _prepared = false;

@@ -5,16 +5,16 @@ import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/logger/app_logger.dart';
-import 'package:skystream/core/router/app_router.dart';
-import 'package:skystream/core/services/download_service.dart';
-import 'package:skystream/core/services/notification_service.dart';
-import 'package:skystream/features/details/presentation/download_launcher.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
-import 'package:skystream/shared/widgets/loading_dialog.dart';
-import 'package:skystream/core/extensions/extension_manager.dart';
-import 'package:skystream/core/extensions/base_provider.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/logger/app_logger.dart';
+import 'package:zorox/core/router/app_router.dart';
+import 'package:zorox/core/services/download_service.dart';
+import 'package:zorox/core/services/notification_service.dart';
+import 'package:zorox/features/details/presentation/download_launcher.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
+import 'package:zorox/shared/widgets/loading_dialog.dart';
+import 'package:zorox/core/extensions/extension_manager.dart';
+import 'package:zorox/core/extensions/base_provider.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 
 /// "Download Now" used to be able to do nothing at all.
@@ -103,7 +103,7 @@ void main() {
       tester,
       failure: const FileSystemException(
         'Creation failed',
-        '/storage/emulated/0/Download/Skystream',
+        '/storage/emulated/0/Download/ZoroX',
       ),
     );
 
@@ -122,7 +122,7 @@ void main() {
     expect(toasts.single.message, contains('FileSystemException'));
     expect(
       toasts.single.message,
-      contains('/storage/emulated/0/Download/Skystream'),
+      contains('/storage/emulated/0/Download/ZoroX'),
       reason: 'the path is the one thing that tells the user what to fix',
     );
 
@@ -286,7 +286,7 @@ class _StubDownloadService extends DownloadService {
     MultimediaItem? item, {
     Episode? episode,
     bool absolute = false,
-  }) async => '/storage/emulated/0/Download/Skystream/A Movie';
+  }) async => '/storage/emulated/0/Download/ZoroX/A Movie';
 
   @override
   Future<bool> startDownload({

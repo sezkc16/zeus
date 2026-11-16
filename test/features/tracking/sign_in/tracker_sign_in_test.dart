@@ -3,13 +3,13 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/storage/secure_token_storage.dart';
-import 'package:skystream/core/storage/storage_service.dart';
-import 'package:skystream/features/tracking/data/anilist_service.dart';
-import 'package:skystream/features/tracking/data/mal_service.dart';
-import 'package:skystream/features/tracking/sign_in/embedded_sign_in.dart';
-import 'package:skystream/features/tracking/sign_in/sign_in_method.dart';
-import 'package:skystream/features/tracking/sign_in/tracker_sign_in.dart';
+import 'package:zorox/core/storage/secure_token_storage.dart';
+import 'package:zorox/core/storage/storage_service.dart';
+import 'package:zorox/features/tracking/data/anilist_service.dart';
+import 'package:zorox/features/tracking/data/mal_service.dart';
+import 'package:zorox/features/tracking/sign_in/embedded_sign_in.dart';
+import 'package:zorox/features/tracking/sign_in/sign_in_method.dart';
+import 'package:zorox/features/tracking/sign_in/tracker_sign_in.dart';
 
 /// Tokens kept in memory: the real store reaches a Hive box tests never open.
 class _Tokens extends SecureTokenStorage {

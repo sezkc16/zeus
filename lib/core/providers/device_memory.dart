@@ -2,7 +2,7 @@
 /// 1.2): installed, free for this app now, and the OEM's low-RAM verdict.
 ///
 /// Read at each open, because free memory changes. Android, iOS, macOS and
-/// Windows answer on the `dev.akash.skystream/device_memory` channel from
+/// Windows answer on the `dev.toji.zorox/device_memory` channel from
 /// their runners; Linux is read here, from `/proc/meminfo`.
 library;
 
@@ -13,7 +13,7 @@ import 'package:flutter/services.dart';
 
 /// The runners' memory channel. Its one method, `read`, answers a map of
 /// `totalMb`, `freeMb` and `lowRam`.
-const deviceMemoryChannel = MethodChannel('dev.akash.skystream/device_memory');
+const deviceMemoryChannel = MethodChannel('dev.toji.zorox/device_memory');
 
 /// One reading. A number nobody could read is null, never zero: a failed read
 /// must not shrink a buffer to nothing.

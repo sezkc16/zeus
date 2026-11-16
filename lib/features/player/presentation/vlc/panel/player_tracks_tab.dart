@@ -1,7 +1,7 @@
 /// The Audio and Subtitles tabs.
 ///
 /// Subtitles come from two owners, listed one after the other: the tracks
-/// inside the video, which libVLC draws, and subtitle files, which SkyStream
+/// inside the video, which libVLC draws, and subtitle files, which ZoroX
 /// reads and draws itself ([SideCarSubtitles]). At most one of them is on, so
 /// picking from either side takes the other side's off first.
 ///
@@ -160,7 +160,7 @@ class PlayerTracksTab extends StatelessWidget {
   /// reason as [searchFocusNode].
   final FocusNode? styleFocusNode;
 
-  /// The subtitle files SkyStream draws, listed after the video's own tracks.
+  /// The subtitle files ZoroX draws, listed after the video's own tracks.
   /// Null only where there is no screen behind the panel to draw them; files
   /// the viewer adds then go to libVLC.
   final SideCarSubtitles? sideCars;
@@ -416,7 +416,7 @@ class PlayerTracksTab extends StatelessWidget {
     return await shown || !files.tracks.contains(file);
   }
 
-  /// A file the viewer brought, from the device or a search: SkyStream draws
+  /// A file the viewer brought, from the device or a search: ZoroX draws
   /// it when there is a screen to, libVLC otherwise.
   Future<bool> _addFile(Uri file, {String? label, String? language}) async {
     final files = sideCars;

@@ -7,8 +7,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:skystream/core/storage/storage_service.dart';
-import 'package:skystream/features/extensions/providers/extensions_controller.dart';
+import 'package:zorox/core/storage/storage_service.dart';
+import 'package:zorox/features/extensions/providers/extensions_controller.dart';
 
 /// The recovery contract of `StorageService._safeOpenBox`, exercised through
 /// the real method.
@@ -26,7 +26,7 @@ void main() {
   late final Directory scratch;
   late StorageService service;
 
-  // Deliberately NOT `dir`. `clearPreferences` deletes SkyStream's temporary
+  // Deliberately NOT `dir`. `clearPreferences` deletes ZoroX's temporary
   // folder (on Android and iOS the whole temporary directory), and if
   // path_provider pointed at the Hive directory the boxes could vanish with it
   // and the assertions below would pass without the delete ever running.

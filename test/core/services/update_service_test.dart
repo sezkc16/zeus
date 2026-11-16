@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/data/models/github_release.dart';
-import 'package:skystream/core/services/update_service.dart';
+import 'package:zorox/core/data/models/github_release.dart';
+import 'package:zorox/core/services/update_service.dart';
 
 GithubAsset _asset(String name) => GithubAsset(
   name: name,
@@ -13,8 +13,8 @@ GithubAsset _asset(String name) => GithubAsset(
 final _release = [
   for (final arch in ['x64', 'arm64'])
     for (final ext in ['tar.gz', 'deb', 'AppImage'])
-      _asset('skystream-linux-$arch-2.9.0.$ext'),
-  _asset('skystream-windows-x64-2.9.0.exe'),
+      _asset('zorox-linux-$arch-2.9.0.$ext'),
+  _asset('zorox-windows-x64-2.9.0.exe'),
 ];
 
 void main() {
@@ -24,16 +24,16 @@ void main() {
       expect(
         UpdateService.linuxInstallOf(
           environment: {
-            'APPIMAGE': '/home/u/Apps/SkyStream.AppImage',
-            'APPDIR': '/tmp/.mount_SkyStrAbC123',
+            'APPIMAGE': '/home/u/Apps/ZoroX.AppImage',
+            'APPDIR': '/tmp/.mount_ZoroXAbC123',
           },
-          executable: '/tmp/.mount_SkyStrAbC123/opt/skystream/skystream',
+          executable: '/tmp/.mount_ZoroXAbC123/opt/zorox/zorox',
         ),
         LinuxInstall.appImage,
       );
     });
 
-    test('APPIMAGE inherited from another AppImage that started SkyStream '
+    test('APPIMAGE inherited from another AppImage that started ZoroX '
         'is not an AppImage install', () {
       expect(
         UpdateService.linuxInstallOf(
@@ -41,17 +41,17 @@ void main() {
             'APPIMAGE': '/home/u/Apps/Launcher.AppImage',
             'APPDIR': '/tmp/.mount_LauncXyZ789',
           },
-          executable: '/opt/skystream/skystream',
+          executable: '/opt/zorox/zorox',
         ),
         LinuxInstall.deb,
       );
     });
 
-    test('the .deb installs to /opt/skystream', () {
+    test('the .deb installs to /opt/zorox', () {
       expect(
         UpdateService.linuxInstallOf(
           environment: const {},
-          executable: '/opt/skystream/skystream',
+          executable: '/opt/zorox/zorox',
         ),
         LinuxInstall.deb,
       );
@@ -61,14 +61,14 @@ void main() {
       expect(
         UpdateService.linuxInstallOf(
           environment: const {},
-          executable: '/home/u/skystream/skystream',
+          executable: '/home/u/zorox/zorox',
         ),
         LinuxInstall.tarball,
       );
       expect(
         UpdateService.linuxInstallOf(
           environment: const {},
-          executable: '/opt/skystream-old/skystream',
+          executable: '/opt/zorox-old/zorox',
         ),
         LinuxInstall.tarball,
       );
@@ -83,7 +83,7 @@ void main() {
           isArm: false,
           install: LinuxInstall.appImage,
         )?.name,
-        'skystream-linux-x64-2.9.0.AppImage',
+        'zorox-linux-x64-2.9.0.AppImage',
       );
       expect(
         UpdateService.linuxAsset(
@@ -91,7 +91,7 @@ void main() {
           isArm: true,
           install: LinuxInstall.deb,
         )?.name,
-        'skystream-linux-arm64-2.9.0.deb',
+        'zorox-linux-arm64-2.9.0.deb',
       );
       expect(
         UpdateService.linuxAsset(
@@ -99,7 +99,7 @@ void main() {
           isArm: false,
           install: LinuxInstall.tarball,
         )?.name,
-        'skystream-linux-x64-2.9.0.tar.gz',
+        'zorox-linux-x64-2.9.0.tar.gz',
       );
     });
 
@@ -145,30 +145,30 @@ void main() {
     test('x86_64 and amd64 name the x64 build too', () {
       expect(
         UpdateService.linuxAsset(
-          [_asset('skystream-linux-x86_64.AppImage')],
+          [_asset('zorox-linux-x86_64.AppImage')],
           isArm: false,
           install: LinuxInstall.appImage,
         )?.name,
-        'skystream-linux-x86_64.AppImage',
+        'zorox-linux-x86_64.AppImage',
       );
       expect(
         UpdateService.linuxAsset(
-          [_asset('skystream-linux-amd64.deb')],
+          [_asset('zorox-linux-amd64.deb')],
           isArm: false,
           install: LinuxInstall.deb,
         )?.name,
-        'skystream-linux-amd64.deb',
+        'zorox-linux-amd64.deb',
       );
     });
 
     test('a name without an architecture serves either', () {
       expect(
         UpdateService.linuxAsset(
-          [_asset('skystream-linux.deb')],
+          [_asset('zorox-linux.deb')],
           isArm: true,
           install: LinuxInstall.deb,
         )?.name,
-        'skystream-linux.deb',
+        'zorox-linux.deb',
       );
     });
   });

@@ -47,7 +47,7 @@ import 'features/account/data/zorox_account_notifier.dart';
 import 'features/player/domain/qoe_log.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import 'core/providers/locale_provider.dart';
 import 'core/network/clearance/clearance.dart';
@@ -333,7 +333,7 @@ class _MyAppState extends ConsumerState<MyApp> {
     // Applied here rather than in `main` because it reads through a provider,
     // which needs the scope this widget sits inside.
     ref.read(fullScreenModeProvider.notifier).initialize();
-    // A page's own dialog its extension left to the app: SkyStream's, over whatever shows (Phase 7c).
+    // A page's own dialog its extension left to the app: ZoroX's, over whatever shows (Phase 7c).
     ExtensionPages.shared.dialogs = _showPageDialog;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(downloadServiceProvider).init();
@@ -475,7 +475,7 @@ class _MyAppState extends ConsumerState<MyApp> {
   /// screen, so it waits until the launch is over rather than racing it.
   static const Duration _extensionsCheckDelay = Duration(seconds: 15);
 
-  /// Brings every extension system up to date in the background - SkyStream
+  /// Brings every extension system up to date in the background - ZoroX
   /// plugins, Nuvio scrapers, Stremio add-ons and CloudStream extensions - and
   /// says what changed: what was updated, which repositories a followed
   /// collection (or a CloudStream plugin like MegaRepo's) brought in, and

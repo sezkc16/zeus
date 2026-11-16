@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/network/clearance/clearance.dart';

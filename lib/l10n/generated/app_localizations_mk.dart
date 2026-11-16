@@ -170,11 +170,11 @@ class AppLocalizationsMk extends AppLocalizations {
 
   @override
   String get openSourceLicencesSubtitle =>
-      'SkyStream is free software under the GNU GPL v3';
+      'ZoroX is free software under the GNU GPL v3';
 
   @override
   String get appLegalese =>
-      'Copyright © 2025–2026 SkyStream contributors.\nSkyStream is free software: you can redistribute it and modify it under the terms of the GNU General Public License, version 3. It comes with ABSOLUTELY NO WARRANTY. Its source code is at github.com/akashdh11/skystream.';
+      'Copyright © 2025–2026 ZoroX contributors.\nZoroX is free software: you can redistribute it and modify it under the terms of the GNU General Public License, version 3. It comes with ABSOLUTELY NO WARRANTY. Its source code is at github.com/sezkc16/zorox.';
 
   @override
   String get enabled => 'Овозможено';
@@ -2015,7 +2015,7 @@ class AppLocalizationsMk extends AppLocalizations {
   String get cloudStream => 'CloudStream';
 
   @override
-  String get searchTagSkyStream => 'SkyStream';
+  String get searchTagSkyStream => 'ZoroX';
 
   @override
   String get searchTagStremio => 'Stremio';
@@ -2283,7 +2283,7 @@ class AppLocalizationsMk extends AppLocalizations {
 
   @override
   String get checkStateIneffective =>
-      'The check passed, but this site still refuses SkyStream. Trying again in a few minutes.';
+      'The check passed, but this site still refuses ZoroX. Trying again in a few minutes.';
 
   @override
   String get checkStateKeepsAsking =>
@@ -2318,7 +2318,7 @@ class AppLocalizationsMk extends AppLocalizations {
 
   @override
   String get extensionSheetCantShow =>
-      'This part can\'t be shown in SkyStream yet.';
+      'This part can\'t be shown in ZoroX yet.';
 
   @override
   String get extensionSheetClose => 'Close';

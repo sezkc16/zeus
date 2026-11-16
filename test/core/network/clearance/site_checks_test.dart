@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/network/clearance/site_checks.dart';
+import 'package:zorox/core/network/clearance/site_checks.dart';
 
 /// The checks an app run met: one per site, with its state, when that began,
 /// and the extensions that met it.

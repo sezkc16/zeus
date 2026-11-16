@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/addons/presentation/widgets/addon_manage_view.dart';
+import 'package:zorox/features/addons/presentation/widgets/addon_manage_view.dart';
 
 /// The Quick Install row shows the two official add-ons and nothing else —
 /// the same short list the official Stremio apps lead with. Torrentio,

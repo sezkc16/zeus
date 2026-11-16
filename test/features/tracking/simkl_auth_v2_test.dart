@@ -15,9 +15,9 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/storage/secure_token_storage.dart';
-import 'package:skystream/features/tracking/data/simkl_service.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/storage/secure_token_storage.dart';
+import 'package:zorox/features/tracking/data/simkl_service.dart';
 
 class _FakeTokenStorage implements SecureTokenStorage {
   _FakeTokenStorage([Map<String, String>? seed]) : values = {...?seed};
@@ -173,7 +173,7 @@ void main() {
     expect(request.uri.queryParameters['client_id'], clientId);
     expect(request.uri.queryParameters['app-name'], 'skystream');
     expect(request.uri.queryParameters['app-version'], '2.9.0');
-    expect(request.headers['User-Agent'], 'SkyStream/2.9.0');
+    expect(request.headers['User-Agent'], 'ZoroX/2.9.0');
   }
 
   group('signing in, on AUTH V2', () {

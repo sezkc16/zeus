@@ -6,9 +6,9 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/addons/data/addon_client.dart';
-import 'package:skystream/core/addons/data/addon_subtitle_service.dart';
-import 'package:skystream/core/addons/models/addon_manifest.dart';
+import 'package:zorox/core/addons/data/addon_client.dart';
+import 'package:zorox/core/addons/data/addon_subtitle_service.dart';
+import 'package:zorox/core/addons/models/addon_manifest.dart';
 
 /// Answers every request from [respond] and records what was asked.
 class _StubAdapter implements HttpClientAdapter {

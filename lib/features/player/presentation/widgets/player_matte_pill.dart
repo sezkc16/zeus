@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:skystream/shared/widgets/matte_glass_pill.dart';
+import 'package:zorox/shared/widgets/matte_glass_pill.dart';
 
 /// The matte glass behind a group of the player's bottom-bar controls.
 class PlayerMattePill extends StatelessWidget {

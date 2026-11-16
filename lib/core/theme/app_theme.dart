@@ -23,7 +23,7 @@ class AppTheme {
   /// page keeps showing the entry without it.
   ///
   /// The app's own licence is registered here too, for the same reason:
-  /// Flutter lists only what dependencies declare. SkyStream is GPL-3.0, which
+  /// Flutter lists only what dependencies declare. ZoroX is GPL-3.0, which
   /// asks an interactive program to show where its licence is.
   static bool _fontLicenceRegistered = false;
 
@@ -35,7 +35,7 @@ class AppTheme {
         fontFamily,
       ], await rootBundle.loadString('assets/fonts/OFL.txt'));
       yield LicenseEntryWithLineBreaks(const <String>[
-        'SkyStream',
+        'ZoroX',
       ], await rootBundle.loadString('LICENSE'));
     });
   }

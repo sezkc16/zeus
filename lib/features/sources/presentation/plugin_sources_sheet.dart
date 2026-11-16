@@ -197,7 +197,7 @@ class _Row {
 }
 
 /// The order the sheet lists links in: quality first, then the provider's
-/// name. HDR wins nothing: every SkyStream path shows it washed out (P1 spec
+/// name. HDR wins nothing: every ZoroX path shows it washed out (P1 spec
 /// 6).
 @visibleForTesting
 int comparePluginStreams(NuvioStreamResult a, NuvioStreamResult b) {

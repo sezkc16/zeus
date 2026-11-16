@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/presentation/mpv/golden_video_drawer.dart';
-import 'package:skystream/features/player/presentation/mpv/mpv_ios_options.dart';
-import 'package:skystream/features/settings/presentation/player_settings_provider.dart';
+import 'package:zorox/features/player/presentation/mpv/golden_video_drawer.dart';
+import 'package:zorox/features/player/presentation/mpv/mpv_ios_options.dart';
+import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
 
 /// The Video output panel (+57): four presets, each a REAL render
 /// configuration — a hardware mpv option set (PiP OFF) and a software

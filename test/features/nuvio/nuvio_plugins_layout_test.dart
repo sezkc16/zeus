@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/nuvio/data/nuvio_repository.dart';
-import 'package:skystream/core/nuvio/models/nuvio_models.dart';
-import 'package:skystream/core/theme/app_theme.dart';
-import 'package:skystream/features/nuvio/presentation/nuvio_plugins_view.dart';
-import 'package:skystream/shared/widgets/custom_widgets.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/nuvio/data/nuvio_repository.dart';
+import 'package:zorox/core/nuvio/models/nuvio_models.dart';
+import 'package:zorox/core/theme/app_theme.dart';
+import 'package:zorox/features/nuvio/presentation/nuvio_plugins_view.dart';
+import 'package:zorox/shared/widgets/custom_widgets.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 class _Repo extends NuvioRepository {
   @override

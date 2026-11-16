@@ -8,7 +8,7 @@ import 'vlc_method_channel_harness.dart';
 /// controller, or made by its own background policy.
 ///
 /// A recovery has to tell a stop it, the viewer or the policy asked for from
-/// one the engine made after a failure it never reported as one (SkyStream's
+/// one the engine made after a failure it never reported as one (ZoroX's
 /// P1 Part 3). The engine's own snapshots say only `paused` or `stopped`.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -2,13 +2,13 @@ import 'dart:io';
 
 import 'package:challenge_browser/challenge_browser.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/network/clearance/clearance.dart';
-import 'package:skystream/core/network/clearance/clearance_broker.dart';
-import 'package:skystream/core/network/clearance/clearance_solver.dart';
-import 'package:skystream/core/network/clearance/clearance_store.dart';
-import 'package:skystream/core/network/clearance/site_keys.dart';
-import 'package:skystream/core/nuvio/data/nuvio_clearance.dart';
-import 'package:skystream/core/nuvio/data/nuvio_runtime.dart';
+import 'package:zorox/core/network/clearance/clearance.dart';
+import 'package:zorox/core/network/clearance/clearance_broker.dart';
+import 'package:zorox/core/network/clearance/clearance_solver.dart';
+import 'package:zorox/core/network/clearance/clearance_store.dart';
+import 'package:zorox/core/network/clearance/site_keys.dart';
+import 'package:zorox/core/nuvio/data/nuvio_clearance.dart';
+import 'package:zorox/core/nuvio/data/nuvio_runtime.dart';
 
 import '../network/clearance/fakes.dart';
 

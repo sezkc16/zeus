@@ -19,7 +19,7 @@ typedef _SimklCall = ({Map<String, String> query, Map<String, String> headers});
 /// 2026-10-10-simkl-auth-v2-design.md).
 ///
 /// Simkl ends its V1 PIN sign-in around April 2027, and new Simkl apps are
-/// V2 only. New sign-ins are a device code from SkyStream's V2 app, a public
+/// V2 only. New sign-ins are a device code from ZoroX's V2 app, a public
 /// client with no secret; its access tokens last seven days and are
 /// refreshed. Someone signed in on V1 before stays signed in, on the V1 app,
 /// until Simkl refuses that token; then the account tile asks them to connect
@@ -120,7 +120,7 @@ class SimklService implements TrackingService {
   }
 
   /// How every call names the app, as Simkl's rules ask: the app's client,
-  /// name and version as URL parameters, and a User-Agent saying SkyStream.
+  /// name and version as URL parameters, and a User-Agent saying ZoroX.
   /// Its per-person daily limits are counted across every V2 app the person
   /// uses.
   _SimklCall _named(String version, {String? clientId}) => (
@@ -129,7 +129,7 @@ class SimklService implements TrackingService {
       'app-name': 'skystream',
       'app-version': version,
     },
-    headers: {'User-Agent': 'SkyStream/$version'},
+    headers: {'User-Agent': 'ZoroX/$version'},
   );
 
   /// [_named], in the person's name, with the token as it is now.

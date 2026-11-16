@@ -17,7 +17,7 @@ const String _backupRules = 'android/app/src/main/res/xml/backup_rules.xml';
 const String _extractionRules =
     'android/app/src/main/res/xml/data_extraction_rules.xml';
 const String _mainActivity =
-    'android/app/src/main/kotlin/dev/akash/cloudstream/MainActivity.kt';
+    'android/app/src/main/kotlin/com/toji/zorox/MainActivity.kt';
 
 String _read(String path) {
   final File file = File(path);
@@ -134,7 +134,7 @@ void main() {
       );
       expect(
         source,
-        contains('ACTION_MEDIA_CONTROL = "dev.akash.skystream.MEDIA_CONTROL"'),
+        contains('ACTION_MEDIA_CONTROL = "dev.toji.zorox.MEDIA_CONTROL"'),
         reason:
             'a bare "media_control" action is a name any other app can guess '
             'and, on Android 12 and below, send',

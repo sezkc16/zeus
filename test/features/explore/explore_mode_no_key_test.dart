@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:skystream/core/config/tmdb_config.dart';
-import 'package:skystream/features/explore/data/explore_mode_provider.dart';
+import 'package:zorox/core/config/tmdb_config.dart';
+import 'package:zorox/features/explore/data/explore_mode_provider.dart';
 
 /// The Explore Source picker must open without a TMDB key: with no key
 /// saved the default source falls back to one that works key-free

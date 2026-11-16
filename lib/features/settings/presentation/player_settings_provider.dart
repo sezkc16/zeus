@@ -73,7 +73,7 @@ enum SubtitleDefault {
 /// How heavily subtitle letters are outlined.
 ///
 /// Both renderers take it, each in its own unit: libVLC as a share of the
-/// glyph, SkyStream's own subtitles as a stroke - see `subtitle_style.dart`.
+/// glyph, ZoroX's own subtitles as a stroke - see `subtitle_style.dart`.
 /// [thin] is the outline every install had before this was a setting.
 enum SubtitleOutline { none, thin, normal, thick }
 
@@ -192,7 +192,7 @@ class PlayerSettings {
   ///
   /// This, [subtitleFont], [subtitleTextOpacity] and [subtitleEncoding] reach
   /// libVLC only when a player is created, so a track inside the video takes
-  /// them the next time the player opens. SkyStream's own subtitle files
+  /// them the next time the player opens. ZoroX's own subtitle files
   /// follow all four at once.
   final bool subtitleBold;
 
@@ -1148,7 +1148,7 @@ class PlayerSettingsNotifier extends _$PlayerSettingsNotifier {
   }
 
   /// A code page this build has no table for is stored as Auto: libVLC would
-  /// be handed a name SkyStream's own reader cannot follow.
+  /// be handed a name ZoroX's own reader cannot follow.
   Future<void> setSubtitleEncoding(String encoding) async {
     final value = _knownEncoding(encoding);
     await _repository.setPlayerSetting('player_sub_encoding', value);

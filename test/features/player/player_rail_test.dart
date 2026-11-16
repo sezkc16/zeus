@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/presentation/vlc/player_rail.dart';
-import 'package:skystream/features/player/presentation/widgets/hotstar_player_style.dart';
+import 'package:zorox/features/player/presentation/vlc/player_rail.dart';
+import 'package:zorox/features/player/presentation/widgets/hotstar_player_style.dart';
 
 /// The volume and brightness rail. The volume's boost - the part above 100 %,
 /// which libVLC amplifies - is drawn in orange on top of the white level, as

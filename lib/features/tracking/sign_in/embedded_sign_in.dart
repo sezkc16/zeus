@@ -5,7 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import 'sign_in_method.dart';
 
-/// Signs in inside SkyStream's own browser, in the check sheet, on every
+/// Signs in inside ZoroX's own browser, in the check sheet, on every
 /// platform. The provider's redirect is stopped before it loads
 /// ([ChallengeBrowser.setNavigationStops]) and read from the stop. Returns it,
 /// or null when the person closed the sheet.

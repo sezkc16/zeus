@@ -24,7 +24,7 @@ final GlobalKey _screen = GlobalKey();
 /// given a start position that is the picture at 0: it decodes the first
 /// samples before it seeks to the start. On a slow link that picture stayed up
 /// for as long as the seek took - 7 s on the iOS simulator and 9 s on the
-/// Android emulator at 1.5 Mbit/s (SkyStream's reopen spike, 2026-10-14). The
+/// Android emulator at 1.5 Mbit/s (ZoroX's reopen spike, 2026-10-14). The
 /// fixture's first two seconds are solid magenta so that a capture can tell.
 ///
 /// The server runs on its own isolate and slows to about 16 KB/s for the
@@ -150,7 +150,7 @@ void main() {
     // A reconnect that fails reports opening, then an error, and keeps its
     // hold (FORK.md 30); the attempt after it carries the hold on, and the
     // first picture it decodes is its frame 0, which must not end it
-    // (SkyStream's whole-part review of P1 Part 2, 2026-10-15).
+    // (ZoroX's whole-part review of P1 Part 2, 2026-10-15).
     final server = await _ThrottledServer.start(await _materializeFixtures());
     addTearDown(server.close);
     final controller = VlcPlayerController(options: headlessPlayerOptions());
@@ -417,7 +417,7 @@ void main() {
     tester,
   ) async {
     // Every backend sends the new media's opening snapshot before it answers
-    // setSource, and a host reads the hold right after the await: SkyStream's
+    // setSource, and a host reads the hold right after the await: ZoroX's
     // recovery parks a failed source and keeps the picture only if the output
     // says it holds (FORK.md 33). Darwin queued its events for a later turn
     // of the main queue, so the answer came first (P1 Part 3's macOS rows).

@@ -27,7 +27,7 @@ class CloudStreamPaths {
   static Future<Directory> plugins() async => Directory('${(await root()).path}/plugins').create(recursive: true);
 }
 
-/// Whether an extension's own screens (its settings) can be drawn here: wherever SkyStream runs. Android
+/// Whether an extension's own screens (its settings) can be drawn here: wherever ZoroX runs. Android
 /// draws them from its real windows; the desktops and iOS from the engine's stand-in views.
 bool get extensionScreensSupported => _screens.contains(defaultTargetPlatform);
 

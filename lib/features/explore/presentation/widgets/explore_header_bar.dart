@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:skystream/core/utils/layout_constants.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
-import 'package:skystream/shared/widgets/cards_wrapper.dart';
-import 'package:skystream/features/explore/presentation/delegates/explore_search_delegate.dart';
-import 'package:skystream/features/explore/presentation/widgets/unified_filter_dialog.dart';
-import 'package:skystream/features/explore/data/explore_filter_provider.dart';
-import 'package:skystream/features/explore/data/explore_mode_provider.dart';
-import 'package:skystream/features/explore/presentation/widgets/hover_border_gradient.dart';
-import 'package:skystream/features/explore/presentation/widgets/explore_mode_selector_dialog.dart';
+import 'package:zorox/core/utils/layout_constants.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
+import 'package:zorox/shared/widgets/cards_wrapper.dart';
+import 'package:zorox/features/explore/presentation/delegates/explore_search_delegate.dart';
+import 'package:zorox/features/explore/presentation/widgets/unified_filter_dialog.dart';
+import 'package:zorox/features/explore/data/explore_filter_provider.dart';
+import 'package:zorox/features/explore/data/explore_mode_provider.dart';
+import 'package:zorox/features/explore/presentation/widgets/hover_border_gradient.dart';
+import 'package:zorox/features/explore/presentation/widgets/explore_mode_selector_dialog.dart';
 
 import 'dart:async';
 

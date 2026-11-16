@@ -13,7 +13,7 @@ import '../utils/stream_quality_sorter.dart' show labelStatesQuality;
 import 'cloudstream_engine.dart';
 import 'cloudstream_models.dart';
 
-/// One CloudStream provider (a plugin's `MainAPI`) as a SkyStream provider, so home, search,
+/// One CloudStream provider (a plugin's `MainAPI`) as a ZoroX provider, so home, search,
 /// details, the player and downloads use it like any other.
 ///
 /// Built from what the plugin registered at install time; the engine only starts, and the
@@ -115,7 +115,7 @@ class CloudStreamProvider extends SkyStreamProvider {
           pages[index] = {
             for (final section in _list(result['sections']))
               if (section['error'] == null && _list(section['items']).isNotEmpty)
-                // Home items carry no provider, like SkyStream plugins' (the carousel would print the
+                // Home items carry no provider, like ZoroX plugins' (the carousel would print the
                 // id); details falls back to the active provider, whose home this is.
                 (section['name'] as String? ?? name): [
                   for (final item in _list(section['items'])) _item(item, stampProvider: false),
@@ -147,7 +147,7 @@ class CloudStreamProvider extends SkyStreamProvider {
   /// meant) is dropped rather than failing the whole page.
   static const _maxDateMs = 8640000000000000;
 
-  /// What the engine's `load` answer becomes: everything CloudStream's details page shows that SkyStream has a place
+  /// What the engine's `load` answer becomes: everything CloudStream's details page shows that ZoroX has a place
   /// for. Pure, so each field is tested without an engine. [url] is the one asked for, not the one the extension
   /// echoes: history and the details screen are keyed by it.
   @visibleForTesting
@@ -362,7 +362,7 @@ class CloudStreamProvider extends SkyStreamProvider {
     return (data: utf8.decode(base64Url.decode(token.substring(colon + 1))), torrent: scheme == 'cs3torrent');
   }
 
-  /// "Server · 1080p". SkyStream reads the quality back from this label.
+  /// "Server · 1080p". ZoroX reads the quality back from this label.
   static String _label(Map<String, dynamic> link) {
     final name = (link['name'] as String?)?.trim().isNotEmpty == true ? link['name'] as String : link['source'] as String? ?? 'Link';
     final quality = (link['quality'] as num?)?.toInt() ?? 0;
@@ -392,7 +392,7 @@ class CloudStreamProvider extends SkyStreamProvider {
     return headers.isEmpty ? null : headers;
   }
 
-  /// SkyStream's subtitles carry no headers, so ones that need them go through the local proxy.
+  /// ZoroX's subtitles carry no headers, so ones that need them go through the local proxy.
   static Future<List<SubtitleFile>> _subtitles(List<Map<String, dynamic>> raw) async {
     final files = <SubtitleFile>[];
     for (final sub in raw) {
@@ -412,7 +412,7 @@ class CloudStreamProvider extends SkyStreamProvider {
     for (final entry in (value as List?) ?? const []) if (entry is Map) Map<String, dynamic>.from(entry),
   ];
 
-  /// CloudStream `TvType` to SkyStream's content type.
+  /// CloudStream `TvType` to ZoroX's content type.
   static MultimediaContentType _contentType(String? type) => switch (type) {
     'TvSeries' || 'Cartoon' || 'AsianDrama' || 'Documentary' => MultimediaContentType.series,
     'Anime' || 'OVA' => MultimediaContentType.anime,

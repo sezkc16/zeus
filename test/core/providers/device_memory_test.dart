@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/providers/device_memory.dart';
+import 'package:zorox/core/providers/device_memory.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

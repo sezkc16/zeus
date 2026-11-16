@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
 
 import 'vlc_screen_harness.dart';
 

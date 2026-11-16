@@ -323,7 +323,7 @@ class _ExtensionFullScreenState extends State<ExtensionFullScreen> with WidgetsB
     final padding = MediaQuery.paddingOf(context);
     final strip = _ios ? math.max(ExtensionFullScreen.edgeStrip, padding.left) : 0.0;
     final isPage = window != null && _pages(window.root) == 1;
-    // SkyStream's × on desktops, but over a page that's the top window: its own serves, and steps aside with it.
+    // ZoroX's × on desktops, but over a page that's the top window: its own serves, and steps aside with it.
     final drawsClose = _desktop && !(isPage && above.isEmpty);
     return PopScope(
       canPop: _leaving,

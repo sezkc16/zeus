@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/network/clearance/site_keys.dart';
-import 'package:skystream/core/network/clearance/site_moves.dart';
+import 'package:zorox/core/network/clearance/site_keys.dart';
+import 'package:zorox/core/network/clearance/site_moves.dart';
 
 /// A site moved when it sends its visitors to another site for good, keeping
 /// everything but the host: then its requests can go there directly.

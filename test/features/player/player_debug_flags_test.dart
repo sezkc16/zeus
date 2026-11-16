@@ -9,7 +9,7 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/presentation/player_debug_flags.dart';
+import 'package:zorox/features/player/presentation/player_debug_flags.dart';
 
 void main() {
   setUp(() {
@@ -32,8 +32,8 @@ void main() {
     test('a set-but-empty or zero value is off', () {
       for (final value in const <String>['', ' ', '0', 'false', 'no', 'off']) {
         env(<String, String>{
-          'SKYSTREAM_VLC_VERBOSE': value,
-          'SKYSTREAM_NO_VIDEO': value,
+          'ZOROX_VLC_VERBOSE': value,
+          'ZOROX_NO_VIDEO': value,
         });
         expect(
           PlayerDiagnostics.verboseVlcLog,
@@ -54,7 +54,7 @@ void main() {
   group('what a person can reasonably type is accepted', () {
     test('the four spellings of yes', () {
       for (final value in const <String>['1', 'true', 'yes', 'on']) {
-        env(<String, String>{'SKYSTREAM_VLC_VERBOSE': value});
+        env(<String, String>{'ZOROX_VLC_VERBOSE': value});
         expect(
           PlayerDiagnostics.verboseVlcLog,
           isTrue,
@@ -64,7 +64,7 @@ void main() {
     });
 
     test('case and surrounding whitespace do not matter', () {
-      env(const <String, String>{'SKYSTREAM_NO_VIDEO': ' TRUE '});
+      env(const <String, String>{'ZOROX_NO_VIDEO': ' TRUE '});
       expect(PlayerDiagnostics.suppressVideoSurface, isTrue);
     });
   });
@@ -72,31 +72,31 @@ void main() {
   // The two are independent because the bisection depends on it: the run that
   // suppresses the video surface is the run whose libVLC log has to be read.
   test('the switches do not imply each other', () {
-    env(const <String, String>{'SKYSTREAM_NO_VIDEO': '1'});
+    env(const <String, String>{'ZOROX_NO_VIDEO': '1'});
     expect(PlayerDiagnostics.suppressVideoSurface, isTrue);
     expect(PlayerDiagnostics.verboseVlcLog, isFalse);
 
-    env(const <String, String>{'SKYSTREAM_VLC_VERBOSE': '1'});
+    env(const <String, String>{'ZOROX_VLC_VERBOSE': '1'});
     expect(PlayerDiagnostics.verboseVlcLog, isTrue);
     expect(PlayerDiagnostics.suppressVideoSurface, isFalse);
   });
 
   // Spec 1.9: the live delay is picked by measurement, and this is how a run
   // asks for one.
-  group('SKYSTREAM_LIVE_DELAY_MS', () {
+  group('ZOROX_LIVE_DELAY_MS', () {
     test('unset, the shipped delay stands', () {
       env(const <String, String>{});
       expect(PlayerDiagnostics.liveDelayMs, isNull);
     });
 
     test('a positive whole number of milliseconds is taken', () {
-      env(const <String, String>{'SKYSTREAM_LIVE_DELAY_MS': ' 6000 '});
+      env(const <String, String>{'ZOROX_LIVE_DELAY_MS': ' 6000 '});
       expect(PlayerDiagnostics.liveDelayMs, 6000);
     });
 
     test('zero, a negative, a fraction or a word is ignored', () {
       for (final value in const <String>['', '0', '-6000', '6.5', 'six']) {
-        env(<String, String>{'SKYSTREAM_LIVE_DELAY_MS': value});
+        env(<String, String>{'ZOROX_LIVE_DELAY_MS': value});
         expect(
           PlayerDiagnostics.liveDelayMs,
           isNull,

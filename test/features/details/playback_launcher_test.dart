@@ -8,16 +8,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart' show Override;
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/extensions/base_provider.dart';
-import 'package:skystream/core/extensions/extension_manager.dart';
-import 'package:skystream/core/router/app_router.dart';
-import 'package:skystream/core/services/download_service.dart';
-import 'package:skystream/core/services/notification_service.dart';
-import 'package:skystream/features/details/presentation/playback_launcher.dart';
-import 'package:skystream/features/settings/presentation/player_settings_provider.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
-import 'package:skystream/shared/widgets/loading_dialog.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/extensions/base_provider.dart';
+import 'package:zorox/core/extensions/extension_manager.dart';
+import 'package:zorox/core/router/app_router.dart';
+import 'package:zorox/core/services/download_service.dart';
+import 'package:zorox/core/services/notification_service.dart';
+import 'package:zorox/features/details/presentation/playback_launcher.dart';
+import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
+import 'package:zorox/shared/widgets/loading_dialog.dart';
 
 /// Where an already-resolved link goes.
 ///

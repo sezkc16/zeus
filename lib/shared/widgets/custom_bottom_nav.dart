@@ -3,8 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_bottom_nav/liquid_glass_bottom_nav.dart';
 import 'package:reicons/reicons.dart';
-import 'package:skystream/core/utils/boot_trace.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/utils/boot_trace.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 /// The app's bottom navigation, built on the `liquid_glass_bottom_nav`
 /// package (0.0.14): a floating frosted-glass pill with a physics sliding

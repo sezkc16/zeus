@@ -2,7 +2,7 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/providers/device_info_provider.dart';
+import 'package:zorox/core/providers/device_info_provider.dart';
 
 void main() {
   // Measured on 2026-10-11 with the player's rotate button: both phones and

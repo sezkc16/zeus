@@ -24,21 +24,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/providers/device_info_provider.dart';
-import 'package:skystream/features/player/presentation/vlc/player_rail.dart';
-import 'package:skystream/features/player/presentation/vlc/vlc_player_controls.dart';
-import 'package:skystream/features/player/presentation/vlc/vlc_progress_bar.dart';
-import 'package:skystream/features/player/presentation/widgets/player_control_components.dart'
+import 'package:zorox/core/providers/device_info_provider.dart';
+import 'package:zorox/features/player/presentation/vlc/player_rail.dart';
+import 'package:zorox/features/player/presentation/vlc/vlc_player_controls.dart';
+import 'package:zorox/features/player/presentation/vlc/vlc_progress_bar.dart';
+import 'package:zorox/features/player/presentation/widgets/player_control_components.dart'
     show
         PlayerActionButton,
         PlayerBottomBar,
         PlayerCenterPlayButton,
         PlayerTopBar;
-import 'package:skystream/features/player/presentation/widgets/player_stream_widgets.dart';
-import 'package:skystream/features/settings/presentation/player_settings_provider.dart';
-import 'package:skystream/features/skip/data/skip_service.dart'
+import 'package:zorox/features/player/presentation/widgets/player_stream_widgets.dart';
+import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
+import 'package:zorox/features/skip/data/skip_service.dart'
     show SkipSegment, SkipType;
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 import 'package:vlc_player/vlc_player.dart';
 
 import 'fake_vlc_engine.dart';

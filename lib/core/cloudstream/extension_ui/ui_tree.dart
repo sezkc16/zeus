@@ -1,5 +1,5 @@
 /// An extension's window as the engine describes it in a `ui` event (the spec's "The protocol"):
-/// meaning only, for SkyStream to draw with its own widgets and theme.
+/// meaning only, for ZoroX to draw with its own widgets and theme.
 library;
 
 enum UiKind {

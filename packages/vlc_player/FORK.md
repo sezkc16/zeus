@@ -187,7 +187,7 @@ options.
 `Cookie`, `Authorization`, `Origin` and custom headers have **no libVLC representation at all**.
 Pretending otherwise is what caused this, so the package no longer does: `unsupportedVlcHeaders()`
 names exactly which headers will not be sent, and a debug build prints them per source. A host app
-that must honour them has to proxy the media and inject them upstream — which is what SkyStream now
+that must honour them has to proxy the media and inject them upstream — which is what ZoroX now
 does through `LocalProxyService`.
 
 Covered by `test/vlc_http_headers_test.dart` and two channel-boundary tests in
@@ -219,7 +219,7 @@ failed for MPEG-TS and HLS before the change and passes for all four after it.
 ### 10. Android: leaving a stalled stream no longer freezes the app
 
 Switching source, or disposing the player, on a live stream whose download had stalled froze the
-whole app until Android killed it as not responding. SkyStream's ANR report had the main thread 15 s
+whole app until Android killed it as not responding. ZoroX's ANR report had the main thread 15 s
 deep in `VlcPlayerPlatformView.dispose` -> `MediaPlayer.stop` -> `libvlc_media_player_stop` ->
 `input_Close` -> `vlc_join`.
 
@@ -257,7 +257,7 @@ libVLC has no option to leave renditions out of the length, and the engine expos
 length to read instead. So the controller takes one from the host: `setDurationCap(Duration?)`
 publishes the smaller of libVLC's report and the cap from then on, until the next media. It only
 ever shortens, leaves an unknown length unknown, and is applied in Dart, so every backend gets it.
-SkyStream measures the video's own playlist and passes that.
+ZoroX measures the video's own playlist and passes that.
 
 Covered by `test/vlc_duration_cap_test.dart`, and on a real engine by
 `example/integration_test/hls_rendition_length_test.dart`, which serves a 20 s stream with and
@@ -332,7 +332,7 @@ are sparse and rough: libVLC 3 updates its time at most every 250 ms and not at 
 Windows and Linux poll it every 500 ms, an HLS stream's time is a one-second staircase running up to
 a second behind (measured on 3.0.24: it wobbles back 1-31 ms more than thirty times a minute, and
 once reported 6.9 s behind straight after a seek), and VLCKit's cached time does not move on a seek.
-SkyStream's own clock, re-anchored to every report and run on through pauses, blinked lines about
+ZoroX's own clock, re-anchored to every report and run on through pauses, blinked lines about
 twenty times a minute on HLS.
 
 `VlcPlayerController.playbackClock` is one clock for every platform, fed every native snapshot ahead
@@ -359,7 +359,7 @@ through the controller and the subtitle view (`test/features/player/side_car_rep
 default. Unset, libVLC 3.0.24 uses `nearoptimal` (BOLA), which starts on the lowest rendition:
 `LogicType::Default` falls through to `NearOptimal` in `PlaylistManager.cpp`.
 
-The enum gains `predictive`, which SkyStream's HLS Auto uses. It plays the highest rendition allowed
+The enum gains `predictive`, which ZoroX's HLS Auto uses. It plays the highest rendition allowed
 for three segments, then follows its buffer against libVLC's fixed 12 s stable target: up above
 80 %, held above 50 %, down below (`PredictiveAdaptationLogic.cpp`, `BufferingLogic.cpp`). Measured
 on a 3.5 Mbit/s link: 1 stall in 90 s, against 6 for `highest`.
@@ -373,7 +373,7 @@ The value is in all four builds the app ships, checked as section 8 describes on
 `pendingSeekTarget` (section 14) gave up on a seek after a dozen published positions in a row moved
 without arriving, taking it as one the engine ignored. libVLC 3 has been seen doing exactly that
 with HLS: in the app, a seek to 3 min made 2 s into a stream was never taken on four of six
-platforms, while the server showed segments fetched in order from the start (SkyStream's QoE
+platforms, while the server showed segments fetched in order from the start (ZoroX's QoE
 baselines, 2026-10-13). The controller now sends the seek once more from where playback is, and
 gives the target up only after a second dozen. Covered by `test/vlc_player_seek_position_test.dart`
 and `test/vlc_playback_clock_test.dart`.
@@ -404,7 +404,7 @@ For live HLS, 3.0.24's fraction is only right at the join. The stream's time is 
 it was joined, but the window is measured from the start of the playlist libVLC last read, which every
 refresh moves on: so `get_position` is the time over the window's length, running ahead of the
 window as it moves on, and 0 once past 1, while `set_position` lands in the window as it is now
-(SkyStream's harness, 24 s and 2-minute windows, seeks made well past the first window, 2026-10-13).
+(ZoroX's harness, 24 s and 2-minute windows, seeks made well past the first window, 2026-10-13).
 The host now says a media is live (`VlcMediaSource.isLive`), and for such media whose first reading
 is the time over the length, the controller works the place out itself: the live edge runs on with
 the clock from the window's length at the join, and the window starts its current length before
@@ -423,7 +423,7 @@ from where it was asked to start. libVLC 3 shows a new media's first decoded pic
 `:start-time`, that is the picture at 0, decoded before the start is sought (3.0 `input.c` pushes the start as a seek
 that the main loop handles after its first demux, and `decoder.c` forces the first picture onto the screen while the
 buffer fills). On a slow link the film's opening then showed for as long as the seek took: 7 s on the iOS simulator and
-9 s on the Android emulator at 1.5 Mbit/s (SkyStream's reopen spike, 2026-10-14). The output kept its last picture until
+9 s on the Android emulator at 1.5 Mbit/s (ZoroX's reopen spike, 2026-10-14). The output kept its last picture until
 then on every platform measured; it was the first new one that was wrong.
 
 The `setSource` call carries `keepPicture`; backends that can hold report `pictureHeld` on every snapshot - the shared
@@ -436,7 +436,7 @@ A media that fails, ends or is stopped before it plays doesn't end a hold (secti
 picture carries it on, and that media's frame 0 does not end it. A release that `stop` began, with no picture after it,
 is still taken back by the next hold (the C++ sink and the Darwin renderer; covered by
 `AHoldTakenAgainAfterALetGoWithNoPictureStaysUp` and `example/integration_test/keep_picture_test.dart`'s case after a
-failed media). SkyStream's whole-part review of P1 Part 2 found the case (2026-10-15): every attempt that fails during an
+failed media). ZoroX's whole-part review of P1 Part 2 found the case (2026-10-15): every attempt that fails during an
 outage would have spoiled the hold of the one that works.
 
 ### 20. A refused seek is sent again when libVLC's log says so
@@ -467,7 +467,7 @@ The shared core (`src/native/vlc_player_core.*`) no longer keeps one `libvlc_med
   the new player's format reaches the sink, on that player's thread: a detach stops the next lock, not the one in
   flight. The sink retires its frame buffer at a format change instead of reallocating it, as it does the texture
   buffer (`AFrameInFlightKeepsItsBufferThroughAFormatChange`; under AddressSanitizer the old code wrote into freed
-  memory). One frame of RGBA more for as long as a resolution lasts. Found by SkyStream's whole-part review of P1
+  memory). One frame of RGBA more for as long as a resolution lasts. Found by ZoroX's whole-part review of P1
   Part 2 (2026-10-15).
 - **Refused seeks.** A log callback on the core's instance counts `INPUT_CONTROL_SET_TIME ... failed or not possible`
   (section 20), matching on the format string so no other message is formatted.
@@ -493,7 +493,7 @@ hung this way until it used `--aout=dummy`.
 ### 22. Windows: libVLC's plugin cache, made where it is used
 
 VideoLAN's Windows archive has no `plugins.dat`, so libVLC loaded all 360 plugin DLLs when the first instance in a
-process was made: 22.6-24.4 s on SkyStream's Windows VM (x64 emulated on ARM64). libVLC 3 trusts a cached entry only
+process was made: 22.6-24.4 s on ZoroX's Windows VM (x64 emulated on ARM64). libVLC 3 trusts a cached entry only
 when the DLL's modified time and size match exactly (3.0.24 `bank.c`), and ZIP files and Inno Setup both round times to
 two seconds (and a ZIP restores them as local times), so a cache made in CI would be stale on users' machines. Instead:
 - the bundle carries `vlc-cache-gen.exe`, and the installer runs it on the installed plugins (as VLC's own installer
@@ -521,7 +521,7 @@ the freshly written files); later opens in the same process 0.75-2.4 s before, 0
 
 VLCKit 3.7.4 stops and changes media asynchronously, but `-[VLCMediaPlayer dealloc]` releases the libVLC player, which
 waits for the stream the asynchronous stop began stopping (VLCKit's patch 0023). The plugin dropped its last reference
-on main, and VLCKit's own main-queue blocks could too: leaving a stalled HLS stream froze iOS for 130.5 s (SkyStream's
+on main, and VLCKit's own main-queue blocks could too: leaving a stalled HLS stream froze iOS for 130.5 s (ZoroX's
 baseline, 2026-10-13), and the package's stalled-stream test hung for over eleven minutes on the iOS simulator with the
 main thread in `-[VLCMediaPlayer dealloc]` -> `libvlc_media_player_destroy` -> `pthread_join`, reached from a
 main-queue block's release. `dispose()` now stops the player, detaches the texture renderer, and hands the player to
@@ -599,7 +599,7 @@ exports (`src/main/cpp/vlc_player_fonts.c`), the call libVLC's freetype makes. O
 the phone emulator and 13.4 s on the TV emulator, in the background, and the first video's picture then came in 0.41 s
 and 0.37 s (11.8 s and 12.9 s before). A video opened while the build still runs waits for it at a start gate
 (`VlcStartGate`, `VlcPlayRequests`; a pause, a stop or a newer request drops a waiting play): started alongside, its own
-scan slowed both, and in SkyStream's QoE suite the first picture of a fresh install took 32 s (the build 35 s), past the
+scan slowed both, and in ZoroX's QoE suite the first picture of a fresh install took 32 s (the build 35 s), past the
 player screen's 30 s first-frame deadline, whose reopen stranded that player inside its scan. The gate opens when the
 build ends, or after 60 s at most. An OS update that changes the system fonts leaves a stale cache, which libVLC
 rebuilds at the next first video, as before.
@@ -607,7 +607,7 @@ rebuilds at the next first video, as before.
 ### 27. A texture player whose create answers late is disposed
 
 `attachTexturePlayer` counts attaches and detaches. A native player whose `create` answers after its widget was replaced or
-detached is disposed instead of attached over the newer one. SkyStream mounts a new `VlcPlayer` when media has waited 30 s for
+detached is disposed instead of attached over the newer one. ZoroX mounts a new `VlcPlayer` when media has waited 30 s for
 a native player that never came (once in about sixty iOS opens, 2026-10-13); without this, a late answer to the first create
 would have taken the controller back from the second. Covered by `test/vlc_player_controller_test.dart`.
 
@@ -616,17 +616,17 @@ attached", which took the replacement's player with it. The texture path now nam
 (`detach(textureId:)`), and a detach naming another texture does nothing (`test/vlc_player_widget_test.dart`).
 
 `stop()` before a native player has attached no longer throws: the queued media then opens stopped when one attaches.
-SkyStream's failed screen calls it so media still waiting for a player cannot start behind it
+ZoroX's failed screen calls it so media still waiting for a player cannot start behind it
 (`test/vlc_player_controller_test.dart`).
 
 ### 28. A seek gives the stall flag its first second, unless it goes nowhere new
 
 `isStalled` rises when the position has not moved for `stallIndicatorDelay` while playback is expected. A seek to another
 place now takes a raised flag down and starts that count again, so the first second after a committed seek shows no
-spinner (SkyStream's spec 4). A seek to where playback already is, or to the target of a seek still on its way, leaves the
-flag as it is: SkyStream's stall watchdog re-issues that to kick a stream that stopped, and the picture stays frozen
+spinner (ZoroX's spec 4). A seek to where playback already is, or to the target of a seek still on its way, leaves the
+flag as it is: ZoroX's stall watchdog re-issues that to kick a stream that stopped, and the picture stays frozen
 through it. Taking the flag down there split one 20 s stall into two, with the spinner gone for a second in between
-(SkyStream's QoE suite, 2026-10-15). Covered by `test/vlc_player_stall_test.dart`.
+(ZoroX's QoE suite, 2026-10-15). Covered by `test/vlc_player_stall_test.dart`.
 
 ## Known gaps, not yet addressed
 
@@ -657,7 +657,7 @@ does between reads, and the output then closes, or stays connected as the input 
 Every player used to share the one view. A new player whose output was asked for first (mostly 0.1-0.4 s into its
 open, while the old stop took 0.03-0.87 s) couldn't connect: "cannot create EGL window surface", then "Opaque Vout request
 failed", and libvlc-android's `:codec=mediacodec_ndk,all` decoded the whole media in software, its pictures failing
-until the old output let go. On SkyStream's phone emulator that was 5 of 12 plain reopens and every 4K reopen, and
+until the old output let go. On ZoroX's phone emulator that was 5 of 12 plain reopens and every 4K reopen, and
 sound without a picture for as long as the old output held on (P1 Part 2's memory-4k run: for ever).
 
 The platform view is now a container (`VlcRenderTarget.VideoLayout`) that makes a `VLCVideoLayout` for each player
@@ -678,7 +678,7 @@ The platform view is now a container (`VlcRenderTarget.VideoLayout`) that makes 
 - While a player stops, libvlc-android doesn't hear that its view went (`VlcSurfaceKeeper.tellsLibVlc`). Its listener
   turns the video off at once, on the main thread, and `libvlc_video_set_track` waits for the input lock that
   `libvlc_media_player_stop` holds while it joins an input stuck in a read. Leaving a stream the player had switched
-  away from held the app until that read gave up: 129 s on SkyStream's phone emulator, leaving during an HLS stall,
+  away from held the app until that read gave up: 129 s on ZoroX's phone emulator, leaving during an HLS stall,
   and an ANR in its 403 failover row (P1 Part 3). The views go once the stop has returned, from the main thread.
 - For the same lock, a replaced player's layout is held at its size (`pinSize`): libvlc-android's `VideoHelper` layout
   listener answers a resize of the container (a rotation, picture-in-picture) by calling `setAspectRatio` and
@@ -693,14 +693,14 @@ Covered by `VlcSurfaceHandoverTest.kt`, `VlcSurfaceKeeperTest.kt`, `VlcReleaseDe
 `example/integration_test/surface_handover_test.dart`, whose reopen and park cases fail on the shared view, and
 `example/integration_test/stalled_stream_teardown_test.dart`'s leave after a switch, which waited out the stalled read
 before `tellsLibVlc` (pinned in `test/native_teardown_order_test.dart`). Measured
-on the emulators (SkyStream's P1 Part 3 research, 2026-10-15): hardware decoding kept in every reopen, the new picture
+on the emulators (ZoroX's P1 Part 3 research, 2026-10-15): hardware decoding kept in every reopen, the new picture
 on screen 1.28-1.48 s after `setMedia` (1.25-1.65 s before, when hardware decoding survived), no EGL error, and no black
 frame in a storm of 13 reopens.
 
 ### 30. `isPictureHeld` is the hold decision, the same on every platform
 
 Part 2 reported each output's own state: the C++ pixel sink's hold, the Darwin renderer's, Android's overlay. They
-disagreed, and a host recovering a stream over the held picture (SkyStream's P1 Part 3) needs one answer:
+disagreed, and a host recovering a stream over the held picture (ZoroX's P1 Part 3) needs one answer:
 - **Darwin reported a hold at every source.** Its renderer holds across every change of player, asked or not: the new
   video output's `Configure` drops the picture the renderer was showing, and a nil `copyPixelBuffer` paints black. So
   `pictureHeld` was true after a failover or the next episode until that media's first picture, and Dart kept the old
@@ -755,7 +755,7 @@ reference, which both of these dropped:
 
 After a detach, or a format of another size, the locked planes were unmapped at once, and the old output's copy crashed
 the app. At the same size the memory came back as the next player's first picture, and the old copy wrote into it. A
-harness that drives the sink as two outputs do crashed 40 of 40 (SkyStream's P1 Part 3 research, 2026-10-15). A leave
+harness that drives the sink as two outputs do crashed 40 of 40 (ZoroX's P1 Part 3 research, 2026-10-15). A leave
 during 2160p60 playback crashed the example app too: the copy faulted in `plane_CopyPixels` while the main thread
 released the pool under `-detach`. It is rare with the picture on screen (2 of 541 leaves): a copy is in progress about
 3 % of the time, and a picture Flutter has drawn stays mapped through its Metal textures. AddressSanitizer sees neither:
@@ -770,7 +770,7 @@ The lock now owns a reference to its picture until its unlock:
   buffers instead (section 21).
 - `Configure`, `Cleanup`, `Teardown` and `Publish` still drop only the slot's reference.
 
-Covered by `test/native/darwin_renderer_sink_test.mm`, which runs on the Mac against VLCKit's libVLC (SkyStream's
+Covered by `test/native/darwin_renderer_sink_test.mm`, which runs on the Mac against VLCKit's libVLC (ZoroX's
 `darwin-sink.sh` runner): the renderer's translation unit, driven through the real `VlcVideoOutput` by the callbacks
 libVLC stored on real players, in vmem's order. A picture locked before a detach, or before a format of another size,
 stays mapped until its unlock and is freed by it; the next player's pictures never reuse a locked one; every picture is
@@ -785,7 +785,7 @@ plugins make (section 23) now gets `--no-play-and-pause` and `--no-volume-save` 
   libVLC's input then pauses at every end instead of ending (`input.c`, `MainLoop`). A finished film reported paused, not
   ended, and so did a lost connection: libVLC's HTTP access makes one attempt to resume a broken transfer, then reports an
   end of stream (`access/http/file.c`), and the film plays its buffer out first. A host saw a pause nobody asked for, and
-  SkyStream's drop20-mp4 row stayed paused on macOS while iOS reopened (P1 Part 2). iOS's list has no such option.
+  ZoroX's drop20-mp4 row stayed paused on macOS while iOS reopened (P1 Part 2). iOS's list has no such option.
 - **`volume-save`** makes macOS's audio output write the volume into libVLC's configuration at every sound start and
   volume change (`auhal.c`, `VolumeSet`): on the main thread for the volume `replacePlayer` gives a fresh player, whose
   audio output exists from creation. VLCKit saves that configuration after every input close (its patches 0014 and 0023)
@@ -816,7 +816,7 @@ times, without a freeze). `retire` is pinned as source in `test/darwin_library_o
 
 ### 33. What a recovery over a held picture needs: the held media's timeline, its start as the seek target, `pauseRequests`, the start gate
 
-A host that recovers a stream over the held picture (section 30; SkyStream's P1 Part 3) keeps its controls usable
+A host that recovers a stream over the held picture (section 30; ZoroX's P1 Part 3) keeps its controls usable
 there, and tells a pause or a stop it asked for from one it did not:
 - **A held media's timeline is the media before's until the hold ends.** While `pictureHeld` is true, a zero `duration`
   keeps the length before, an `isSeekable: false` keeps the answer before, and `isLive` keeps its value. A media still
@@ -833,7 +833,7 @@ there, and tells a pause or a stop it asked for from one it did not:
   `setSource` (Windows and Linux in `SetSource`, Android before `result.success`, Darwin before `result(nil)`), so the
   published value already says whether the output holds. Darwin's event handler queued every event for a later turn of
   the main queue, so the answer reached Dart first and a host reading the hold after `await setMedia` saw none:
-  SkyStream's recovery parked a failed source and gave its picture up (P1 Part 3's macOS outage rows). It now sends at
+  ZoroX's recovery parked a failed source and gave its picture up (P1 Part 3's macOS outage rows). It now sends at
   once on the main thread, where every snapshot is made, and hops to main only from another thread. A start of 0, an
   output with nothing to hold, a plain `setMedia`, or a newer media or player since sets none. The start is not a seek:
   it went with the media, so it is never sent, never counted in `seekRequests`, and nothing waits for its echo or sends
@@ -878,7 +878,7 @@ The Windows and Linux plugins make a snapshot on two threads, the update pump's 
 command, and outside any lock, since libVLC's getters can take a while; each went out as it was finished. One the pump
 began before a park's `SetSource` (P1 Part 3's recovery: the failed source again, not told to play, over a held
 picture) could reach Dart after `SetSource`'s own "opening" with the hold: the failed player's "playing" (a starved
-video plays its sound on) or "ended" (a false end), with no hold. SkyStream read that as the viewer playing the parked
+video plays its sound on) or "ended" (a false end), with no hold. ZoroX read that as the viewer playing the parked
 media and reopened without the picture: the start-up view for 28.5 s of a 60 s drop and 62.5 s of a 2-minute outage
 on Windows (P1 Part 3's Windows round). Linux delivers on its main loop, a command's snapshot at once and the pump's
 queued (`g_main_context_invoke`), so one queued before a `SetSource` always ran after it.

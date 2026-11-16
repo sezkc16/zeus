@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/shared/focus/android_text_editing.dart';
+import 'package:zorox/shared/focus/android_text_editing.dart';
 
 /// Telling Android when a Flutter text field has focus, for the televisions
 /// that give a keyboard a session only for a text editor - see

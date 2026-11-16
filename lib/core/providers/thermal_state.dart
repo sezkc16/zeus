@@ -3,7 +3,7 @@
 /// shape by their runners — how hot the device is running, so the player
 /// can lighten its load before the OS throttles it.
 ///
-/// Read on the `dev.akash.skystream/device_memory` channel, the same
+/// Read on the `dev.toji.zorox/device_memory` channel, the same
 /// channel the memory reading comes on (see [deviceMemoryChannel]): its
 /// `thermalState` method answers the raw value — 0 nominal, 1 fair, 2
 /// serious, 3 critical. iOS answers from `ProcessInfo` (see

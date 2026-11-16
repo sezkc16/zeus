@@ -14,7 +14,7 @@ namespace vlc_player {
 // onto the screen while the buffer fills (decoder.c, "Received first
 // picture"). A reopen at a position therefore showed the film's opening until
 // the seek landed: 7 s on the iOS simulator and 9 s on the Android emulator
-// at 1.5 Mbit/s (SkyStream's reopen spike, 2026-10-14).
+// at 1.5 Mbit/s (ZoroX's reopen spike, 2026-10-14).
 //
 // A hold ends at the first time libVLC reports for the new media. libVLC
 // reports none while its buffer fills (es_out.c, ES_OUT_SET_TIMES), so the
@@ -25,7 +25,7 @@ namespace vlc_player {
 // was set.
 // A media that stops, ends or fails before that keeps the hold: the held
 // picture is still the only right one on screen, and the next Arm or Release
-// decides (SkyStream's P1 Part 3, FORK.md 30).
+// decides (ZoroX's P1 Part 3, FORK.md 30).
 //
 // Header-only so the Darwin renderer can include it. Thread-safe: Arm runs on
 // the platform thread, the events on libVLC's threads.

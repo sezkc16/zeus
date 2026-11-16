@@ -3,9 +3,9 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/addons/data/addon_client.dart';
-import 'package:skystream/core/addons/models/addon_manifest.dart';
-import 'package:skystream/core/network/clearance/clearance_interceptor.dart';
+import 'package:zorox/core/addons/data/addon_client.dart';
+import 'package:zorox/core/addons/models/addon_manifest.dart';
+import 'package:zorox/core/network/clearance/clearance_interceptor.dart';
 
 /// Answers every request with the next of [answers], noting each request.
 class _Server implements HttpClientAdapter {

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/models/torrent_status.dart';
+import 'package:zorox/core/models/torrent_status.dart';
 
 void main() {
   test('reads the peers known, the bytes loaded and the hash', () {

@@ -10,7 +10,7 @@ import 'extension_full_screen.dart';
 import 'extension_page_view.dart';
 import 'ui_node_view.dart';
 
-/// Shows [session] until the extension's last window closes. Its bottom window is SkyStream's bottom
+/// Shows [session] until the extension's last window closes. Its bottom window is ZoroX's bottom
 /// sheet (phones), a dialog (tablets and desktops) or the full screen (TVs); a window above it shows as
 /// a dialog on top. Back, a swipe or the close button close the top window.
 Future<void> showExtensionSheet(

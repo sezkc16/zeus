@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/services/download_service.dart';
-import 'package:skystream/features/player/presentation/vlc/ended_card.dart';
-import 'package:skystream/features/player/presentation/vlc/vlc_player_controls.dart';
-import 'package:skystream/features/player/presentation/vlc/vlc_player_screen.dart';
-import 'package:skystream/features/player/presentation/widgets/player_control_components.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/services/download_service.dart';
+import 'package:zorox/features/player/presentation/vlc/ended_card.dart';
+import 'package:zorox/features/player/presentation/vlc/vlc_player_controls.dart';
+import 'package:zorox/features/player/presentation/vlc/vlc_player_screen.dart';
+import 'package:zorox/features/player/presentation/widgets/player_control_components.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import 'vlc_screen_harness.dart';
 

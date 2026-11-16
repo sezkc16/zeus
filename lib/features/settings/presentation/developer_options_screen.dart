@@ -14,7 +14,7 @@ import '../../../core/router/app_router.dart';
 import 'widgets/settings_widgets.dart';
 import '../../player/domain/qoe_log.dart';
 
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import '../../../core/services/notification_service.dart';
 

@@ -2,12 +2,12 @@ import 'dart:io';
 
 import 'package:challenge_browser/challenge_browser.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/cloudstream/cloudstream_web.dart';
-import 'package:skystream/core/cloudstream/extension_ui/extension_pages.dart';
-import 'package:skystream/core/network/clearance/clearance.dart';
-import 'package:skystream/core/network/clearance/clearance_solver.dart';
-import 'package:skystream/core/network/clearance/clearance_store.dart';
-import 'package:skystream/core/network/clearance/site_keys.dart';
+import 'package:zorox/core/cloudstream/cloudstream_web.dart';
+import 'package:zorox/core/cloudstream/extension_ui/extension_pages.dart';
+import 'package:zorox/core/network/clearance/clearance.dart';
+import 'package:zorox/core/network/clearance/clearance_solver.dart';
+import 'package:zorox/core/network/clearance/clearance_store.dart';
+import 'package:zorox/core/network/clearance/site_keys.dart';
 
 import '../network/clearance/fakes.dart';
 import 'extension_ui/fake_page_browser.dart';

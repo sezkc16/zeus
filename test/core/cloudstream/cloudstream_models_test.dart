@@ -4,7 +4,7 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/cloudstream/cloudstream_models.dart';
+import 'package:zorox/core/cloudstream/cloudstream_models.dart';
 
 const _repoUrl = 'https://repo.test/repo.json';
 
@@ -67,7 +67,7 @@ void main() {
     });
 
     test('keep Windows paths working', () {
-      const windowsRoot = r'C:\Users\a\AppData\Roaming\skystream\extensions\cloudstream';
+      const windowsRoot = r'C:\Users\a\AppData\Roaming\zorox\extensions\cloudstream';
       final installed = CsInstalledPlugin(info: _plugin(), filePath: '$windowsRoot\\plugins\\0a\\Alpha.cs3');
       expect(installed.toJson(windowsRoot)['file'], 'plugins/0a/Alpha.cs3');
     });

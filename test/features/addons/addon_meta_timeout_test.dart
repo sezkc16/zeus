@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/addons/data/addon_client.dart';
-import 'package:skystream/core/addons/data/addon_repository.dart';
-import 'package:skystream/core/addons/models/addon_manifest.dart';
-import 'package:skystream/core/addons/models/addon_meta.dart';
-import 'package:skystream/features/addons/presentation/addon_providers.dart';
+import 'package:zorox/core/addons/data/addon_client.dart';
+import 'package:zorox/core/addons/data/addon_repository.dart';
+import 'package:zorox/core/addons/models/addon_manifest.dart';
+import 'package:zorox/core/addons/models/addon_meta.dart';
+import 'package:zorox/features/addons/presentation/addon_providers.dart';
 
 /// A scraping bridge's /meta is a scrape: CNCVerse took 9 to 29 seconds to
 /// describe the titles its own search had just listed. At the 12 seconds a

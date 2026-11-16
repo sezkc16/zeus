@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/presentation/widgets/hotstar_player_style.dart';
+import 'package:zorox/features/player/presentation/widgets/hotstar_player_style.dart';
 
 /// The bottom bar's clock, labels and scrubber sit on the video with only the
 /// scrim under them, so they have to read over the brightest scene there is:

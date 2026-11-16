@@ -5,12 +5,12 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/storage/history_repository.dart';
-import 'package:skystream/features/home/presentation/widgets/continue_watching_card.dart';
-import 'package:skystream/features/home/presentation/widgets/synced_progress_card.dart';
-import 'package:skystream/features/tracking/domain/sync_progress_item.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/storage/history_repository.dart';
+import 'package:zorox/features/home/presentation/widgets/continue_watching_card.dart';
+import 'package:zorox/features/home/presentation/widgets/synced_progress_card.dart';
+import 'package:zorox/features/tracking/domain/sync_progress_item.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 const Size _screen = Size(412, 915);
 

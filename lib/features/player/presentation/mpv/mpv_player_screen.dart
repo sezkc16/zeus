@@ -229,7 +229,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   final Set<int> _failedStreams = <int>{};
 
   /// What the reachability check found per source, while resolving: the
-  /// original SkyStream's rows read "Checking…" (spinner) while a source is
+  /// original ZoroX's rows read "Checking…" (spinner) while a source is
   /// probed, then a green check when it answers — the viewer watches the
   /// sources resolve and picks one before anything plays. mpv used to mark
   /// every row `notChecked` (blank), so the list said nothing and flashed

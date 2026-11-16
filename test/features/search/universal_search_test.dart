@@ -4,24 +4,24 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/addons/data/addon_client.dart';
-import 'package:skystream/core/addons/data/addon_repository.dart';
-import 'package:skystream/core/addons/models/addon_manifest.dart';
-import 'package:skystream/core/addons/models/addon_meta.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/extensions/base_provider.dart';
-import 'package:skystream/core/extensions/extension_manager.dart';
-import 'package:skystream/core/network/clearance/clearance.dart';
-import 'package:skystream/core/network/clearance/clearance_solver.dart';
-import 'package:skystream/core/network/clearance/clearance_store.dart';
-import 'package:skystream/core/network/clearance/site_checks.dart';
-import 'package:skystream/core/network/clearance/site_keys.dart';
-import 'package:skystream/core/nuvio/data/nuvio_repository.dart';
-import 'package:skystream/core/nuvio/models/nuvio_models.dart';
-import 'package:skystream/core/services/tmdb_service.dart';
-import 'package:skystream/features/explore/data/explore_tmdb_provider.dart';
-import 'package:skystream/features/search/presentation/search_provider.dart';
-import 'package:skystream/features/search/presentation/search_sources.dart';
+import 'package:zorox/core/addons/data/addon_client.dart';
+import 'package:zorox/core/addons/data/addon_repository.dart';
+import 'package:zorox/core/addons/models/addon_manifest.dart';
+import 'package:zorox/core/addons/models/addon_meta.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/extensions/base_provider.dart';
+import 'package:zorox/core/extensions/extension_manager.dart';
+import 'package:zorox/core/network/clearance/clearance.dart';
+import 'package:zorox/core/network/clearance/clearance_solver.dart';
+import 'package:zorox/core/network/clearance/clearance_store.dart';
+import 'package:zorox/core/network/clearance/site_checks.dart';
+import 'package:zorox/core/network/clearance/site_keys.dart';
+import 'package:zorox/core/nuvio/data/nuvio_repository.dart';
+import 'package:zorox/core/nuvio/models/nuvio_models.dart';
+import 'package:zorox/core/services/tmdb_service.dart';
+import 'package:zorox/features/explore/data/explore_tmdb_provider.dart';
+import 'package:zorox/features/search/presentation/search_provider.dart';
+import 'package:zorox/features/search/presentation/search_sources.dart';
 
 /// An extension answering [answer] after [after].
 class _Plugin extends SkyStreamProvider {
@@ -249,7 +249,7 @@ void main() {
     expect(results.map((r) => r.kind), [
       SearchSourceKind.stremio,
       SearchSourceKind.nuvio,
-      SearchSourceKind.skystream,
+      SearchSourceKind.zorox,
     ]);
     expect(results[0].source, isA<StremioSearcher>());
     expect(results[0].results.single.url, 'tt0133093');

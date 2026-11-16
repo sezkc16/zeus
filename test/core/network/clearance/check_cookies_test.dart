@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/network/clearance/challenge_triage.dart';
+import 'package:zorox/core/network/clearance/challenge_triage.dart';
 
 /// A bot check's own cookies, told from the site's.
 void main() {

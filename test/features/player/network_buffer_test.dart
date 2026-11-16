@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vlc_player/vlc_player.dart';
 
-import 'package:skystream/features/player/domain/network_buffer.dart';
+import 'package:zorox/features/player/domain/network_buffer.dart';
 
 import 'fake_vlc_engine.dart';
 import 'vlc_screen_harness.dart';

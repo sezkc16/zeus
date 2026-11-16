@@ -8,7 +8,7 @@ import '../../../../core/cloudstream/extension_ui/ui_tree.dart';
 import '../../../../shared/focus/text_field_keys.dart';
 import 'extension_page_view.dart';
 
-/// Draws an extension window's tree with SkyStream's own widgets and theme, never the extension's look,
+/// Draws an extension window's tree with ZoroX's own widgets and theme, never the extension's look,
 /// and sends what the person does back to the extension through [session].
 class UiNodeView extends StatelessWidget {
   const UiNodeView({super.key, required this.node, required this.session});
@@ -183,7 +183,7 @@ class UiNodeView extends StatelessWidget {
     };
   }
 
-  /// A dropdown as SkyStream's own settings draw one: a remote moves past it, and opens it with OK.
+  /// A dropdown as ZoroX's own settings draw one: a remote moves past it, and opens it with OK.
   Widget _dropdown(UiNode n) {
     final selected = n.selected;
     return Padding(

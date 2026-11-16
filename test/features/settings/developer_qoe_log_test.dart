@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/providers/device_info_provider.dart';
-import 'package:skystream/core/storage/settings_repository.dart';
-import 'package:skystream/core/storage/storage_service.dart';
-import 'package:skystream/features/player/domain/qoe_log.dart';
-import 'package:skystream/features/settings/presentation/developer_options_screen.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/providers/device_info_provider.dart';
+import 'package:zorox/core/storage/settings_repository.dart';
+import 'package:zorox/core/storage/storage_service.dart';
+import 'package:zorox/features/player/domain/qoe_log.dart';
+import 'package:zorox/features/settings/presentation/developer_options_screen.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 /// Answers the developer screen's reads without a storage stack, and keeps
 /// what the QoE switch writes.

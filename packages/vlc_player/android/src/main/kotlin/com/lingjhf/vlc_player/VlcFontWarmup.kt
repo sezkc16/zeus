@@ -26,7 +26,7 @@ import org.videolan.libvlc.LibVLC
 /// finished cache. Started alongside, its own scan slowed both: the first
 /// picture of a fresh install took 32 s on the phone emulator (35 s for this
 /// build), past the player screen's 30 s first-frame deadline, whose reopen
-/// stranded the player inside its scan (SkyStream's QoE suite, 2026-10-14).
+/// stranded the player inside its scan (ZoroX's QoE suite, 2026-10-14).
 /// An OS update that changes the system fonts leaves a stale cache, which
 /// libVLC rebuilds at the next first video, as before.
 internal object VlcFontWarmup {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vlc_player/vlc_player.dart';
-import 'package:skystream/features/player/presentation/widgets/player_stream_widgets.dart';
+import 'package:zorox/features/player/presentation/widgets/player_stream_widgets.dart';
 
 import 'fake_vlc_engine.dart';
 import 'vlc_screen_harness.dart';

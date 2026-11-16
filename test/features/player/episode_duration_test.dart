@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/domain/episode_duration.dart';
+import 'package:zorox/features/player/domain/episode_duration.dart';
 
 /// History stores the duration in milliseconds, the Episodes drawer once
 /// read that number as seconds and so showed a three-hour film as

@@ -329,7 +329,7 @@ TEST(VlcPixelBufferSink, AReleaseLetsGoAtTheNextFinishedPicture) {
 // A hold let go with no picture after it - the media failed, ended or was
 // stopped before it played - and taken again for the next media stays up
 // until that media is let go too: the next picture decoded is its frame 0
-// (SkyStream's whole-part review of P1 Part 2, 2026-10-15).
+// (ZoroX's whole-part review of P1 Part 2, 2026-10-15).
 TEST(VlcPixelBufferSink, AHoldTakenAgainAfterALetGoWithNoPictureStaysUp) {
   VlcPixelBufferSink sink([] {});
   sink.ResizeForTesting(2, 2, 8);

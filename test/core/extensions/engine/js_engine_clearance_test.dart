@@ -10,16 +10,16 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/extensions/engine/js_engine.dart';
-import 'package:skystream/core/extensions/providers/js_based_provider.dart';
-import 'package:skystream/core/network/clearance/captcha_solver.dart';
-import 'package:skystream/core/network/clearance/clearance.dart';
-import 'package:skystream/core/network/clearance/clearance_interceptor.dart';
-import 'package:skystream/core/network/clearance/clearance_solver.dart';
-import 'package:skystream/core/network/clearance/clearance_store.dart';
-import 'package:skystream/core/network/clearance/site_keys.dart';
-import 'package:skystream/core/storage/extension_repository.dart';
-import 'package:skystream/core/storage/storage_service.dart';
+import 'package:zorox/core/extensions/engine/js_engine.dart';
+import 'package:zorox/core/extensions/providers/js_based_provider.dart';
+import 'package:zorox/core/network/clearance/captcha_solver.dart';
+import 'package:zorox/core/network/clearance/clearance.dart';
+import 'package:zorox/core/network/clearance/clearance_interceptor.dart';
+import 'package:zorox/core/network/clearance/clearance_solver.dart';
+import 'package:zorox/core/network/clearance/clearance_store.dart';
+import 'package:zorox/core/network/clearance/site_keys.dart';
+import 'package:zorox/core/storage/extension_repository.dart';
+import 'package:zorox/core/storage/storage_service.dart';
 
 import '../../network/clearance/fakes.dart';
 

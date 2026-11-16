@@ -8,12 +8,12 @@ import 'home_provider.dart';
 import 'home_state.dart';
 import 'widgets/home_check_card.dart';
 
-import 'package:skystream/features/home/presentation/widgets/continue_watching_section.dart';
-import 'package:skystream/features/search/presentation/search_provider.dart';
-import 'package:skystream/features/tracking/data/sync_manager.dart';
-import 'package:skystream/features/tracking/domain/sync_progress_item.dart';
-import 'package:skystream/features/home/presentation/widgets/synced_progress_section.dart';
-import 'package:skystream/features/library/presentation/history_provider.dart';
+import 'package:zorox/features/home/presentation/widgets/continue_watching_section.dart';
+import 'package:zorox/features/search/presentation/search_provider.dart';
+import 'package:zorox/features/tracking/data/sync_manager.dart';
+import 'package:zorox/features/tracking/domain/sync_progress_item.dart';
+import 'package:zorox/features/home/presentation/widgets/synced_progress_section.dart';
+import 'package:zorox/features/library/presentation/history_provider.dart';
 
 import '../../settings/presentation/general_settings_provider.dart';
 import '../../explore/presentation/widgets/explore_carousel.dart';
@@ -27,9 +27,9 @@ import '../../../core/extensions/models/extension_plugin.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 
-import 'package:skystream/core/extensions/extension_manager.dart';
-import 'package:skystream/core/extensions/base_provider.dart';
-import 'package:skystream/core/router/app_router.dart';
+import 'package:zorox/core/extensions/extension_manager.dart';
+import 'package:zorox/core/extensions/base_provider.dart';
+import 'package:zorox/core/router/app_router.dart';
 
 import 'delegates/home_search_delegate.dart';
 import '../../../shared/widgets/cards_wrapper.dart';

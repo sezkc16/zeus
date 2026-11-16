@@ -14,7 +14,7 @@
 ///     silently bought a Windows plugin that drives DDC/CI — I²C over the
 ///     display cable — at its registrar and again on `WM_CLOSE`, for a feature
 ///     `vlc_player_controls.dart` returns early from on desktop. Users reported
-///     SkyStream resetting their monitor's brightness. It is gone now, with
+///     ZoroX resetting their monitor's brightness. It is gone now, with
 ///     `flutter_volume_controller`: the player's own plugin, `vlc_player`,
 ///     does both on Android and iOS and registers nothing new anywhere.
 ///   * `flutter_inappwebview` was added for the Cloudflare bypass. It silently

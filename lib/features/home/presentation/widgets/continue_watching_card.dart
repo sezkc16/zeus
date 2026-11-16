@@ -3,24 +3,24 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
-import 'package:skystream/features/library/presentation/history_provider.dart';
+import 'package:zorox/features/library/presentation/history_provider.dart';
 
 import '../../../../core/domain/entity/multimedia_item.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:skystream/core/router/app_router.dart';
-import 'package:skystream/core/addons/models/addon_meta.dart'
+import 'package:zorox/core/router/app_router.dart';
+import 'package:zorox/core/addons/models/addon_meta.dart'
     show kAddonItemSource;
-import 'package:skystream/core/utils/image_fallbacks.dart';
-import 'package:skystream/core/utils/layout_constants.dart';
+import 'package:zorox/core/utils/image_fallbacks.dart';
+import 'package:zorox/core/utils/layout_constants.dart';
 
 import '../../../../core/extensions/extension_manager.dart';
 import '../../../details/presentation/playback_launcher.dart';
 import '../../../../shared/widgets/cards_wrapper.dart';
 import '../../../../shared/widgets/loading_dialog.dart';
 
-import 'package:skystream/l10n/generated/app_localizations.dart';
-import 'package:skystream/core/services/notification_service.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/services/notification_service.dart';
 
 import '../../../../shared/focus/app_focus.dart';
 

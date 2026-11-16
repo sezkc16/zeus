@@ -95,7 +95,7 @@ internal class TextEditorProxy private constructor(
 }
 
 /**
- * What android_text_editing.dart's calls on `dev.akash.skystream/text_input` do: say whether this
+ * What android_text_editing.dart's calls on `dev.toji.zorox/text_input` do: say whether this
  * device needs a [TextEditorProxy], and keep the one in Flutter's view editing while a Flutter text
  * field has focus.
  */

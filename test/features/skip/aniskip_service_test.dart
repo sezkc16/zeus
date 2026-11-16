@@ -3,8 +3,8 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/skip/data/aniskip_service.dart';
-import 'package:skystream/features/skip/data/skip_service.dart';
+import 'package:zorox/features/skip/data/aniskip_service.dart';
+import 'package:zorox/features/skip/data/skip_service.dart';
 
 /// Answers every request from a table keyed by URL substring, noting
 /// each request — the mock-Dio pattern the add-on tests use

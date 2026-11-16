@@ -10,14 +10,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/storage/episode_watch_repository.dart';
-import 'package:skystream/core/storage/history_repository.dart';
-import 'package:skystream/core/storage/storage_service.dart';
-import 'package:skystream/features/details/presentation/details_controller.dart';
-import 'package:skystream/features/details/presentation/downloaded_file_provider.dart';
-import 'package:skystream/features/details/presentation/widgets/episode_card.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/storage/episode_watch_repository.dart';
+import 'package:zorox/core/storage/history_repository.dart';
+import 'package:zorox/core/storage/storage_service.dart';
+import 'package:zorox/features/details/presentation/details_controller.dart';
+import 'package:zorox/features/details/presentation/downloaded_file_provider.dart';
+import 'package:zorox/features/details/presentation/widgets/episode_card.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 // The fakes are episode_card_test.dart's: Hive, path_provider and the player
 // stay out of a widget test.

@@ -6,11 +6,11 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/features/details/presentation/details_controller.dart';
-import 'package:skystream/features/details/presentation/widgets/details_layout_widgets.dart';
-import 'package:skystream/features/details/presentation/widgets/premium_details_widgets.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/features/details/presentation/details_controller.dart';
+import 'package:zorox/features/details/presentation/widgets/details_layout_widgets.dart';
+import 'package:zorox/features/details/presentation/widgets/premium_details_widgets.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 Future<void> _pump(
   WidgetTester tester,

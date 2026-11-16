@@ -36,7 +36,7 @@ abstract final class ClearanceExtra {
 
 /// Sends a request with the plugin's own user agent even to a cleared site.
 /// Stripped before sending.
-const keepUserAgentHeader = 'X-SkyStream-Keep-User-Agent';
+const keepUserAgentHeader = 'X-ZoroX-Keep-User-Agent';
 
 /// Applies sites' clearances to the shared client's requests: plain HTTP
 /// first, with the site's cookies and the agent they hold under; a check is

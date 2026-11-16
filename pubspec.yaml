@@ -1,4 +1,4 @@
-name: skystream
+name: zorox
 description: "A modern, media streaming client."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -64,7 +64,7 @@ dependencies:
   # framework, so 2.x belongs with migrating the app off
   # package:flutter/material.dart (imports in ~250 files, the localization
   # delegates, MaterialUiCompatibilityBridge for packages still on it). 2.x
-  # adds nothing SkyStream uses (2.1 is a Linux accent-colour source).
+  # adds nothing ZoroX uses (2.1 is a Linux accent-colour source).
   dynamic_color: ^1.9.0
   window_manager: ^0.5.1
   device_info_plus: any
@@ -192,7 +192,7 @@ flutter:
     # The licence text for the bundled type family, shown in the in-app
     # licence page (see AppTheme's LicenseRegistry entry).
     - assets/fonts/OFL.txt
-    # SkyStream's own licence (GPL-3.0), for the same page: Flutter lists the
+    # ZoroX's own licence (GPL-3.0), for the same page: Flutter lists the
     # dependencies' licences there, never the app's.
     - LICENSE
     # The Public Suffix List (MPL-2.0), which tells which site a host belongs

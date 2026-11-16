@@ -13,7 +13,7 @@ import '../../../core/domain/entity/multimedia_item.dart';
 /// positions instead of stamping everything with "now".
 ///
 /// Plugins are backed up as identities, not files: a repository URL plus a
-/// plugin's package name (SkyStream) or internal name (CloudStream). On
+/// plugin's package name (ZoroX) or internal name (CloudStream). On
 /// restore the app re-adds the repository and re-installs the plugin from
 /// it, so the restored plugins are the current versions, not stale files.
 class ZoroxBackup {
@@ -25,8 +25,8 @@ class ZoroxBackup {
     required this.exportedAt,
     this.history = const [],
     this.library = const [],
-    this.skystreamRepos = const [],
-    this.skystreamPlugins = const [],
+    this.zoroxRepos = const [],
+    this.zoroxPlugins = const [],
     this.cloudstreamRepos = const [],
     this.cloudstreamPlugins = const [],
   });
@@ -42,11 +42,11 @@ class ZoroxBackup {
   /// Library items as [MultimediaItem.toJson] maps.
   final List<Map<String, dynamic>> library;
 
-  /// SkyStream repository URLs (SharedPreferences `extension_repo_urls`).
-  final List<String> skystreamRepos;
+  /// ZoroX repository URLs (SharedPreferences `extension_repo_urls`).
+  final List<String> zoroxRepos;
 
-  /// Installed SkyStream plugins: `{'packageName', 'repositoryUrl'}`.
-  final List<Map<String, String>> skystreamPlugins;
+  /// Installed ZoroX plugins: `{'packageName', 'repositoryUrl'}`.
+  final List<Map<String, String>> zoroxPlugins;
 
   /// CloudStream repository URLs.
   final List<String> cloudstreamRepos;
@@ -61,8 +61,8 @@ class ZoroxBackup {
     'exportedAt': exportedAt,
     'history': history,
     'library': library,
-    'skystreamRepos': skystreamRepos,
-    'skystreamPlugins': skystreamPlugins,
+    'zoroxRepos': zoroxRepos,
+    'zoroxPlugins': zoroxPlugins,
     'cloudstreamRepos': cloudstreamRepos,
     'cloudstreamPlugins': cloudstreamPlugins,
   };
@@ -88,12 +88,12 @@ class ZoroxBackup {
         for (final e in (json['library'] as List?) ?? const [])
           if (e is Map) Map<String, dynamic>.from(e),
       ],
-      skystreamRepos: [
-        for (final e in (json['skystreamRepos'] as List?) ?? const [])
+      zoroxRepos: [
+        for (final e in (json['zoroxRepos'] as List?) ?? const [])
           if (e is String) e,
       ],
-      skystreamPlugins: [
-        for (final e in (json['skystreamPlugins'] as List?) ?? const [])
+      zoroxPlugins: [
+        for (final e in (json['zoroxPlugins'] as List?) ?? const [])
           if (e is Map)
             {for (final kv in e.entries) '${kv.key}': '${kv.value}'},
       ],
@@ -121,8 +121,8 @@ class ZoroxRestoreReport {
     this.historySkipped = 0,
     this.historyInBackup = 0,
     this.libraryRestored = 0,
-    this.skystreamReposRestored = 0,
-    this.skystreamPluginsRestored = 0,
+    this.zoroxReposRestored = 0,
+    this.zoroxPluginsRestored = 0,
     this.cloudstreamReposRestored = 0,
     this.cloudstreamPluginsRestored = 0,
     this.errors = const [],
@@ -138,8 +138,8 @@ class ZoroxRestoreReport {
   /// apart from a restore that found nothing new.
   final int historyInBackup;
   final int libraryRestored;
-  final int skystreamReposRestored;
-  final int skystreamPluginsRestored;
+  final int zoroxReposRestored;
+  final int zoroxPluginsRestored;
   final int cloudstreamReposRestored;
   final int cloudstreamPluginsRestored;
   final List<String> errors;
@@ -148,7 +148,7 @@ class ZoroxRestoreReport {
   bool get isEmpty =>
       historyRestored == 0 &&
       libraryRestored == 0 &&
-      skystreamPluginsRestored == 0 &&
+      zoroxPluginsRestored == 0 &&
       cloudstreamPluginsRestored == 0;
 
   String get summary {
@@ -157,8 +157,8 @@ class ZoroxRestoreReport {
         '$historyRestored history item${historyRestored == 1 ? '' : 's'}',
       if (libraryRestored > 0)
         '$libraryRestored bookmark${libraryRestored == 1 ? '' : 's'}',
-      if (skystreamPluginsRestored > 0 || cloudstreamPluginsRestored > 0)
-        '${skystreamPluginsRestored + cloudstreamPluginsRestored} plugin${skystreamPluginsRestored + cloudstreamPluginsRestored == 1 ? '' : 's'}',
+      if (zoroxPluginsRestored > 0 || cloudstreamPluginsRestored > 0)
+        '${zoroxPluginsRestored + cloudstreamPluginsRestored} plugin${zoroxPluginsRestored + cloudstreamPluginsRestored == 1 ? '' : 's'}',
     ];
     if (parts.isEmpty) {
       // A backup exported from an empty app holds no history at all — say

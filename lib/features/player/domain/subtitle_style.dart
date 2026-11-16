@@ -5,7 +5,7 @@
 /// default of `--freetype-rel-fontsize=16`, which is very large on a
 /// full-screen video. Size, colours, the box, the outline and the lift it also
 /// takes while the video plays ([subtitleLookFrom]); bold, the font, the text
-/// opacity and the encoding only at creation. SkyStream draws subtitle files
+/// opacity and the encoding only at creation. ZoroX draws subtitle files
 /// itself, from the same numbers, so a file and an embedded track look alike.
 library;
 
@@ -41,7 +41,7 @@ int relativeSizeFor(double size) =>
 ///
 /// Rounded, 42 of the 70 steps from 10 to 80 - all of them from 63 up - drew
 /// the same text as the step before while the number moved. Unrounded, every
-/// step is a size of its own: SkyStream's subtitles are drawn at it, and
+/// step is a size of its own: ZoroX's subtitles are drawn at it, and
 /// libVLC's are scaled to it from whatever whole number the player was
 /// created with ([subtitleLookFrom]). Held between 80's 6.6 and the 60
 /// [relativeSizeFor] stops at.
@@ -130,7 +130,7 @@ double subtitleEffectiveRaise(PlayerSettings settings) =>
 /// ([relativeSizeFor] of the size in the settings it was created from): libVLC
 /// scales its text as a percent of that, so twice the size is 200 whatever
 /// the player started at. The size it scales to is unrounded
-/// ([subtitleRelativeSize]), so libVLC's lines match SkyStream's at every
+/// ([subtitleRelativeSize]), so libVLC's lines match ZoroX's at every
 /// step, the player's first look included.
 ///
 /// The text's opacity, bold and font are not here - they stay as the player
@@ -307,7 +307,7 @@ int subtitleOutlineThickness(SubtitleOutline outline) => switch (outline) {
   SubtitleOutline.thick => 6,
 };
 
-/// The stroke SkyStream outlines its own subtitles with for [outline], in
+/// The stroke ZoroX outlines its own subtitles with for [outline], in
 /// logical pixels: thin is the 2 every install had before this was a setting,
 /// and the heavier two step up from it.
 double subtitleOutlineWidth(SubtitleOutline outline) => switch (outline) {
@@ -357,7 +357,7 @@ double subtitleFrameHeight(Size window) =>
 
 /// The font size [settings] draw subtitles at in a player [area] big:
 /// libVLC's rule - the frame height over the relative size - which
-/// SkyStream's own subtitles follow too, at the unrounded relative size
+/// ZoroX's own subtitles follow too, at the unrounded relative size
 /// ([subtitleRelativeSize]).
 double subtitleFontSize(PlayerSettings settings, Size area) =>
     subtitleFrameHeight(area) / subtitleRelativeSize(settings.subtitleSize);

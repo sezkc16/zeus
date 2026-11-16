@@ -7,15 +7,15 @@ import 'package:collection/collection.dart';
 
 import '../downloaded_file_provider.dart';
 
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/storage/history_repository.dart';
-import 'package:skystream/core/utils/layout_constants.dart';
-import 'package:skystream/shared/widgets/custom_widgets.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/storage/history_repository.dart';
+import 'package:zorox/core/utils/layout_constants.dart';
+import 'package:zorox/shared/widgets/custom_widgets.dart';
 
 import '../details_controller.dart';
 
-import 'package:skystream/core/extensions/extension_manager.dart';
-import 'package:skystream/core/services/download_service.dart';
+import 'package:zorox/core/extensions/extension_manager.dart';
+import 'package:zorox/core/services/download_service.dart';
 
 import '../download_launcher.dart';
 import 'download_progress_dialog.dart';
@@ -23,9 +23,9 @@ import 'download_management_dialog.dart';
 import 'episode_card.dart';
 import '../../../../shared/focus/app_focus.dart';
 
-import 'package:skystream/core/providers/device_info_provider.dart';
-import 'package:skystream/core/utils/responsive_breakpoints.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/providers/device_info_provider.dart';
+import 'package:zorox/core/utils/responsive_breakpoints.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 /// A season chip's label: the extension's own name for the season when it
 /// gave one (CloudStream's `SeasonData`), else "Season N".

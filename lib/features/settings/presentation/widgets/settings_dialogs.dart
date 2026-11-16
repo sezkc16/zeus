@@ -27,7 +27,7 @@ import '../../../../core/providers/device_info_provider.dart';
 import '../../../../core/providers/locale_provider.dart';
 import '../../../player/presentation/player_platform_service.dart';
 
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import '../../../../core/services/notification_service.dart';
 import '../cache_provider.dart';
@@ -236,7 +236,7 @@ Future<void> showDownloadSettingsDialog(
                       leading: const Icon(Icons.folder_open_rounded),
                       title: const Text('Download location'),
                       subtitle: Text(
-                        directory ?? 'System Downloads/Skystream',
+                        directory ?? 'System Downloads/ZoroX',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -344,7 +344,7 @@ Future<void> showDownloadLocationDialog(
                     leading: const Icon(Icons.folder_open_rounded),
                     title: const Text('Target Directory'),
                     subtitle: Text(
-                      directory ?? 'System Downloads/Skystream',
+                      directory ?? 'System Downloads/ZoroX',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1611,7 +1611,7 @@ void showDeveloperDialog(BuildContext context) {
               ),
               child: ClipOval(
                 child: Image.network(
-                  'https://avatars.githubusercontent.com/u/74624467?v=4',
+                  'https://github.com/sezkc16.png',
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
                     return const Center(child: AppLoadingIndicator());
@@ -1624,7 +1624,7 @@ void showDeveloperDialog(BuildContext context) {
             const SizedBox(height: 20),
             // Name and Title
             Text(
-              'Akash',
+              'Toji',
               style: Theme.of(context).textTheme.headlineSmall
                   ?.copyWith(fontWeight: FontWeight.bold, letterSpacing: 0.5),
             ),
@@ -1641,31 +1641,7 @@ void showDeveloperDialog(BuildContext context) {
                     0xFF909692,
                   ), // GitHub Official Black/Dark Grey
                   onTap: () => launchUrl(
-                    Uri.parse('https://github.com/akashdh11'),
-                    mode: LaunchMode.externalApplication,
-                  ),
-                ),
-                _SocialButton(
-                  svgUrl: 'https://raw.githubusercontent.com/simple-icons/simple-icons/11.10.0/icons/linkedin.svg',
-                  color: const Color(0xFF2d65bc), // LinkedIn Official Blue
-                  onTap: () => launchUrl(
-                    Uri.parse('https://www.linkedin.com/in/akashdh11'),
-                    mode: LaunchMode.externalApplication,
-                  ),
-                ),
-                _SocialButton(
-                  svgUrl: 'https://raw.githubusercontent.com/simple-icons/simple-icons/11.10.0/icons/discord.svg',
-                  color: const Color(0xFF5865F2), // Discord Blurple
-                  onTap: () => launchUrl(
-                    Uri.parse('https://discord.gg/73XGA8Mxn9'),
-                    mode: LaunchMode.externalApplication,
-                  ),
-                ),
-                _SocialButton(
-                  svgUrl: 'https://raw.githubusercontent.com/simple-icons/simple-icons/11.10.0/icons/telegram.svg',
-                  color: const Color(0xFF5baae3), // Telegram Official Blue
-                  onTap: () => launchUrl(
-                    Uri.parse('https://t.me/+Ez5Vsv2pUUFjZmNl'),
+                    Uri.parse('https://github.com/sezkc16'),
                     mode: LaunchMode.externalApplication,
                   ),
                 ),

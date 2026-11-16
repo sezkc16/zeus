@@ -47,7 +47,7 @@ class ProviderSearchResult {
            source?.kind ??
            (CloudStreamProvider.isCloudStreamId(providerId)
                ? SearchSourceKind.cloudstream
-               : SearchSourceKind.skystream);
+               : SearchSourceKind.zorox);
 }
 
 class SearchAggregateState {

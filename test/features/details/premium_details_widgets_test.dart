@@ -11,8 +11,8 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/features/details/presentation/widgets/premium_details_widgets.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/features/details/presentation/widgets/premium_details_widgets.dart';
 
 MultimediaItem _item(int i) =>
     MultimediaItem(title: 'Title $i', url: 'https://x.test/$i', posterUrl: '');

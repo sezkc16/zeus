@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/features/player/presentation/vlc/panel/player_panel.dart';
-import 'package:skystream/features/player/presentation/vlc/panel/player_panel_row.dart';
-import 'package:skystream/features/player/presentation/vlc/torrent_file_sheet.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/features/player/presentation/vlc/panel/player_panel.dart';
+import 'package:zorox/features/player/presentation/vlc/panel/player_panel_row.dart';
+import 'package:zorox/features/player/presentation/vlc/torrent_file_sheet.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import 'fake_vlc_engine.dart';
 

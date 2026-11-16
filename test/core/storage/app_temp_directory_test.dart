@@ -6,14 +6,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:skystream/core/storage/app_temp_directory.dart';
-import 'package:skystream/core/storage/storage_service.dart';
+import 'package:zorox/core/storage/app_temp_directory.dart';
+import 'package:zorox/core/storage/storage_service.dart';
 
 /// The temporary directory of Linux (/tmp), macOS ($TMPDIR: the app isn't
 /// sandboxed) and Windows (%TEMP%) is shared with every program the user runs.
-/// Clearing SkyStream's cache, and resetting its data, deleted that whole
+/// Clearing ZoroX's cache, and resetting its data, deleted that whole
 /// directory: other programs' sockets, locks and unfinished downloads went with
-/// it. SkyStream now keeps its temporary files to a folder of its own and
+/// it. ZoroX now keeps its temporary files to a folder of its own and
 /// clears only that.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -114,7 +114,7 @@ void main() {
   });
 
   test(
-    "resetting SkyStream's data leaves other programs' temporary files",
+    "resetting ZoroX's data leaves other programs' temporary files",
     () async {
       final others = othersFiles();
       final download = write(
@@ -131,7 +131,7 @@ void main() {
     },
   );
 
-  test("the cache size counts SkyStream's temporary files and image cache, "
+  test("the cache size counts ZoroX's temporary files and image cache, "
       "and nothing else in the temporary directory", () async {
     othersFiles();
     write(p.join((await appTempDirectory()).path, 'temp_sub_1.srt'), 100);

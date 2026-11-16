@@ -4,8 +4,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/presentation/vlc/player_slider_dialog.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/features/player/presentation/vlc/player_slider_dialog.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 String _speed(double speed) {
   final text = speed.toStringAsFixed(2);

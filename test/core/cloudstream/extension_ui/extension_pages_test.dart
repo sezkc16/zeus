@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:challenge_browser/challenge_browser.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/cloudstream/extension_ui/extension_pages.dart';
+import 'package:zorox/core/cloudstream/extension_ui/extension_pages.dart';
 
 import 'fake_page_browser.dart';
 
@@ -222,7 +222,7 @@ void main() {
   });
 
   test("a page whose window asks for the whole screen after it opened gets that page's script then, once", () async {
-    // Opened before its window turned full screen, a desktop page had no × of its own, and SkyStream draws none over a
+    // Opened before its window turned full screen, a desktop page had no × of its own, and ZoroX draws none over a
     // page: no way out.
     final desktop = ExtensionPages(create: () async => browser, desktop: true);
     await desktop.open(_open(), report.call);
@@ -545,7 +545,7 @@ void main() {
       expect(browser.answered.single, (id: 2, accept: false, text: null));
     });
 
-    test('a client that leaves one to the app has SkyStream show it; pages that are windows of their own step aside meanwhile', () async {
+    test('a client that leaves one to the app has ZoroX show it; pages that are windows of their own step aside meanwhile', () async {
       final shown = <PageDialog>[];
       final person = Completer<({bool accept, String? text})>();
       pages.dialogs = (dialog, gone) {
@@ -596,7 +596,7 @@ void main() {
       expect(two.showsDialog, isFalse);
     });
 
-    test("SkyStream's dialog hears when its page goes", () async {
+    test("ZoroX's dialog hears when its page goes", () async {
       Future<void>? gone;
       final person = Completer<({bool accept, String? text})>();
       pages.dialogs = (dialog, pageGone) {
@@ -618,7 +618,7 @@ void main() {
     });
 
     test(
-      "closing a page lets go of SkyStream's dialog at once, though an eval ahead of the close waits on it",
+      "closing a page lets go of ZoroX's dialog at once, though an eval ahead of the close waits on it",
       () async {
         // Part 2's review (2a): an eval waits while the page is held in its dialog, and the close waited behind it, so
         // the dialog lingered after its window went (up to 10 s per eval: challenge_browser's limit; here, for ever).
@@ -626,7 +626,7 @@ void main() {
         pages.dialogs = (dialog, pageGone) {
           gone = pageGone;
           final person = Completer<({bool accept, String? text})>();
-          // As SkyStream's dialog does: it closes itself, cancelled, when its page goes.
+          // As ZoroX's dialog does: it closes itself, cancelled, when its page goes.
           unawaited(pageGone.then((_) => person.isCompleted ? null : person.complete((accept: false, text: null))));
           return person.future;
         };
@@ -725,7 +725,7 @@ void main() {
       report.answers['dialog'] = {'show': true};
       await two.open(_open(), report.call);
       await two.open({..._open(rid: 5), 'node': 10}, report.call);
-      // The first page's eval runs a while (it holds nothing); the second page shows SkyStream's dialog.
+      // The first page's eval runs a while (it holds nothing); the second page shows ZoroX's dialog.
       final saving = Completer<void>();
       browser.held = saving;
       unawaited(two.eval(4, 'autoSave()'));
@@ -761,7 +761,7 @@ void main() {
         chrome.complete();
         browser.controller.add(PageFinished(Uri.parse('https://other.test/')));
         await _settle();
-        expect(report.types.last, 'finished', reason: "while SkyStream's dialog waits for the person");
+        expect(report.types.last, 'finished', reason: "while ZoroX's dialog waits for the person");
         expect(pages.showsDialog, isTrue);
         person.complete((accept: true, text: null));
         await _settle();

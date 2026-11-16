@@ -7,7 +7,7 @@ import 'embedded_sign_in.dart';
 /// provider redirected to, or null when the person gave up.
 typedef SignInRun = Future<Uri?> Function(Uri authorize, Uri redirect);
 
-/// Runs a tracker's sign-in in SkyStream's own browser, in the check sheet
+/// Runs a tracker's sign-in in ZoroX's own browser, in the check sheet
 /// over [context]: the same on every platform (the owner's choice,
 /// 2026-10-02).
 class SignInRunner {

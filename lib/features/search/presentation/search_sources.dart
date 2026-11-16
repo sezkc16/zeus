@@ -19,9 +19,9 @@ import '../../details/presentation/widgets/episode_picker_sheet.dart';
 import '../../sources/presentation/plugin_sources_sheet.dart';
 
 /// The system a search section comes from, which its tag names.
-enum SearchSourceKind { skystream, cloudstream, stremio, nuvio }
+enum SearchSourceKind { zorox, cloudstream, stremio, nuvio }
 
-/// A searcher whose results open in its own system's pages, not SkyStream's
+/// A searcher whose results open in its own system's pages, not ZoroX's
 /// details page.
 abstract interface class SearchSource {
   SearchSourceKind get kind;

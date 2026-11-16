@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/presentation/mpv/mpv_android_options.dart';
+import 'package:zorox/features/player/presentation/mpv/mpv_android_options.dart';
 
 /// Android 4K lag: the Golden player hardcoded `hwdec: 'videotoolbox'`
 /// for every platform. VideoToolbox is Apple-only — on Android mpv

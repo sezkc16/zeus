@@ -20,17 +20,17 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:skystream/core/extensions/base_provider.dart';
-import 'package:skystream/core/extensions/extension_manager.dart';
-import 'package:skystream/core/extensions/models/extension_plugin.dart';
-import 'package:skystream/core/extensions/models/extension_repository.dart';
-import 'package:skystream/core/extensions/providers.dart';
-import 'package:skystream/core/extensions/services/plugin_storage_service.dart';
-import 'package:skystream/core/extensions/services/repository_service.dart';
-import 'package:skystream/core/models/extension_update_report.dart';
-import 'package:skystream/core/storage/settings_repository.dart';
-import 'package:skystream/core/storage/storage_service.dart';
-import 'package:skystream/features/extensions/providers/extensions_controller.dart';
+import 'package:zorox/core/extensions/base_provider.dart';
+import 'package:zorox/core/extensions/extension_manager.dart';
+import 'package:zorox/core/extensions/models/extension_plugin.dart';
+import 'package:zorox/core/extensions/models/extension_repository.dart';
+import 'package:zorox/core/extensions/providers.dart';
+import 'package:zorox/core/extensions/services/plugin_storage_service.dart';
+import 'package:zorox/core/extensions/services/repository_service.dart';
+import 'package:zorox/core/models/extension_update_report.dart';
+import 'package:zorox/core/storage/settings_repository.dart';
+import 'package:zorox/core/storage/storage_service.dart';
+import 'package:zorox/features/extensions/providers/extensions_controller.dart';
 
 /// What the user typed to add the collection. This fake web reads it as an
 /// address, so it is also the key the collection is stored under. (The real

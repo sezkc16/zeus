@@ -80,7 +80,7 @@ class LiveWindow {
   /// plays the newest segment, starts the delay further back and rounds back
   /// to a segment's start (spec 1.9), and the edge itself is known to about a
   /// segment: a stream just joined, or just sent back to live, played 12-15 s
-  /// behind on 4 s segments at an 8 s delay (SkyStream's QoE suite,
+  /// behind on 4 s segments at an 8 s delay (ZoroX's QoE suite,
   /// 2026-10-13). Two segments from the edge alone called that behind.
   static bool countsAsLive(
     Duration behind, {

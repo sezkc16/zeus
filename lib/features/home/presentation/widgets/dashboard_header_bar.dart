@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:skystream/core/utils/layout_constants.dart';
-import 'package:skystream/core/extensions/extension_manager.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
-import 'package:skystream/shared/widgets/cards_wrapper.dart';
-import 'package:skystream/features/home/presentation/delegates/home_search_delegate.dart';
-import 'package:skystream/features/home/presentation/home_provider.dart';
-import 'package:skystream/features/explore/presentation/widgets/hover_border_gradient.dart';
+import 'package:zorox/core/utils/layout_constants.dart';
+import 'package:zorox/core/extensions/extension_manager.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
+import 'package:zorox/shared/widgets/cards_wrapper.dart';
+import 'package:zorox/features/home/presentation/delegates/home_search_delegate.dart';
+import 'package:zorox/features/home/presentation/home_provider.dart';
+import 'package:zorox/features/explore/presentation/widgets/hover_border_gradient.dart';
 
 import 'dart:async';
 

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/explore/presentation/delegates/explore_search_delegate.dart';
-import 'package:skystream/features/home/presentation/delegates/home_search_delegate.dart';
-import 'package:skystream/features/search/data/search_history_store.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/features/explore/presentation/delegates/explore_search_delegate.dart';
+import 'package:zorox/features/home/presentation/delegates/home_search_delegate.dart';
+import 'package:zorox/features/search/data/search_history_store.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 class _FakeStore implements SearchHistoryStore {
   List<String> queries;

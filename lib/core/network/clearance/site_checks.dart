@@ -25,14 +25,14 @@ enum CheckState {
   /// After its check, the browser was sent to another site.
   sentElsewhere,
 
-  /// The person pressed Done, but SkyStream found no clearance.
+  /// The person pressed Done, but ZoroX found no clearance.
   stillNotCleared,
 
   /// Android System WebView is too old to pass the check: nothing is tried
   /// until it's updated, but Verify still shows the page.
   outdated,
 
-  /// The check passed, but the site refuses SkyStream all the same: no new
+  /// The check passed, but the site refuses ZoroX all the same: no new
   /// try for a while.
   ineffective,
 

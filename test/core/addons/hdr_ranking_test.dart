@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/addons/models/addon_stream_source.dart';
+import 'package:zorox/core/addons/models/addon_stream_source.dart';
 
-/// HDR earns no rank: every SkyStream path shows it washed out (P1 spec 6;
+/// HDR earns no rank: every ZoroX path shows it washed out (P1 spec 6;
 /// the HDR research of 2026-10-11). The label stays.
 void main() {
   AddonStreamSource parse(String title) => AddonStreamSource.fromJson(

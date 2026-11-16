@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// flutter_volume_controller's iOS listener set the session's category (its
 /// default, `.ambient`, is muted by silent mode) as it started and deactivated
 /// the session as it stopped; under a playing film that silenced libVLC's audio
-/// output, and its stop then waited forever on the decoder (SkyStream on an
+/// output, and its stop then waited forever on the decoder (ZoroX on an
 /// iPad, 2026-10-10). screen_brightness animated every change for a second, so
 /// a drag's brightness trailed the finger.
 void main() {

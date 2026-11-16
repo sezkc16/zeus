@@ -19,7 +19,7 @@ import 'package:flutter/widgets.dart';
 
 @visibleForTesting
 const androidTextEditingChannel = MethodChannel(
-  'dev.akash.skystream/text_input',
+  'dev.toji.zorox/text_input',
 );
 
 /// Starts reporting, where the device needs it. Returns what stops it again,

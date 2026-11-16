@@ -13,8 +13,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/providers/device_info_provider.dart';
-import 'package:skystream/shared/widgets/desktop_scroll_wrapper.dart';
+import 'package:zorox/core/providers/device_info_provider.dart';
+import 'package:zorox/shared/widgets/desktop_scroll_wrapper.dart';
 
 /// `showButtons: true` is passed at every call below so the verdict under
 /// test is the TV check and not the host the suite happens to run on - the

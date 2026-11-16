@@ -22,17 +22,17 @@ library;
 import 'package:dio/dio.dart' show Dio;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/services/download_service.dart';
-import 'package:skystream/core/storage/settings_repository.dart';
-import 'package:skystream/core/storage/storage_service.dart';
-import 'package:skystream/features/player/presentation/vlc/ended_card.dart';
-import 'package:skystream/features/player/presentation/vlc/next_episode_countdown.dart';
-import 'package:skystream/features/player/presentation/widgets/player_control_components.dart'
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/services/download_service.dart';
+import 'package:zorox/core/storage/settings_repository.dart';
+import 'package:zorox/core/storage/storage_service.dart';
+import 'package:zorox/features/player/presentation/vlc/ended_card.dart';
+import 'package:zorox/features/player/presentation/vlc/next_episode_countdown.dart';
+import 'package:zorox/features/player/presentation/widgets/player_control_components.dart'
     show PlayerActionButton;
-import 'package:skystream/features/skip/data/intro_db_service.dart';
-import 'package:skystream/features/skip/data/skip_service.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/features/skip/data/intro_db_service.dart';
+import 'package:zorox/features/skip/data/skip_service.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import 'fake_vlc_engine.dart';
 import 'vlc_screen_harness.dart';

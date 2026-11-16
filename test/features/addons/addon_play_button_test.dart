@@ -9,10 +9,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/addons/models/addon_meta.dart';
-import 'package:skystream/core/addons/models/addon_stream_source.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/features/addons/presentation/addon_sources_sheet.dart';
+import 'package:zorox/core/addons/models/addon_meta.dart';
+import 'package:zorox/core/addons/models/addon_stream_source.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/features/addons/presentation/addon_sources_sheet.dart';
 
 import 'stremio_page_fakes.dart';
 

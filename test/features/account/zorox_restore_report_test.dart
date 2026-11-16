@@ -8,7 +8,7 @@
 /// appeared at all).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/account/data/zorox_backup.dart';
+import 'package:zorox/features/account/data/zorox_backup.dart';
 
 void main() {
   test('empty backup says it has no watch history', () {
@@ -38,7 +38,7 @@ void main() {
   test('a real restore is not hidden by an empty history', () {
     const report = ZoroxRestoreReport(
       historyInBackup: 0,
-      skystreamPluginsRestored: 2,
+      zoroxPluginsRestored: 2,
     );
     expect(report.summary, 'Import successful — restored 2 plugins.');
   });

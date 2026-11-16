@@ -35,11 +35,11 @@ class MainActivity : com.lagradost.cloudstream3.MainActivity(), FlutterEngineCon
     private val flutterEngine: FlutterEngine?
         get() = flutterFragment?.flutterEngine
 
-    private val CHANNEL = "dev.akash.skystream.player/pip"
-    private val TV_CHANNEL = "dev.akash.skystream/tv_channel"
-    private val PLAYER_CHANNEL = "dev.akash.skystream/external_player"
-    private val TEXT_INPUT_CHANNEL = "dev.akash.skystream/text_input"
-    private val MEMORY_CHANNEL = "dev.akash.skystream/device_memory"
+    private val CHANNEL = "dev.toji.zorox.player/pip"
+    private val TV_CHANNEL = "dev.toji.zorox/tv_channel"
+    private val PLAYER_CHANNEL = "dev.toji.zorox/external_player"
+    private val TEXT_INPUT_CHANNEL = "dev.toji.zorox/text_input"
+    private val MEMORY_CHANNEL = "dev.toji.zorox/device_memory"
 
     private var isPlaying = false
 
@@ -271,7 +271,7 @@ class MainActivity : com.lagradost.cloudstream3.MainActivity(), FlutterEngineCon
     // "media_control" string was registered as an exported receiver, so any
     // app on the device could broadcast it and pause, resume or seek whatever
     // the user was watching.
-    private val ACTION_MEDIA_CONTROL = "dev.akash.skystream.MEDIA_CONTROL"
+    private val ACTION_MEDIA_CONTROL = "dev.toji.zorox.MEDIA_CONTROL"
     private val EXTRA_CONTROL_TYPE = "control_type"
     private val CONTROL_TYPE_PLAY = 1
     private val CONTROL_TYPE_PAUSE = 2

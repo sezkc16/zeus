@@ -5,12 +5,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/addons/data/addon_repository.dart';
-import 'package:skystream/core/addons/models/addon_manifest.dart';
-import 'package:skystream/core/theme/app_theme.dart';
-import 'package:skystream/features/addons/presentation/widgets/stremio_sources_card.dart';
-import 'package:skystream/features/details/presentation/widgets/source_section_card.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/addons/data/addon_repository.dart';
+import 'package:zorox/core/addons/models/addon_manifest.dart';
+import 'package:zorox/core/theme/app_theme.dart';
+import 'package:zorox/features/addons/presentation/widgets/stremio_sources_card.dart';
+import 'package:zorox/features/details/presentation/widgets/source_section_card.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 class _Repo extends AddonRepository {
   _Repo(this.count);

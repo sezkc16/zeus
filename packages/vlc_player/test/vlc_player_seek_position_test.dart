@@ -242,7 +242,7 @@ void main() {
     // track is restarting - at every segment, and as the track is switched
     // on - is "not seekable" for that moment. The refusal flushes and
     // refills all the same, so the time is repeated while it buffers
-    // (SkyStream's QoE suite on macOS, 2026-10-13).
+    // (ZoroX's QoE suite on macOS, 2026-10-13).
     final controller = await playing(12);
     List<Object?> seeks() => <Object?>[
       for (final call in harness.calls)
@@ -330,7 +330,7 @@ void main() {
     // report, and libVLC's refusal comes inside that. Taking that echo for
     // where the re-send left from made the re-send's own echo a landing: a
     // resume at 3 min that libVLC refused twice played from the start
-    // (SkyStream's QoE suite on macOS, 2026-10-14).
+    // (ZoroX's QoE suite on macOS, 2026-10-14).
     final controller = await playing(19);
     List<Object?> seeks() => <Object?>[
       for (final call in harness.calls)
@@ -496,7 +496,7 @@ void main() {
     testWidgets('the time libVLC reports as 0 while it seeks in the window '
         'is not a landing', (tester) async {
       // An adaptive stream's time reads 0 for half a second or so after a
-      // seek while libVLC finds it again (SkyStream's harness, 2026-10-13),
+      // seek while libVLC finds it again (ZoroX's harness, 2026-10-13),
       // and 0 is far past a step back's target in the step's direction.
       final controller = VlcPlayerController();
       harness.mockEventChannel(24);
@@ -546,7 +546,7 @@ void main() {
     // its fraction is the time over the window's length: right as the
     // stream is joined, then running ahead of the window as it moves on, and
     // 0 once past 1. set_position does land in the window as it is now
-    // (SkyStream's harness, 2026-10-13).
+    // (ZoroX's harness, 2026-10-13).
     Map<String, Object?> hls({required int position, required double raw}) =>
         <String, Object?>{
           'state': 'playing',

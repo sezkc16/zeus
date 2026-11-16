@@ -6,10 +6,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/cloudstream/cloudstream_models.dart';
-import 'package:skystream/core/cloudstream/cloudstream_repository.dart';
-import 'package:skystream/features/cloudstream/presentation/cloudstream_screen.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/cloudstream/cloudstream_models.dart';
+import 'package:zorox/core/cloudstream/cloudstream_repository.dart';
+import 'package:zorox/features/cloudstream/presentation/cloudstream_screen.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 const _repoUrl = 'https://repo.test/repo.json';
 
@@ -127,7 +127,7 @@ void main() {
   });
 
   testWidgets(
-    "an extension's Settings button shows wherever its screen can be drawn: every platform SkyStream runs on",
+    "an extension's Settings button shows wherever its screen can be drawn: every platform ZoroX runs on",
     (tester) async {
       final state = CloudStreamState(
         isLoading: false,
@@ -161,7 +161,7 @@ void main() {
       debugDefaultTargetPlatformOverride = TargetPlatform.fuchsia;
       await show();
       debugDefaultTargetPlatformOverride = null;
-      expect(settings, findsNothing, reason: 'Fuchsia: SkyStream has no engine there');
+      expect(settings, findsNothing, reason: 'Fuchsia: ZoroX has no engine there');
     },
   );
 

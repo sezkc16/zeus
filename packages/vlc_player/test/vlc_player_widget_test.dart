@@ -248,7 +248,7 @@ void main() {
 
   testWidgets('a create that answers after a remount leaves the new player '
       'attached', (WidgetTester tester) async {
-    // SkyStream mounts a new VlcPlayer on the same controller when media has
+    // ZoroX mounts a new VlcPlayer on the same controller when media has
     // waited 30 s for a native player that never came (FORK.md 27). The
     // controller disposes the first create's late answer; the outgoing widget
     // must not then detach the player the new one attached.

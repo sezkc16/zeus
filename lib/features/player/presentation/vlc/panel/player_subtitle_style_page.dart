@@ -1,7 +1,7 @@
 /// The panel's Subtitle style page: every setting of how subtitles look,
 /// stepped in place while the video plays.
 ///
-/// Both renderers follow it. SkyStream's own subtitle files restyle at once.
+/// Both renderers follow it. ZoroX's own subtitle files restyle at once.
 /// libVLC's lines inside the video take the size, the colours, the box, the
 /// outline and the lift from their next line - the screen hands it each
 /// change, see `subtitleLookFrom` - and bold, the font, the text opacity and
@@ -228,7 +228,7 @@ class SubtitleStylePage extends StatelessWidget {
         choose: (lift) => _write((notifier) => notifier.setSubtitleRaise(lift)),
         rest: _fresh.subtitleRaise,
       ),
-      // Fine up/down nudge, like the original SkyStream: −10/−5 move the
+      // Fine up/down nudge, like the original ZoroX: −10/−5 move the
       // lines down, +5/+10 move them up, by 0.1 / 0.05 of the picture's
       // height — the stock raise values themselves, so a nudge always lands
       // on one. setSubtitleRaise holds the result to [0, 0.2].

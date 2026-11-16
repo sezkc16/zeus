@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reicons/reicons.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
-import 'package:skystream/shared/widgets/custom_bottom_nav.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
+import 'package:zorox/shared/widgets/custom_bottom_nav.dart';
 
 /// The v20 bar: the `liquid_glass_bottom_nav` package's floating glass pill
 /// with the five Reicon icons — Filled, except Search which is Outline

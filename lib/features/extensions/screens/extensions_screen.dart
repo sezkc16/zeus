@@ -16,7 +16,7 @@ import '../../../shared/widgets/loading_indicator.dart';
 import '../../../shared/widgets/text_input_dialog.dart';
 import '../../../shared/focus/app_focus.dart';
 
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 /// Whether [installed] came from the repository at [repositoryUrl]. An
 /// install from before addresses were kept came from none that can be told.
@@ -299,7 +299,7 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen>
     ExtensionsState state,
   ) {
     final l10n = AppLocalizations.of(context)!;
-    // Installed CloudStream plugins live beside SkyStream's own: without
+    // Installed CloudStream plugins live beside ZoroX's own: without
     // them here, a plugin installed from the Repositories tab would not
     // show up as installed anywhere on this screen.
     final csInstalled = ref.watch(
@@ -412,7 +412,7 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen>
   ) {
     final l10n = AppLocalizations.of(context)!;
     // CloudStream's repositories live in their own store, separate from
-    // SkyStream's extension system, and each store has its own section
+    // ZoroX's extension system, and each store has its own section
     // with its own add row below — a repository added in one section lands
     // in that section only.
     final csRepositories = ref.watch(
@@ -428,10 +428,10 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen>
       return const Center(child: AppLoadingIndicator());
     }
     // Two separate sections, each with its own add flow, so a repository
-    // lands in the section it belongs to. SkyStream's own extension system
+    // lands in the section it belongs to. ZoroX's own extension system
     // takes a repository manifest (name + id/packageName + pluginLists) or
     // a shortcode; CloudStream's store takes repo.json or a bare plugin
-    // list. The single add row used to feed only SkyStream's fetcher,
+    // list. The single add row used to feed only ZoroX's fetcher,
     // which requires a manifest to carry an id/packageName — so no
     // CloudStream repo.json could be added at all.
     // Both sections stay visible even with nothing in them yet, so each
@@ -443,10 +443,10 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen>
       ),
       addAutomaticKeepAlives: false,
       children: [
-        // SkyStream's own extension system (repository manifest).
+        // ZoroX's own extension system (repository manifest).
         const RepositoryGroupHeader(
           icon: Icons.extension_rounded,
-          label: 'SkyStream',
+          label: 'ZoroX',
         ),
         for (final repo in state.repositories)
           _buildRepositoryCard(
@@ -467,7 +467,7 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen>
               vertical: LayoutConstants.spacingSm,
             ),
             child: Text(
-              'No SkyStream repos yet',
+              'No ZoroX repos yet',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),

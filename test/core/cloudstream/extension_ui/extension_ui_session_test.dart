@@ -4,7 +4,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/cloudstream/extension_ui/extension_ui_session.dart';
+import 'package:zorox/core/cloudstream/extension_ui/extension_ui_session.dart';
 
 Map<String, dynamic> _window(String text, {String id = 'w1', int root = 1}) => {
   'id': id,

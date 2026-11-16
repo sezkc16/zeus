@@ -113,7 +113,7 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       unawaited(_restoreSession());
     }
     // Auto-upload (debounced) when anything the backup covers changes while
-    // logged in: a watch-history save, a SkyStream plugin install/remove, or
+    // logged in: a watch-history save, a ZoroX plugin install/remove, or
     // a CloudStream repo/plugin change. requestAutoSync() no-ops when logged
     // out or unconfigured, and debounces 10s, so frequent saves collapse
     // into one upload. The listeners are set up once here — the provider is
@@ -410,16 +410,16 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
         .map((item) => item.toJson())
         .toList();
 
-    var skystreamRepos = <String>[];
-    var skystreamPlugins = <Map<String, String>>[];
+    var zoroxRepos = <String>[];
+    var zoroxPlugins = <Map<String, String>>[];
     try {
       final extensions = ref.read(extensionsControllerProvider.notifier);
       await extensions.ensureInitialized();
       final extensionsState = ref.read(extensionsControllerProvider);
-      skystreamRepos = [
+      zoroxRepos = [
         for (final repo in extensionsState.repositories) repo.url,
       ];
-      skystreamPlugins = [
+      zoroxPlugins = [
         for (final plugin in extensionsState.installedPlugins)
           {
             'packageName': plugin.packageName,
@@ -427,7 +427,7 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
           },
       ];
     } catch (e) {
-      talker.warning('[ZoroX Account] SkyStream plugins not backed up: $e');
+      talker.warning('[ZoroX Account] ZoroX plugins not backed up: $e');
     }
 
     var cloudstreamRepos = <String>[];
@@ -456,8 +456,8 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       exportedAt: DateTime.now().millisecondsSinceEpoch,
       history: history,
       library: library,
-      skystreamRepos: skystreamRepos,
-      skystreamPlugins: skystreamPlugins,
+      zoroxRepos: zoroxRepos,
+      zoroxPlugins: zoroxPlugins,
       cloudstreamRepos: cloudstreamRepos,
       cloudstreamPlugins: cloudstreamPlugins,
     );
@@ -474,8 +474,8 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
     var historyRestored = 0;
     var historySkipped = 0;
     var libraryRestored = 0;
-    var skystreamReposRestored = 0;
-    var skystreamPluginsRestored = 0;
+    var zoroxReposRestored = 0;
+    var zoroxPluginsRestored = 0;
     var cloudstreamReposRestored = 0;
     var cloudstreamPluginsRestored = 0;
 
@@ -518,24 +518,24 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       }
     }
 
-    // SkyStream repositories, then their plugins.
+    // ZoroX repositories, then their plugins.
     try {
       final extensions = ref.read(extensionsControllerProvider.notifier);
       await extensions.ensureInitialized();
       var extensionsState = ref.read(extensionsControllerProvider);
-      for (final url in backup.skystreamRepos) {
+      for (final url in backup.zoroxRepos) {
         if (extensionsState.repositories.any((repo) => repo.url == url)) {
           continue;
         }
         try {
           await extensions.addRepository(url);
-          skystreamReposRestored++;
+          zoroxReposRestored++;
         } catch (e) {
           errors.add('Could not add repository $url: $e');
         }
         extensionsState = ref.read(extensionsControllerProvider);
       }
-      for (final saved in backup.skystreamPlugins) {
+      for (final saved in backup.zoroxPlugins) {
         final packageName = saved['packageName'];
         if (packageName == null || packageName.isEmpty) continue;
         if (extensionsState.installedPlugins.any(
@@ -543,7 +543,7 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
         )) {
           continue;
         }
-        final found = _findSkyStreamPlugin(extensionsState, packageName);
+        final found = _findZoroXPlugin(extensionsState, packageName);
         if (found == null) {
           errors.add(
             'Plugin $packageName is no longer listed by its repository, so it was not restored.',
@@ -552,14 +552,14 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
         }
         try {
           await extensions.installPlugin(found);
-          skystreamPluginsRestored++;
+          zoroxPluginsRestored++;
         } catch (e) {
           errors.add('Could not install ${found.name}: $e');
         }
         extensionsState = ref.read(extensionsControllerProvider);
       }
     } catch (e) {
-      errors.add('SkyStream plugins were not restored: $e');
+      errors.add('ZoroX plugins were not restored: $e');
     }
 
     // CloudStream repositories, then their plugins.
@@ -639,15 +639,15 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       historySkipped: historySkipped,
       historyInBackup: backup.history.length,
       libraryRestored: libraryRestored,
-      skystreamReposRestored: skystreamReposRestored,
-      skystreamPluginsRestored: skystreamPluginsRestored,
+      zoroxReposRestored: zoroxReposRestored,
+      zoroxPluginsRestored: zoroxPluginsRestored,
       cloudstreamReposRestored: cloudstreamReposRestored,
       cloudstreamPluginsRestored: cloudstreamPluginsRestored,
       errors: errors,
     );
   }
 
-  static ExtensionPlugin? _findSkyStreamPlugin(
+  static ExtensionPlugin? _findZoroXPlugin(
     ExtensionsState extensionsState,
     String packageName,
   ) {

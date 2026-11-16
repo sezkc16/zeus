@@ -7,8 +7,8 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/presentation/mpv/mpv_pip_quality.dart';
-import 'package:skystream/features/player/presentation/mpv/mpv_thermal_quality.dart';
+import 'package:zorox/features/player/presentation/mpv/mpv_pip_quality.dart';
+import 'package:zorox/features/player/presentation/mpv/mpv_thermal_quality.dart';
 
 void main() {
   group('pipQualityDropTarget', () {

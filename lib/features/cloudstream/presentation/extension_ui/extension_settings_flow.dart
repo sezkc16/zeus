@@ -17,7 +17,7 @@ import 'extension_sheet.dart';
 /// (a double tap) opens nothing more.
 final _showing = Expando<Set<String>>();
 
-/// Opens [plugin]'s own settings screen in SkyStream's sheet. Once it closes, the extension reloads, so
+/// Opens [plugin]'s own settings screen in ZoroX's sheet. Once it closes, the extension reloads, so
 /// its changes apply, if the person changed anything there or it asked to restart the app.
 Future<void> openExtensionSettings(
   BuildContext context,
@@ -114,7 +114,7 @@ Future<void> _openExtensionSettings(
   }
 }
 
-/// Opens [plugin]'s kept pop-ups (its Support button) in SkyStream's sheet, live: their buttons work, and
+/// Opens [plugin]'s kept pop-ups (its Support button) in ZoroX's sheet, live: their buttons work, and
 /// closing one dismisses it. Nothing reloads after: they're the extension's messages, not its settings.
 Future<void> openExtensionPopups(
   BuildContext context,
@@ -163,7 +163,7 @@ Future<void> openExtensionPopups(
   }
 }
 
-/// Shows [session] until the engine ends it: in SkyStream's sheet, or full screen while its windows ask for it (Phase
+/// Shows [session] until the engine ends it: in ZoroX's sheet, or full screen while its windows ask for it (Phase
 /// 7c's §2), moving between the two as its windows change. Returns early when the app navigated away from under it:
 /// the caller then ends the screen.
 Future<void> showExtensionScreen(
@@ -201,7 +201,7 @@ Future<void> showExtensionScreen(
   }
 }
 
-/// Shows [session] in SkyStream's sheet or full screen, titled [name], until the engine ends it: a screen with nothing
+/// Shows [session] in ZoroX's sheet or full screen, titled [name], until the engine ends it: a screen with nothing
 /// to apply after (kept pop-ups, or a window the person waits on).
 Future<void> showExtensionWindows(
   BuildContext context, {

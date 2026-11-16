@@ -107,7 +107,7 @@ class ExtensionPageView extends StatelessWidget {
     final browser = page.browser.challenge;
     if (nativeWindow ??
         (defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux)) {
-      // SkyStream's dialog for a page (Phase 7c's §8) shows in Flutter's view, which a page that is a window of its
+      // ZoroX's dialog for a page (Phase 7c's §8) shows in Flutter's view, which a page that is a window of its
       // own would cover: every page steps aside while one shows.
       if (pages.showsDialog) {
         return ColoredBox(color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const SizedBox.expand());

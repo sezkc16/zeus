@@ -6,7 +6,7 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/presentation/mpv/mpv_ios_options.dart';
+import 'package:zorox/features/player/presentation/mpv/mpv_ios_options.dart';
 
 void main() {
   group('hwdecSessionLost', () {

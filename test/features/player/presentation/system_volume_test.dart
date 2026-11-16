@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/presentation/system_volume.dart';
+import 'package:zorox/features/player/presentation/system_volume.dart';
 
 /// The player's system volume, through the player's own plugin on Android and
 /// iOS.

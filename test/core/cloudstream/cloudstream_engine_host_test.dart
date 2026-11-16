@@ -6,8 +6,8 @@ import 'dart:async';
 import 'package:cs3_engine/cs3_engine.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/cloudstream/cloudstream_engine.dart';
-import 'package:skystream/core/cloudstream/extension_ui/extension_pages.dart';
+import 'package:zorox/core/cloudstream/cloudstream_engine.dart';
+import 'package:zorox/core/cloudstream/extension_ui/extension_pages.dart';
 
 import 'extension_ui/fake_page_browser.dart';
 
@@ -240,7 +240,7 @@ void main() {
     expect(engine.registered, isTrue);
   });
 
-  test('extension screens show on every platform SkyStream runs on', () {
+  test('extension screens show on every platform ZoroX runs on', () {
     for (final platform in TargetPlatform.values) {
       debugDefaultTargetPlatformOverride = platform;
       try {

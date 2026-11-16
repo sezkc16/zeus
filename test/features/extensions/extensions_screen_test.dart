@@ -4,16 +4,16 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/shared/focus/app_focus.dart';
+import 'package:zorox/shared/focus/app_focus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:skystream/features/extensions/screens/extensions_screen.dart';
-import 'package:skystream/features/extensions/providers/extensions_controller.dart';
-import 'package:skystream/core/extensions/extension_manager.dart';
-import 'package:skystream/core/extensions/models/extension_plugin.dart';
-import 'package:skystream/core/extensions/models/extension_repository.dart';
-import 'package:skystream/core/extensions/base_provider.dart';
-import 'package:skystream/shared/widgets/cards_wrapper.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/features/extensions/screens/extensions_screen.dart';
+import 'package:zorox/features/extensions/providers/extensions_controller.dart';
+import 'package:zorox/core/extensions/extension_manager.dart';
+import 'package:zorox/core/extensions/models/extension_plugin.dart';
+import 'package:zorox/core/extensions/models/extension_repository.dart';
+import 'package:zorox/core/extensions/base_provider.dart';
+import 'package:zorox/shared/widgets/cards_wrapper.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 class MockExtensionsController extends ExtensionsController {
   final ExtensionsState initialState;

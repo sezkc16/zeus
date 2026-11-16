@@ -1,10 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/extensions/base_provider.dart';
-import 'package:skystream/core/extensions/extension_manager.dart';
-import 'package:skystream/features/search/presentation/search_provider.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/extensions/base_provider.dart';
+import 'package:zorox/core/extensions/extension_manager.dart';
+import 'package:zorox/features/search/presentation/search_provider.dart';
 
 /// An extension that answers every search with [titles], in their order.
 class _Plugin extends SkyStreamProvider {

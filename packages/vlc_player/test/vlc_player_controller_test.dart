@@ -1587,7 +1587,7 @@ void main() {
     });
 
     test('a stop before attach keeps the queued media from starting', () async {
-      // SkyStream's failed screen stops media still waiting for a native
+      // ZoroX's failed screen stops media still waiting for a native
       // player, so one that comes late plays nothing behind it.
       final controller = VlcPlayerController(
         mediaSource: VlcMediaSource(

@@ -1,13 +1,13 @@
-/// The patterns that draw extension screens as SkyStream's: a checkbox and its label as one row, a
+/// The patterns that draw extension screens as ZoroX's: a checkbox and its label as one row, a
 /// tappable card as a list tile, a label above a field as the field's label, rows of buttons.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/cloudstream/extension_ui/extension_ui_session.dart';
-import 'package:skystream/core/cloudstream/extension_ui/ui_tree.dart';
-import 'package:skystream/features/cloudstream/presentation/extension_ui/ui_node_view.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/cloudstream/extension_ui/extension_ui_session.dart';
+import 'package:zorox/core/cloudstream/extension_ui/ui_tree.dart';
+import 'package:zorox/features/cloudstream/presentation/extension_ui/ui_node_view.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 class _Api implements ExtensionUiApi {
   final sent = <String>[];

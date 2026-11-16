@@ -6,11 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/shared/focus/app_focus.dart';
-import 'package:skystream/core/nuvio/data/nuvio_repository.dart';
-import 'package:skystream/core/nuvio/models/nuvio_models.dart';
-import 'package:skystream/features/nuvio/presentation/nuvio_plugins_view.dart';
-import 'package:skystream/shared/widgets/cards_wrapper.dart';
+import 'package:zorox/shared/focus/app_focus.dart';
+import 'package:zorox/core/nuvio/data/nuvio_repository.dart';
+import 'package:zorox/core/nuvio/models/nuvio_models.dart';
+import 'package:zorox/features/nuvio/presentation/nuvio_plugins_view.dart';
+import 'package:zorox/shared/widgets/cards_wrapper.dart';
 
 /// The two decoration layers a focused scraper row is supposed to draw around
 /// itself: the accent glow (a BoxShadow painted behind it) and the accent ring

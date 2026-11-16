@@ -4,19 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:go_router/go_router.dart';
-import 'package:skystream/features/home/presentation/home_screen.dart';
-import 'package:skystream/features/search/presentation/search_screen.dart';
-import 'package:skystream/features/library/presentation/library_screen.dart';
-import 'package:skystream/features/addons/presentation/addons_screen.dart';
-import 'package:skystream/features/addons/presentation/addon_detail_screen.dart';
-import 'package:skystream/features/addons/presentation/addon_catalog_screen.dart';
-import 'package:skystream/features/settings/presentation/settings_screen.dart';
+import 'package:zorox/features/home/presentation/home_screen.dart';
+import 'package:zorox/features/search/presentation/search_screen.dart';
+import 'package:zorox/features/library/presentation/library_screen.dart';
+import 'package:zorox/features/addons/presentation/addons_screen.dart';
+import 'package:zorox/features/addons/presentation/addon_detail_screen.dart';
+import 'package:zorox/features/addons/presentation/addon_catalog_screen.dart';
+import 'package:zorox/features/settings/presentation/settings_screen.dart';
 // The player route reads the Player Engine setting once when the player
 // opens and shows the matching screen: MpvPlayerScreen (the Golden player)
 // for libmpv, VlcPlayerScreen for libVLC. See _PlayerEngineScreen below.
-import 'package:skystream/features/player/presentation/vlc/vlc_player_screen.dart';
-import 'package:skystream/features/player/presentation/mpv/mpv_player_screen.dart';
-import 'package:skystream/features/settings/presentation/player_settings_provider.dart';
+import 'package:zorox/features/player/presentation/vlc/vlc_player_screen.dart';
+import 'package:zorox/features/player/presentation/mpv/mpv_player_screen.dart';
+import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
 import '../../features/extensions/screens/extensions_screen.dart';
 import '../../features/nuvio/presentation/nuvio_plugins_screen.dart';
 import '../../features/cloudstream/presentation/cloudstream_screen.dart';
@@ -28,7 +28,7 @@ import '../../features/browse/presentation/browse_screen.dart';
 import '../../features/details/presentation/tmdb_movie_details_screen.dart';
 import '../../features/explore/presentation/view_all_screen.dart';
 import '../domain/entity/multimedia_item.dart';
-import 'package:skystream/shared/widgets/app_scaffold.dart';
+import 'package:zorox/shared/widgets/app_scaffold.dart';
 import '../../core/storage/settings_repository.dart';
 import 'route_transitions.dart';
 import 'package:talker_flutter/talker_flutter.dart';

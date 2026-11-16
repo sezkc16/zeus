@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/addons/models/addon_meta.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/addons/models/addon_meta.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
 
 /// A meta payload is only ever as well-typed as the add-on that served it, and
 /// the meta fetch loop in `addon_providers.dart` answers a [TypeError] by

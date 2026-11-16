@@ -2,9 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/theme/app_theme.dart';
-import 'package:skystream/features/player/presentation/widgets/player_control_components.dart';
-import 'package:skystream/features/player/presentation/widgets/player_matte_pill.dart';
+import 'package:zorox/core/theme/app_theme.dart';
+import 'package:zorox/features/player/presentation/widgets/player_control_components.dart';
+import 'package:zorox/features/player/presentation/widgets/player_matte_pill.dart';
 
 /// A button in the bar's pill shows focus the way it does anywhere else: a
 /// wash behind it, and on a television a ring - never as the accent colour

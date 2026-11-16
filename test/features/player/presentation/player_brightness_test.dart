@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/presentation/player_brightness.dart';
+import 'package:zorox/features/player/presentation/player_brightness.dart';
 
 /// The player's screen brightness, through the player's own plugin.
 ///

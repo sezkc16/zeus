@@ -1,12 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/addons/data/addon_client.dart';
-import 'package:skystream/core/addons/data/builtin_addons.dart';
-import 'package:skystream/core/addons/models/addon_manifest.dart';
-import 'package:skystream/core/addons/models/addon_meta.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/services/tmdb_service.dart';
-import 'package:skystream/features/search/presentation/search_sources.dart';
+import 'package:zorox/core/addons/data/addon_client.dart';
+import 'package:zorox/core/addons/data/builtin_addons.dart';
+import 'package:zorox/core/addons/models/addon_manifest.dart';
+import 'package:zorox/core/addons/models/addon_meta.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/services/tmdb_service.dart';
+import 'package:zorox/features/search/presentation/search_sources.dart';
 
 /// An add-on client whose catalogs answer from [answers], by `type/id`; a
 /// catalog with no answer fails.

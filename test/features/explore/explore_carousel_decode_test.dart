@@ -4,8 +4,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/features/explore/presentation/widgets/explore_carousel.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/features/explore/presentation/widgets/explore_carousel.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 /// A 1080p television: 960x540 logical at a raster scale of 2. TMDB hands this

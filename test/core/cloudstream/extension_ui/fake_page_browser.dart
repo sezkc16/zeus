@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:challenge_browser/challenge_browser.dart';
-import 'package:skystream/core/cloudstream/extension_ui/extension_pages.dart';
+import 'package:zorox/core/cloudstream/extension_ui/extension_pages.dart';
 
 /// A page that loads nothing: it records what it was asked, and its events are the test's.
 class FakePageBrowser implements ExtensionPageBrowser {

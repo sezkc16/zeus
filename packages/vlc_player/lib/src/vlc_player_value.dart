@@ -230,7 +230,7 @@ class VlcPlayerValue {
   /// asked to start at a position, that picture is the one at 0, decoded
   /// before the start is sought, so a reopen at a position would show the
   /// film's opening for as long as the seek takes: seconds on a slow link
-  /// (SkyStream's reopen spike, 2026-10-14). The native output holds instead.
+  /// (ZoroX's reopen spike, 2026-10-14). The native output holds instead.
   ///
   /// Every backend that can hold reports the same decision (FORK.md 30). A
   /// hold starts only at a media given `keepPicture`, when there is a picture

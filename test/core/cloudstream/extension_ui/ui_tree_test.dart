@@ -2,7 +2,7 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/cloudstream/extension_ui/ui_tree.dart';
+import 'package:zorox/core/cloudstream/extension_ui/ui_tree.dart';
 
 void main() {
   test('a window and its nodes read as the engine sends them', () {

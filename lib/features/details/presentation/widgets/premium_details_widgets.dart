@@ -2,15 +2,15 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:skystream/core/cloudstream/cloudstream_provider.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/utils/image_fallbacks.dart';
-import 'package:skystream/shared/widgets/cards_wrapper.dart';
-import 'package:skystream/shared/widgets/shimmer_placeholder.dart';
+import 'package:zorox/core/cloudstream/cloudstream_provider.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/utils/image_fallbacks.dart';
+import 'package:zorox/shared/widgets/cards_wrapper.dart';
+import 'package:zorox/shared/widgets/shimmer_placeholder.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:skystream/shared/widgets/thumbnail_error_placeholder.dart';
-import 'package:skystream/core/utils/responsive_breakpoints.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/shared/widgets/thumbnail_error_placeholder.dart';
+import 'package:zorox/core/utils/responsive_breakpoints.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'details_layout_widgets.dart';

@@ -5,18 +5,18 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart' hide Step;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/extensions/base_provider.dart';
-import 'package:skystream/core/extensions/extension_manager.dart';
-import 'package:skystream/core/network/clearance/clearance.dart';
-import 'package:skystream/core/network/clearance/clearance_solver.dart';
-import 'package:skystream/core/network/clearance/clearance_store.dart';
-import 'package:skystream/core/network/clearance/site_checks.dart';
-import 'package:skystream/core/network/clearance/site_keys.dart';
-import 'package:skystream/features/home/presentation/home_provider.dart';
-import 'package:skystream/features/home/presentation/home_state.dart';
-import 'package:skystream/features/home/presentation/widgets/home_check_card.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/extensions/base_provider.dart';
+import 'package:zorox/core/extensions/extension_manager.dart';
+import 'package:zorox/core/network/clearance/clearance.dart';
+import 'package:zorox/core/network/clearance/clearance_solver.dart';
+import 'package:zorox/core/network/clearance/clearance_store.dart';
+import 'package:zorox/core/network/clearance/site_checks.dart';
+import 'package:zorox/core/network/clearance/site_keys.dart';
+import 'package:zorox/features/home/presentation/home_provider.dart';
+import 'package:zorox/features/home/presentation/home_state.dart';
+import 'package:zorox/features/home/presentation/widgets/home_check_card.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import '../../core/network/clearance/fakes.dart';
 
@@ -184,7 +184,7 @@ void main() {
   });
 
   testWidgets(
-    'an outdated browser, a site that refuses SkyStream, and one that keeps '
+    'an outdated browser, a site that refuses ZoroX, and one that keeps '
     'asking each say so; only the last offers Verify',
     (tester) async {
       await pumpGate(tester, provider: _plugin('a'), onRetry: () {});
@@ -203,7 +203,7 @@ void main() {
       await tester.pump();
       expect(
         find.text(
-          'The check passed, but this site still refuses SkyStream. Trying '
+          'The check passed, but this site still refuses ZoroX. Trying '
           'again in a few minutes.',
         ),
         findsOneWidget,

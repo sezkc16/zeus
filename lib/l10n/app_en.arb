@@ -73,8 +73,8 @@
   "about": "About",
   "version": "Version",
   "openSourceLicences": "Open-source licences",
-  "openSourceLicencesSubtitle": "SkyStream is free software under the GNU GPL v3",
-  "appLegalese": "Copyright © 2025–2026 SkyStream contributors.\nSkyStream is free software: you can redistribute it and modify it under the terms of the GNU General Public License, version 3. It comes with ABSOLUTELY NO WARRANTY. Its source code is at github.com/akashdh11/skystream.",
+  "openSourceLicencesSubtitle": "ZoroX is free software under the GNU GPL v3",
+  "appLegalese": "Copyright © 2025–2026 ZoroX contributors.\nZoroX is free software: you can redistribute it and modify it under the terms of the GNU General Public License, version 3. It comes with ABSOLUTELY NO WARRANTY. Its source code is at github.com/sezkc16/zorox.",
   "@appLegalese": {
     "description": "The GPL notice on the licence page: copyright, the licence, no warranty, where the source is."
   },
@@ -1442,7 +1442,7 @@
   },
   "nuvioPlugins": "Nuvio plugins",
   "@nuvioPlugins": {
-    "description": "Title of the Nuvio source card on a TMDB details screen. Sits beside the 'Available sources' card, which is the SkyStream plugin system; the two are peers. 'Nuvio' is the name of the third-party scraper project and is never translated."
+    "description": "Title of the Nuvio source card on a TMDB details screen. Sits beside the 'Available sources' card, which is the ZoroX plugin system; the two are peers. 'Nuvio' is the name of the third-party scraper project and is never translated."
   },
   "nuvioSearchForStreams": "Search for streams",
   "@nuvioSearchForStreams": {
@@ -1514,11 +1514,11 @@
   },
   "cloudStream": "CloudStream",
   "@cloudStream": {
-    "description": "Name of CloudStream, the app whose extensions SkyStream runs; a proper noun, never translated. Shown on the CloudStream screen and on badges marking its providers."
+    "description": "Name of CloudStream, the app whose extensions ZoroX runs; a proper noun, never translated. Shown on the CloudStream screen and on badges marking its providers."
   },
-  "searchTagSkyStream": "SkyStream",
+  "searchTagSkyStream": "ZoroX",
   "@searchTagSkyStream": {
-    "description": "Search: tag on a section of SkyStream extensions' results; the app's name, never translated."
+    "description": "Search: tag on a section of ZoroX extensions' results; the app's name, never translated."
   },
   "searchTagStremio": "Stremio",
   "@searchTagStremio": {
@@ -1799,8 +1799,8 @@
   "@checkStateOutdated": {"description": "A site's row: Android System WebView is too old for its check; nothing is tried until it's updated."},
   "checkStateTooOld": "This device's browser is too old for this site's check",
   "@checkStateTooOld": {"description": "A site's row: Android System WebView is too old for its check, and this Android version can't update it."},
-  "checkStateIneffective": "The check passed, but this site still refuses SkyStream. Trying again in a few minutes.",
-  "@checkStateIneffective": {"description": "A site's row: its check passed, but the site still refuses requests; SkyStream waits before trying again."},
+  "checkStateIneffective": "The check passed, but this site still refuses ZoroX. Trying again in a few minutes.",
+  "@checkStateIneffective": {"description": "A site's row: its check passed, but the site still refuses requests; ZoroX waits before trying again."},
   "checkStateKeepsAsking": "This site keeps asking. Try later, or without a VPN.",
   "@checkStateKeepsAsking": {"description": "A site's row: its check came back after every clearance, even after a fresh start."},
   "checkUpdateWebView": "Update",
@@ -1817,8 +1817,8 @@
   "@checkLineChecking": {"description": "Under a spinner: the one site the screen waits on is being checked automatically.", "placeholders": {"site": {"type": "String"}, "seconds": {"type": "int"}}},
   "checkLineNeedsYou": "{site} needs a quick check",
   "@checkLineNeedsYou": {"description": "Home, or under a spinner: the one site the screen waits on needs a person.", "placeholders": {"site": {"type": "String"}}},
-  "extensionSheetCantShow": "This part can't be shown in SkyStream yet.",
-  "@extensionSheetCantShow": {"description": "In an extension's settings sheet, in place of a part SkyStream can't draw yet (a web page)."},
+  "extensionSheetCantShow": "This part can't be shown in ZoroX yet.",
+  "@extensionSheetCantShow": {"description": "In an extension's settings sheet, in place of a part ZoroX can't draw yet (a web page)."},
   "extensionSheetClose": "Close",
   "@extensionSheetClose": {"description": "Closes the top window of an extension's settings sheet."},
   "extensionSheetForceClose": "Force close",

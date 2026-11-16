@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/domain/qoe_log.dart';
+import 'package:zorox/features/player/domain/qoe_log.dart';
 
 void main() {
   late int now;

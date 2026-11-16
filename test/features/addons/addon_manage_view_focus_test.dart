@@ -3,14 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:skystream/core/addons/data/addon_client.dart';
-import 'package:skystream/core/addons/data/addon_repository.dart';
-import 'package:skystream/core/addons/data/debrid_service.dart';
-import 'package:skystream/core/addons/models/addon_manifest.dart';
-import 'package:skystream/features/addons/presentation/addon_providers.dart';
-import 'package:skystream/features/addons/presentation/addons_screen.dart';
-import 'package:skystream/features/addons/presentation/widgets/addon_manage_view.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/addons/data/addon_client.dart';
+import 'package:zorox/core/addons/data/addon_repository.dart';
+import 'package:zorox/core/addons/data/debrid_service.dart';
+import 'package:zorox/core/addons/models/addon_manifest.dart';
+import 'package:zorox/features/addons/presentation/addon_providers.dart';
+import 'package:zorox/features/addons/presentation/addons_screen.dart';
+import 'package:zorox/features/addons/presentation/widgets/addon_manage_view.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 /// Two installed add-ons: enough for the list to offer its search field.
 class _Repo extends AddonRepository {

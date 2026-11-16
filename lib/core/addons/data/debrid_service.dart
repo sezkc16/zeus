@@ -9,7 +9,7 @@ import '../../storage/secure_token_storage.dart';
 
 part 'debrid_service.g.dart';
 
-/// Debrid providers SkyStream can unrestrict torrents through.
+/// Debrid providers ZoroX can unrestrict torrents through.
 enum DebridProvider {
   none('None', ''),
   realDebrid('Real-Debrid', 'real-debrid'),

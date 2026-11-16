@@ -1,4 +1,4 @@
-/// Each kind of node an extension's window holds, drawn with SkyStream's widgets, sending what the
+/// Each kind of node an extension's window holds, drawn with ZoroX's widgets, sending what the
 /// person does to the extension.
 library;
 
@@ -6,10 +6,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/cloudstream/extension_ui/extension_ui_session.dart';
-import 'package:skystream/core/cloudstream/extension_ui/ui_tree.dart';
-import 'package:skystream/features/cloudstream/presentation/extension_ui/ui_node_view.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/cloudstream/extension_ui/extension_ui_session.dart';
+import 'package:zorox/core/cloudstream/extension_ui/ui_tree.dart';
+import 'package:zorox/features/cloudstream/presentation/extension_ui/ui_node_view.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 class _Api implements ExtensionUiApi {
   final sent = <String>[];
@@ -236,7 +236,7 @@ void main() {
         'id': 1,
         'kind': 'row',
         'children': [
-          {'id': 2, 'kind': 'text', 'text': 'SkyStream test settings', 'heading': true, 'weight': 1},
+          {'id': 2, 'kind': 'text', 'text': 'ZoroX test settings', 'heading': true, 'weight': 1},
           {'id': 3, 'kind': 'iconButton', 'label': 'Close', 'tappable': true},
         ],
       }),

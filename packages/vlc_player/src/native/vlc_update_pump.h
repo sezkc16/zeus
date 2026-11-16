@@ -18,7 +18,7 @@ namespace vlc_player {
 // It replaced a thread that slept 500 ms between snapshots. libVLC's HLS time
 // moves in steps of about a second, so a 500 ms poll saw a step up to half a
 // second late, and the controller's one-second stall clock went off for a few
-// milliseconds at segment boundaries (SkyStream's QoE suite on Windows,
+// milliseconds at segment boundaries (ZoroX's QoE suite on Windows,
 // 2026-10-13).
 class VlcUpdatePump {
  public:

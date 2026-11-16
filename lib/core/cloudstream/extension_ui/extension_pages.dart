@@ -130,7 +130,7 @@ class ExtensionPage {
 
   Completer<Map<String, dynamic>?> _answer(String id) => _answers.putIfAbsent(id, Completer.new);
 
-  /// Completes when it goes: SkyStream's dialog for it closes then.
+  /// Completes when it goes: ZoroX's dialog for it closes then.
   final Completer<void> _gone = Completer<void>();
 
   /// Its own dialogs being answered now (the extension's chrome client's, or the person's).
@@ -174,13 +174,13 @@ class ExtensionPages extends ChangeNotifier {
   Stream<int> get backs => _backs.stream;
 
   /// Shows a page's own dialog when its extension's chrome client leaves it to the app (Phase 7c's §8). The app sets it
-  /// (SkyStream's dialog over whatever shows), and the dialog closes itself when its page goes ([gone]). With none, the
+  /// (ZoroX's dialog over whatever shows), and the dialog closes itself when its page goes ([gone]). With none, the
   /// dialog gets the cancel answer.
   Future<({bool accept, String? text})> Function(PageDialog dialog, Future<void> gone)? dialogs;
 
   int _showing = 0;
 
-  /// Whether SkyStream shows a page's dialog now: a page that is a window of its own (Windows, Linux) steps aside
+  /// Whether ZoroX shows a page's dialog now: a page that is a window of its own (Windows, Linux) steps aside
   /// meanwhile, or it would cover the dialog.
   bool get showsDialog => _showing > 0;
 
@@ -371,7 +371,7 @@ class ExtensionPages extends ChangeNotifier {
     await page.browser.dispose();
   }
 
-  /// [page]'s calls' prompts stop waiting (they answer undefined), and SkyStream's dialog for it closes: it's going.
+  /// [page]'s calls' prompts stop waiting (they answer undefined), and ZoroX's dialog for it closes: it's going.
   static void _letGo(ExtensionPage page) {
     for (final answer in page._answers.values) {
       if (!answer.isCompleted) answer.complete(null);
@@ -508,7 +508,7 @@ class ExtensionPages extends ChangeNotifier {
     }
   }
 
-  /// SkyStream's dialog for [dialog] ([dialogs]): pages that are windows of their own step aside while it shows.
+  /// ZoroX's dialog for [dialog] ([dialogs]): pages that are windows of their own step aside while it shows.
   /// Cancel when nothing can show it, or its page went.
   Future<({bool accept, String? text})> _show(ExtensionPage page, PageDialog dialog) async {
     final show = dialogs;

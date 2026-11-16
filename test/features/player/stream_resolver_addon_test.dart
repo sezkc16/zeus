@@ -8,19 +8,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart'
     show ProviderListenable;
-import 'package:skystream/core/addons/data/addon_playback_launcher.dart';
-import 'package:skystream/core/addons/data/addon_repository.dart';
-import 'package:skystream/core/addons/data/addon_stream_service.dart';
-import 'package:skystream/core/addons/models/addon_manifest.dart';
-import 'package:skystream/core/addons/models/addon_meta.dart';
-import 'package:skystream/core/addons/models/addon_stream_source.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/extensions/base_provider.dart';
-import 'package:skystream/core/extensions/extension_manager.dart';
-import 'package:skystream/features/library/presentation/history_provider.dart';
-import 'package:skystream/features/player/domain/episode_navigator.dart';
-import 'package:skystream/features/player/domain/stream_resolver.dart';
-import 'package:skystream/features/settings/presentation/player_settings_provider.dart';
+import 'package:zorox/core/addons/data/addon_playback_launcher.dart';
+import 'package:zorox/core/addons/data/addon_repository.dart';
+import 'package:zorox/core/addons/data/addon_stream_service.dart';
+import 'package:zorox/core/addons/models/addon_manifest.dart';
+import 'package:zorox/core/addons/models/addon_meta.dart';
+import 'package:zorox/core/addons/models/addon_stream_source.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/extensions/base_provider.dart';
+import 'package:zorox/core/extensions/extension_manager.dart';
+import 'package:zorox/features/library/presentation/history_provider.dart';
+import 'package:zorox/features/player/domain/episode_navigator.dart';
+import 'package:zorox/features/player/domain/stream_resolver.dart';
+import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
 
 const _bridgeUrl = 'https://bridge.test/u/a/manifest.json';
 

@@ -1,8 +1,8 @@
 import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/domain/recovery_policy.dart';
-import 'package:skystream/features/player/domain/source_check.dart';
-import 'package:skystream/features/player/domain/stream_resolver.dart'
+import 'package:zorox/features/player/domain/recovery_policy.dart';
+import 'package:zorox/features/player/domain/source_check.dart';
+import 'package:zorox/features/player/domain/stream_resolver.dart'
     show ProbeOutcome;
 
 /// The time every policy in this file reads. Moved by hand: a jump is one

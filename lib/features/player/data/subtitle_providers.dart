@@ -51,7 +51,7 @@ class OpenSubtitlesProvider extends SubtitleProvider {
   static const String buildTimeApiKey = String.fromEnvironment(
     'OPENSUBTITLES_API_KEY',
   );
-  static const String _userAgent = "SkyStream v2.2.1";
+  static const String _userAgent = "ZoroX v2.2.1";
 
   // Auth state
   final String? _username;
@@ -666,7 +666,7 @@ class SubSourceProvider extends SubtitleProvider {
   static const String baseUrlV1 = "https://api.subsource.net/api/v1";
 
   /// The API subsource.net's own pages use, which needs no key. The keyless
-  /// endpoints SkyStream used before (`/api/searchMovie` and the rest) answer
+  /// endpoints ZoroX used before (`/api/searchMovie` and the rest) answer
   /// 404 since 2026.
   static const String baseUrlSite = "https://api.subsource.net/v1";
 

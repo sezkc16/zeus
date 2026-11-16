@@ -7,11 +7,11 @@ import 'dart:async';
 import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/core/extensions/base_provider.dart';
-import 'package:skystream/core/extensions/extension_manager.dart';
-import 'package:skystream/features/player/presentation/vlc/vlc_player_screen.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/extensions/base_provider.dart';
+import 'package:zorox/core/extensions/extension_manager.dart';
+import 'package:zorox/features/player/presentation/vlc/vlc_player_screen.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import 'vlc_screen_harness.dart';
 

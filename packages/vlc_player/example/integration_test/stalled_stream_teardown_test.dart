@@ -102,7 +102,7 @@ void main() {
     // it has (FORK.md 29). Leaving destroys that view, and libvlc-android's
     // listener turned the video off on the main thread, behind the input
     // lock the stop holds while the read hangs: 22 minutes after a network
-    // loss in SkyStream's offline row on Android (P1 Part 3). The stream shows
+    // loss in ZoroX's offline row on Android (P1 Part 3). The stream shows
     // a picture first: a view that never drew has no surface to lose.
     final server = await _StallingHlsServer.start(
       film: await _materializeFilm(),
@@ -185,7 +185,7 @@ Future<VlcPlayerController> _playStalledStream(
   final controller = VlcPlayerController(
     options: <String>[
       ...headlessPlayerOptions(),
-      // What SkyStream runs with: see VlcNetworkConfig in the app.
+      // What ZoroX runs with: see VlcNetworkConfig in the app.
       '--network-caching=3000',
       '--stream-filter=prefetch',
       '--prefetch-buffer-size=65536',

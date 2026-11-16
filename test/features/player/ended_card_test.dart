@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/presentation/vlc/ended_card.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/features/player/presentation/vlc/ended_card.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 /// The card on its own, with no engine anywhere near it - which is the point
 /// of it taking every value in. What the *screen* does with it (when it goes

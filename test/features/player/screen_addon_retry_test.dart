@@ -8,12 +8,12 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/addons/data/addon_repository.dart';
-import 'package:skystream/core/addons/data/addon_stream_service.dart';
-import 'package:skystream/core/addons/models/addon_meta.dart';
-import 'package:skystream/core/addons/models/addon_stream_source.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/addons/data/addon_repository.dart';
+import 'package:zorox/core/addons/data/addon_stream_service.dart';
+import 'package:zorox/core/addons/models/addon_meta.dart';
+import 'package:zorox/core/addons/models/addon_stream_source.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import '../addons/stremio_page_fakes.dart'
     show BridgeRepo, FakeStreamService, kBridgeUrl;

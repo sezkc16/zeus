@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:media_kit/media_kit.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/features/player/presentation/mpv/mpv_vlc_controller.dart';
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/features/player/presentation/mpv/mpv_vlc_controller.dart';
 
 /// The subtitle drawer listed the same track many times: mpv reports one
 /// subtitle content once per HLS rendition/variant, so "English - [auto]"

@@ -15,23 +15,23 @@ import '../../cloudstream/presentation/extension_ui/extension_settings_flow.dart
 
 /// The CloudStream part of the Plugins (Extensions) screen.
 ///
-/// SkyStream's own extension system and CloudStream are two separate stores,
-/// and the Extensions screen only reads the SkyStream one — so a CloudStream
+/// ZoroX's own extension system and CloudStream are two separate stores,
+/// and the Extensions screen only reads the ZoroX one — so a CloudStream
 /// repository seeded at launch never showed up here, and the screen looked
 /// empty on a fresh install. These widgets list the CloudStream repositories
-/// (and the installed CloudStream plugins) beside SkyStream's own, with
+/// (and the installed CloudStream plugins) beside ZoroX's own, with
 /// install / update / uninstall wired to [CloudStreamRepository].
 ///
 /// Both stores are shown under one "CloudStream" section here: the owner's
 /// repo (TojiX) is a CloudStream-format repository (repo.json), so it sits
 /// in this section under its manifest name, next to the official CloudStream
-/// providers repository. It used to be labelled "SkyStream" because the
+/// providers repository. It used to be labelled "ZoroX" because the
 /// label was computed from its URL — a CloudStream repo under the wrong
 /// section. The section has its own add row, which uses the CloudStream
 /// fetcher: a repo.json manifest (name + pluginLists, no id/packageName
 /// needed) or a bare plugin list lands here, and a repository that is
-/// already there is refreshed in place, not duplicated. SkyStream's own
-/// add row lives in the SkyStream section of the Repositories tab.
+/// already there is refreshed in place, not duplicated. ZoroX's own
+/// add row lives in the ZoroX section of the Repositories tab.
 ///
 /// The full CloudStream screen (Settings → CloudStream Extensions) still has
 /// the switch, the add-repository dialog and each plugin's settings / support
@@ -46,7 +46,7 @@ import '../../cloudstream/presentation/extension_ui/extension_settings_flow.dart
 class CloudStreamRepositoriesSection extends ConsumerWidget {
   const CloudStreamRepositoriesSection({super.key});
 
-  /// This section's add flow: the CloudStream fetcher, not SkyStream's.
+  /// This section's add flow: the CloudStream fetcher, not ZoroX's.
   /// A repo.json manifest (name + pluginLists, no id/packageName needed)
   /// or a bare plugin list lands here. A repository that is already there
   /// is refreshed in place instead of a duplicate card.
@@ -150,7 +150,7 @@ class CloudStreamRepositoriesSection extends ConsumerWidget {
             ),
           ),
         // This section's own add row: a CloudStream-format repository
-        // lands here, not under SkyStream.
+        // lands here, not under ZoroX.
         Card(
           margin: const EdgeInsets.symmetric(
             horizontal: LayoutConstants.spacingMd,
@@ -216,7 +216,7 @@ class RepositoryGroupHeader extends StatelessWidget {
 
 /// The installed CloudStream plugins, for the Installed tab, under the one
 /// "CloudStream" group — including the ones from the owner's TojiX repo,
-/// which used to be grouped under "SkyStream". Nothing when there are none.
+/// which used to be grouped under "ZoroX". Nothing when there are none.
 class CloudStreamInstalledSection extends ConsumerWidget {
   const CloudStreamInstalledSection({super.key});
 

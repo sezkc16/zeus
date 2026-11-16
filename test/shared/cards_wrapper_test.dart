@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/shared/focus/app_focus.dart';
-import 'package:skystream/shared/widgets/cards_wrapper.dart';
-import 'package:skystream/shared/widgets/focusable_item.dart';
+import 'package:zorox/shared/focus/app_focus.dart';
+import 'package:zorox/shared/widgets/cards_wrapper.dart';
+import 'package:zorox/shared/widgets/focusable_item.dart';
 
 /// A deliberately loud accent so a colour assertion cannot pass by accident.
 ///

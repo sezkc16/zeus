@@ -1,4 +1,4 @@
-// A plugin's `quality` reaches SkyStream: from a `new StreamResult(...)`,
+// A plugin's `quality` reaches ZoroX: from a `new StreamResult(...)`,
 // which the engine's class used to drop, and from an extractor link passed
 // on as it is - CloudStream's Unknown (400) included, which is no quality.
 //
@@ -11,13 +11,13 @@ import 'dart:isolate';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/extensions/engine/js_bytecode_compiler.dart';
-import 'package:skystream/core/extensions/engine/js_engine.dart';
-import 'package:skystream/core/extensions/engine/js_engine_worker.dart';
-import 'package:skystream/core/extensions/providers/js_based_provider.dart';
-import 'package:skystream/core/services/local_proxy_service.dart';
-import 'package:skystream/core/storage/extension_repository.dart';
-import 'package:skystream/core/storage/storage_service.dart';
+import 'package:zorox/core/extensions/engine/js_bytecode_compiler.dart';
+import 'package:zorox/core/extensions/engine/js_engine.dart';
+import 'package:zorox/core/extensions/engine/js_engine_worker.dart';
+import 'package:zorox/core/extensions/providers/js_based_provider.dart';
+import 'package:zorox/core/services/local_proxy_service.dart';
+import 'package:zorox/core/storage/extension_repository.dart';
+import 'package:zorox/core/storage/storage_service.dart';
 
 class _MemoryExtensionRepository extends ExtensionRepository {
   _MemoryExtensionRepository() : super(StorageService());
@@ -74,7 +74,7 @@ void main() {
   });
 
   test(
-    "a plugin's quality reaches SkyStream, whichever way it is written",
+    "a plugin's quality reaches ZoroX, whichever way it is written",
     () async {
       final raw = jsonEncode([
         {

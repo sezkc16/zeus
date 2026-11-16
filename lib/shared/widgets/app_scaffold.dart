@@ -5,14 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:skystream/core/providers/device_info_provider.dart';
-import 'package:skystream/core/utils/boot_trace.dart';
-import 'package:skystream/core/utils/layout_constants.dart';
-import 'package:skystream/core/utils/responsive_breakpoints.dart';
-import 'package:skystream/shared/widgets/custom_bottom_nav.dart';
-import 'package:skystream/shared/widgets/app_sidebar.dart';
+import 'package:zorox/core/providers/device_info_provider.dart';
+import 'package:zorox/core/utils/boot_trace.dart';
+import 'package:zorox/core/utils/layout_constants.dart';
+import 'package:zorox/core/utils/responsive_breakpoints.dart';
+import 'package:zorox/shared/widgets/custom_bottom_nav.dart';
+import 'package:zorox/shared/widgets/app_sidebar.dart';
 
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 import '../../features/settings/presentation/general_settings_provider.dart';
 import 'loading_indicator.dart';
 

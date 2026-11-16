@@ -4,8 +4,8 @@ import 'package:challenge_browser/challenge_browser.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/cloudstream/presentation/extension_ui/extension_page_dialog.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/features/cloudstream/presentation/extension_ui/extension_page_dialog.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 void main() {
   /// An app whose one button shows [dialog]; its answer lands in the returned list.

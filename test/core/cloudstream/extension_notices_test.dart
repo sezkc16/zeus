@@ -3,9 +3,9 @@ library;
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/cloudstream/extension_notices.dart';
-import 'package:skystream/core/services/notification_service.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/cloudstream/extension_notices.dart';
+import 'package:zorox/core/services/notification_service.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 void main() {
   // The service's toasts and snackbars reach the app through the widget binding.

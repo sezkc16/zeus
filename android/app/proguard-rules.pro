@@ -1,4 +1,4 @@
-# SkyStream release ProGuard / R8 rules.
+# ZoroX release ProGuard / R8 rules.
 #
 # Flutter already ships a baseline rules file (`flutter.txt`) applied
 # automatically by the Flutter Gradle plugin. The rules below cover the
@@ -54,7 +54,7 @@
 
 # ─────────────────────────────────────────────────────────────────────────
 # Hive — reflection on TypeAdapter subclasses (only matters if we register
-# custom adapters; SkyStream uses dynamic boxes, but kept defensively).
+# custom adapters; ZoroX uses dynamic boxes, but kept defensively).
 # ─────────────────────────────────────────────────────────────────────────
 -keep class * extends hive.HiveObject { *; }
 -keepclassmembers class * extends hive.TypeAdapter {

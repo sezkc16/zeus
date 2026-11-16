@@ -10,12 +10,12 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/cloudstream/extension_ui/extension_pages.dart';
-import 'package:skystream/core/cloudstream/extension_ui/extension_ui_session.dart';
-import 'package:skystream/core/cloudstream/extension_ui/ui_tree.dart';
-import 'package:skystream/features/cloudstream/presentation/extension_ui/extension_full_screen.dart';
-import 'package:skystream/features/cloudstream/presentation/extension_ui/extension_page_view.dart';
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/cloudstream/extension_ui/extension_pages.dart';
+import 'package:zorox/core/cloudstream/extension_ui/extension_ui_session.dart';
+import 'package:zorox/core/cloudstream/extension_ui/ui_tree.dart';
+import 'package:zorox/features/cloudstream/presentation/extension_ui/extension_full_screen.dart';
+import 'package:zorox/features/cloudstream/presentation/extension_ui/extension_page_view.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import '../../../core/cloudstream/extension_ui/fake_page_browser.dart';
 
@@ -274,7 +274,7 @@ void main() {
     await mouse.removePointer();
   });
 
-  testWidgets("on a desktop a page's own × is Back for its screen, and SkyStream draws none over it", (tester) async {
+  testWidgets("on a desktop a page's own × is Back for its screen, and ZoroX draws none over it", (tester) async {
     await show(tester, [_game()], desktop: true);
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: const Offset(400, 200));
@@ -288,7 +288,7 @@ void main() {
     expect(api.sent, ['1 close null']);
   });
 
-  testWidgets("on a desktop a window on top of a page gets SkyStream's ×: the page's own stepped aside with it", (
+  testWidgets("on a desktop a window on top of a page gets ZoroX's ×: the page's own stepped aside with it", (
     tester,
   ) async {
     // Desktops send no Back but a ×: without one here, a dialog with no button of its own was a dead end.
@@ -309,7 +309,7 @@ void main() {
   testWidgets("a page that opened before its window asked for the whole screen gets a full-screen page's script", (
     tester,
   ) async {
-    // On a desktop its own × is the way out of a page: SkyStream draws none over it.
+    // On a desktop its own × is the way out of a page: ZoroX draws none over it.
     await show(tester, [_game()], desktop: true, pageFullScreen: false);
     expect(browser.scripts, contains(fullScreenScript('POST', closeButton: true)));
   });

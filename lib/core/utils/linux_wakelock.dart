@@ -13,7 +13,7 @@ void installLinuxWakelock({@visibleForTesting bool? linux}) {
 
 /// wakelock_plus without its Linux leak. There, each enable opens a new portal inhibitor and keeps only the newest,
 /// and a disable closes that one: an enable while one was held (the player as playback went on, a full-screen game
-/// back from the background) left the first open, and the screen never slept again until SkyStream quit. Here calls
+/// back from the background) left the first open, and the screen never slept again until ZoroX quit. Here calls
 /// run one at a time, and one asking for what already holds does nothing. macOS and Windows already ignore a repeated
 /// enable.
 class OneInhibitorWakelock extends WakelockPlusPlatformInterface {

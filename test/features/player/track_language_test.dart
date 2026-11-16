@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/domain/track_language.dart';
+import 'package:zorox/features/player/domain/track_language.dart';
 
 /// What language a track is in, read from what the engine says about it.
 ///

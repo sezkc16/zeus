@@ -23,9 +23,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/features/player/domain/side_car_subtitles.dart';
-import 'package:skystream/features/player/presentation/vlc/side_car_subtitle_view.dart';
-import 'package:skystream/features/settings/presentation/player_settings_provider.dart';
+import 'package:zorox/features/player/domain/side_car_subtitles.dart';
+import 'package:zorox/features/player/presentation/vlc/side_car_subtitle_view.dart';
+import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
 
 import 'fake_vlc_engine.dart';
 

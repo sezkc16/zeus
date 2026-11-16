@@ -7,17 +7,17 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skystream/core/domain/entity/multimedia_item.dart';
-import 'package:skystream/features/player/domain/qoe_log.dart';
-import 'package:skystream/features/player/domain/source_check.dart';
-import 'package:skystream/features/player/domain/stream_resolver.dart'
+import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/features/player/domain/qoe_log.dart';
+import 'package:zorox/features/player/domain/source_check.dart';
+import 'package:zorox/features/player/domain/stream_resolver.dart'
     show ProbeOutcome;
-import 'package:skystream/features/player/presentation/vlc/ended_card.dart';
-import 'package:skystream/features/player/presentation/vlc/source_check_provider.dart';
-import 'package:skystream/features/player/presentation/vlc/vlc_player_controls.dart';
-import 'package:skystream/features/player/presentation/vlc/vlc_player_screen.dart'
+import 'package:zorox/features/player/presentation/vlc/ended_card.dart';
+import 'package:zorox/features/player/presentation/vlc/source_check_provider.dart';
+import 'package:zorox/features/player/presentation/vlc/vlc_player_controls.dart';
+import 'package:zorox/features/player/presentation/vlc/vlc_player_screen.dart'
     show VlcPlayerScreen, openingOverlayKey;
-import 'package:skystream/l10n/generated/app_localizations.dart';
+import 'package:zorox/l10n/generated/app_localizations.dart';
 import 'package:vlc_player/vlc_player.dart' show VlcPlayer, VlcPlayerController;
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:wakelock_plus_platform_interface/wakelock_plus_platform_interface.dart';
