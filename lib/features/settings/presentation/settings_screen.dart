@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/utils/layout_constants.dart';
 import '../../../core/theme/theme_provider.dart';
@@ -246,6 +247,24 @@ class SettingsScreen extends ConsumerWidget {
           title: l10n.developer,
           subtitle: l10n.developedBy('Toji'),
           onTap: () => showDeveloperDialog(context),
+        ),
+        SettingsTile(
+          icon: Icons.forum_outlined,
+          title: l10n.discord,
+          subtitle: l10n.discordSubtitle,
+          onTap: () => launchUrl(
+            Uri.parse('https://discord.gg/73XGA8Mxn9'),
+            mode: LaunchMode.externalApplication,
+          ),
+        ),
+        SettingsTile(
+          icon: Icons.send_rounded,
+          title: l10n.telegram,
+          subtitle: l10n.telegramSubtitle,
+          onTap: () => launchUrl(
+            Uri.parse('https://t.me/+Ez5Vsv2pUUFjZmNl'),
+            mode: LaunchMode.externalApplication,
+          ),
         ),
         // GPL-3.0 asks an interactive program to show its legal notices. The
         // page lists ZoroX's licence beside every dependency's.

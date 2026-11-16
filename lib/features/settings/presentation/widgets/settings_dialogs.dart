@@ -1645,6 +1645,26 @@ void showDeveloperDialog(BuildContext context) {
                     mode: LaunchMode.externalApplication,
                   ),
                 ),
+                _SocialButton(
+                  svgUrl: 'https://raw.githubusercontent.com/simple-icons/simple-icons/11.10.0/icons/discord.svg',
+                  color: const Color(
+                    0xFF5865F2,
+                  ), // Discord Blurple
+                  onTap: () => launchUrl(
+                    Uri.parse('https://discord.gg/73XGA8Mxn9'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
+                _SocialButton(
+                  svgUrl: 'https://raw.githubusercontent.com/simple-icons/simple-icons/11.10.0/icons/telegram.svg',
+                  color: const Color(
+                    0xFF5baae3,
+                  ), // Telegram Official Blue
+                  onTap: () => launchUrl(
+                    Uri.parse('https://t.me/+Ez5Vsv2pUUFjZmNl'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
               ],
             ),
           ],
