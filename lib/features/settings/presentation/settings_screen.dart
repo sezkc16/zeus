@@ -8,7 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/layout_constants.dart';
 import '../../../core/theme/theme_variant.dart';
 import '../../../core/theme/theme_provider.dart';
-import '../../../core/services/notification_service.dart';
 
 import 'widgets/settings_widgets.dart';
 import 'widgets/general_extra_tiles.dart';
@@ -327,16 +326,16 @@ class SettingsScreen extends ConsumerWidget {
           subtitle: 'Open source · GPL v3',
           onTap: () => unawaited(openBasedOnProject()),
         ),
-        // The Telegram row is shown per the design, but it does NOT
-        // link to SkyStream's server (the invite the fork shipped) —
-        // tapping it says "coming soon" until Zeus has its own
-        // community link. (Discord was removed from About at the
-        // user's request, 2026-11-17.)
+        // 1.0.1 (build 67): at the user's request the Telegram row opens
+        // SkyStream's community chat. It is SkyStream's chat, not a Zeus
+        // channel, and the subtitle says so. (Discord was removed from
+        // About at the user's request, 2026-11-17.)
         SettingsTile(
+          key: const ValueKey('about-telegram'),
           reicon: Reicon.send,
           title: 'Telegram',
-          subtitle: 'Updates & support channel',
-          onTap: () => _showCommunityComingSoon(context, ref, 'Telegram'),
+          subtitle: 'SkyStream community chat',
+          onTap: () => unawaited(openTelegramChat()),
         ),
         // v5: the "Open-source licences" row was removed from About at the
         // user's request (2026-11-17). The LICENSE file and the licence
@@ -355,17 +354,6 @@ class SettingsScreen extends ConsumerWidget {
           isLast: true,
         ),
       ],
-    );
-  }
-
-  void _showCommunityComingSoon(
-    BuildContext context,
-    WidgetRef ref,
-    String name,
-  ) {
-    ref.read(notificationServiceProvider).showInfo(
-      '$name community links are coming soon.',
-      title: name,
     );
   }
 }
@@ -421,3 +409,18 @@ Future<void> openBasedOnProject() async {
 /// What About shows for the version: the version alone — "1.0.0 +65"
 /// reads as "1.0.0".
 String aboutVersionLabel(String version) => version.split(' +').first.trim();
+
+/// SkyStream's community chat on Telegram; the About Telegram row opens it.
+const String kTelegramChatUrl = 'https://t.me/skystream7chat';
+
+/// Opens [kTelegramChatUrl] in Telegram or the browser. Best effort.
+Future<void> openTelegramChat() async {
+  try {
+    await launchUrl(
+      Uri.parse(kTelegramChatUrl),
+      mode: LaunchMode.externalApplication,
+    );
+  } catch (_) {
+    // Nothing to open it in: nothing to do.
+  }
+}

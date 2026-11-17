@@ -164,11 +164,20 @@ class AddonCatalogsTabView extends ConsumerStatefulWidget {
   final FocusNode? firstActionFocusNode;
   final void Function(HeroCarouselController)? onControllerReady;
 
+  /// The hero runs edge to edge on a phone, like the Home hero (Browse).
+  final bool fullBleedHero;
+
+  /// Only this add-on's catalogs (its manifest URL); null shows every
+  /// add-on's. Browse's catalogue switcher sets it.
+  final String? onlyAddonUrl;
+
   const AddonCatalogsTabView({
     super.key,
     this.scrollController,
     this.firstActionFocusNode,
     this.onControllerReady,
+    this.fullBleedHero = false,
+    this.onlyAddonUrl,
   });
 
   @override
@@ -280,7 +289,14 @@ class _AddonCatalogsTabViewState extends ConsumerState<AddonCatalogsTabView>
     super.build(context);
     final state = ref.watch(addonRepositoryProvider);
     final theme = Theme.of(context);
-    final catalogs = ref.watch(browsableCatalogsProvider);
+    final allCatalogs = ref.watch(browsableCatalogsProvider);
+    final only = widget.onlyAddonUrl;
+    final catalogs = only == null
+        ? allCatalogs
+        : [
+            for (final entry in allCatalogs)
+              if (entry.addon.manifestUrl == only) entry,
+          ];
     final hasStreamAddon = state.enabled.any(
       (a) => a.manifest?.hasResource('stream') ?? false,
     );
@@ -336,6 +352,7 @@ class _AddonCatalogsTabViewState extends ConsumerState<AddonCatalogsTabView>
                 scrollController: _scrollController,
                 onNavigateUp: () => widget.firstActionFocusNode?.requestFocus(),
                 onControllerReady: widget.onControllerReady,
+                fullBleed: widget.fullBleedHero,
               ),
             ),
 
@@ -417,12 +434,14 @@ class _CatalogCarouselSection extends ConsumerWidget {
   final ScrollController scrollController;
   final VoidCallback? onNavigateUp;
   final void Function(HeroCarouselController)? onControllerReady;
+  final bool fullBleed;
 
   const _CatalogCarouselSection({
     required this.catalog,
     required this.scrollController,
     this.onNavigateUp,
     this.onControllerReady,
+    this.fullBleed = false,
   });
 
   @override
@@ -460,6 +479,7 @@ class _CatalogCarouselSection extends ConsumerWidget {
           scrollController: scrollController,
           onNavigateUp: onNavigateUp,
           onControllerReady: onControllerReady,
+          fullBleed: fullBleed,
           onTap: (item) {
             final preview = previewMap[item.url];
             final type =

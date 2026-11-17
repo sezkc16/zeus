@@ -56,8 +56,15 @@ class LayoutConstants {
   /// the two equal); kept here so this file stays free of widget imports.
   static const double navPillClearance = 88;
 
-  /// Space left under the last row of a screen that has no nav pill over it.
-  static const double pillFreeEndPadding = spacingMd;
+  /// Extra space under the last row of a screen that has no nav pill over
+  /// it, on top of the safe-area inset. Zero since 1.0.1 build 67 (was 16):
+  /// the last row's own padding plus the home-indicator inset already read
+  /// as a gap ("isme avivi thoda gap hein").
+  static const double pillFreeEndPadding = 0;
+
+  /// The least the list may end with when the device has no bottom inset at
+  /// all, so the last card never touches the screen edge.
+  static const double pillFreeMinEndPadding = 8;
 
   /// Bottom padding for screens the shell shows WITHOUT the nav pill: the
   /// Settings branch (Settings and everything under it) on a phone.
@@ -73,7 +80,8 @@ class LayoutConstants {
   static double pillFreeBottomContentPadding(BuildContext context) {
     final bottom = MediaQuery.paddingOf(context).bottom;
     if (bottom >= navPillClearance) return shellBottomContentPadding(context);
-    return bottom + pillFreeEndPadding;
+    final end = bottom + pillFreeEndPadding;
+    return end < pillFreeMinEndPadding ? pillFreeMinEndPadding : end;
   }
 
 }

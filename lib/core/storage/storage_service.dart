@@ -275,6 +275,19 @@ class StorageService {
     return _settingsBox.get('declined_update_tag') as String?;
   }
 
+  /// Browse's catalogue choice: an add-on's manifest URL, or null for
+  /// "All catalogues". This device only.
+  String? getBrowseCatalogueAddon() =>
+      _settingsBox.get('browse_catalogue_addon') as String?;
+
+  Future<void> setBrowseCatalogueAddon(String? manifestUrl) async {
+    if (manifestUrl == null) {
+      await _settingsBox.delete('browse_catalogue_addon');
+    } else {
+      await _settingsBox.put('browse_catalogue_addon', manifestUrl);
+    }
+  }
+
   Future<void> setDefaultHomeScreen(String path) async {
     await _settingsBox.put('default_home_screen', path);
   }

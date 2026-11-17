@@ -10,6 +10,7 @@ import 'package:zorox/features/extensions/providers/extensions_controller.dart';
 import 'package:zorox/features/home/presentation/home_provider.dart';
 import 'package:zorox/features/home/presentation/home_screen.dart';
 import 'package:zorox/features/home/presentation/home_state.dart';
+import 'package:zorox/shared/widgets/striking_lightning.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
 
 /// Enough rows to overflow the dialog so the list can actually fling.
@@ -143,6 +144,58 @@ Future<ProviderContainer> _pumpHost(
 }
 
 void main() {
+  testWidgets('lightning strikes behind the list and stops with the dialog', (
+    tester,
+  ) async {
+    await _pumpHost(tester, onClosed: () {});
+    expect(find.byType(StrikingLightning), findsOneWidget);
+    expect(find.byKey(StrikingLightning.paintKey), findsOneWidget);
+    // Opening may already have run through the first strike. Between
+    // strikes nothing animates; the next one comes within the longest gap.
+    Future<bool> waitFor(bool running) async {
+      for (var i = 0; i < 90; i++) {
+        if (tester.hasRunningAnimations == running) return true;
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      return false;
+    }
+
+    expect(await waitFor(false), isTrue, reason: 'never quiet');
+    expect(await waitFor(true), isTrue, reason: 'no strike came');
+    expect(await waitFor(false), isTrue, reason: 'the strike never ended');
+    // The rows are still there to tap: it takes no touches.
+    expect(find.text('None'), findsOneWidget);
+
+    // Closed mid-strike: no ticker or timer is left behind.
+    expect(await waitFor(true), isTrue, reason: 'no second strike');
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(find.byType(StrikingLightning), findsNothing);
+    expect(tester.hasRunningAnimations, isFalse);
+  });
+
+  testWidgets('with reduced motion there is no lightning at all', (
+    tester,
+  ) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await _pumpHost(tester, onClosed: () {});
+    expect(find.byKey(StrikingLightning.paintKey), findsNothing);
+    await tester.pump(const Duration(seconds: 8));
+    expect(find.byKey(StrikingLightning.paintKey), findsNothing);
+    expect(tester.hasRunningAnimations, isFalse);
+  });
+
+  test('the flash rises, dips, re-strikes and dies', () {
+    expect(lightningFlashAt(0), 0);
+    expect(lightningFlashAt(0.07), closeTo(0.95, 0.001));
+    expect(lightningFlashAt(0.18), closeTo(0.20, 0.001));
+    expect(lightningFlashAt(0.30), closeTo(0.80, 0.001));
+    expect(lightningFlashAt(0.48), closeTo(0.35, 0.001));
+    expect(lightningFlashAt(1), 0);
+  });
+
   testWidgets('closing during a fling survives the exit transition', (
     tester,
   ) async {

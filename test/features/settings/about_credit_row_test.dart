@@ -61,7 +61,7 @@ void main() {
     if (dir.existsSync()) dir.deleteSync(recursive: true);
   });
 
-  Future<void> pumpAbout(WidgetTester tester, {String version = '1.0.1 +66'}) async {
+  Future<void> pumpAbout(WidgetTester tester, {String version = '1.0.1 +67'}) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -116,7 +116,8 @@ void main() {
     tester,
   ) async {
     await pumpAbout(tester);
-    expect(find.textContaining('SkyStream'), findsOneWidget);
+    // The credit row and, since build 67, the Telegram row's subtitle.
+    expect(find.textContaining('SkyStream'), findsNWidgets(2));
     expect(find.textContaining('skystream'), findsNothing);
   });
 
@@ -128,34 +129,32 @@ void main() {
     expect(launched, ['https://github.com/akashdh11/skystream']);
   });
 
-  testWidgets('Telegram still says coming soon and opens nothing', (
-    tester,
-  ) async {
+  testWidgets('Telegram opens the SkyStream community chat', (tester) async {
     await pumpAbout(tester);
+    expect(find.text('SkyStream community chat'), findsOneWidget);
     await tester.tap(find.text('Telegram'));
     await tester.pump();
-    expect(launched, isEmpty);
-    // Let the "coming soon" toast run out.
-    await tester.pump(const Duration(seconds: 4));
-    await tester.pumpAndSettle();
+    expect(kTelegramChatUrl, 'https://t.me/skystream7chat');
+    expect(launched, ['https://t.me/skystream7chat']);
+    expect(find.textContaining('coming soon'), findsNothing);
   });
 
   testWidgets('Version shows 1.0.1 alone, no build suffix', (tester) async {
     await pumpAbout(tester);
     expect(find.text('1.0.1'), findsOneWidget);
-    expect(find.textContaining('+66'), findsNothing);
+    expect(find.textContaining('+67'), findsNothing);
   });
 
   test('aboutVersionLabel drops the build suffix and nothing else', () {
-    expect(aboutVersionLabel('1.0.1 +66'), '1.0.1');
+    expect(aboutVersionLabel('1.0.1 +67'), '1.0.1');
     expect(aboutVersionLabel('1.0.1'), '1.0.1');
     expect(aboutVersionLabel('1.2.3 +1.2.3'), '1.2.3');
   });
 
-  test('the app is 1.0.1 build 66', () {
+  test('the app is 1.0.1 build 67', () {
     expect(
       File('pubspec.yaml').readAsStringSync(),
-      contains('\nversion: 1.0.1+66\n'),
+      contains('\nversion: 1.0.1+67\n'),
     );
   });
 }

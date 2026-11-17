@@ -18,6 +18,8 @@ import 'package:zorox/features/player/presentation/vlc/vlc_player_screen.dart';
 import 'package:zorox/features/player/presentation/mpv/mpv_player_screen.dart';
 import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
 import '../../features/extensions/screens/extensions_screen.dart';
+import '../../shared/widgets/branch_cross_fade.dart';
+import '../../shared/widgets/edge_swipe_back.dart';
 import '../../features/nuvio/presentation/nuvio_plugins_screen.dart';
 import '../../features/cloudstream/presentation/cloudstream_screen.dart';
 import '../../features/settings/presentation/player_settings_screen.dart';
@@ -95,6 +97,23 @@ class AppShellRouteData extends StatefulShellRouteData {
   ) {
     return AppScaffold(navigationShell: navigationShell);
   }
+
+  /// Index of the Settings branch (the gear), which opens like a page.
+  static const int settingsBranchIndex = 5;
+
+  /// Keeps every branch mounted like the default IndexedStack, but
+  /// cross-fades tab switches and slides Settings in and out.
+  static Widget $navigatorContainerBuilder(
+    BuildContext context,
+    StatefulNavigationShell navigationShell,
+    List<Widget> children,
+  ) {
+    return BranchCrossFade(
+      currentIndex: navigationShell.currentIndex,
+      slideIndex: settingsBranchIndex,
+      children: children,
+    );
+  }
 }
 
 class HomeBranchData extends StatefulShellBranchData {
@@ -155,8 +174,12 @@ class SettingsRoute extends GoRouteData with $SettingsRoute {
   const SettingsRoute({this.category});
 
   @override
-  Widget build(BuildContext context, GoRouterState state) =>
-      SettingsScreen(initialCategory: category);
+  Widget build(BuildContext context, GoRouterState state) => EdgeSwipeBack(
+    // Settings is a branch, not a pushed page, so the iOS back swipe is
+    // done here: the same place its back arrow goes.
+    onBack: () => const HomeRoute().go(context),
+    child: SettingsScreen(initialCategory: category),
+  );
 }
 
 // --- Sub-routes of Settings ---
@@ -532,10 +555,14 @@ class PlayerRoute extends GoRouteData with $PlayerRoute {
   }
 
   // Same smooth slide + fade as every other pushed page (see
-  // route_transitions.dart).
+  // route_transitions.dart), but never the iOS back swipe: the player's
+  // own horizontal gestures must not be taken for it.
   @override
-  Page<void> buildPage(BuildContext context, GoRouterState state) =>
-      smoothPage(key: state.pageKey, child: build(context, state));
+  Page<void> buildPage(BuildContext context, GoRouterState state) => smoothPage(
+    key: state.pageKey,
+    child: build(context, state),
+    swipeBack: false,
+  );
 }
 
 /// The player route's engine switch.

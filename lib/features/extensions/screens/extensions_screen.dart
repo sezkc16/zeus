@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/layout_constants.dart';
-import '../../../core/router/app_router.dart';
+import '../../../core/utils/motion.dart';
+import '../../../core/router/over_shell_routes.dart';
 import '../../../core/cloudstream/cloudstream_repository.dart';
 import '../../../core/extensions/models/extension_plugin.dart';
 import '../../../core/extensions/models/extension_repository.dart';
@@ -74,7 +75,7 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
   /// provider listener does not start a second animation over the drag.
   bool _segmentFromSwipe = false;
 
-  static const Duration _segmentSlide = Duration(milliseconds: 280);
+  static const Duration _segmentSlide = kMotionSegmentPage;
 
   /// Slides (or, with reduced motion, jumps) to [segment]'s page.
   void _showSegment(PluginsSegment segment) {
@@ -87,7 +88,7 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
       _pageController.animateToPage(
         segment.index,
         duration: _segmentSlide,
-        curve: Curves.easeOutCubic,
+        curve: kMotionSegmentPageCurve,
       );
     }
   }
@@ -669,14 +670,14 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
           reicon: Reicon.plug,
           title: 'Nuvio Plugins',
           subtitle: 'Scraper plugins for movies & shows',
-          onTap: () => const NuvioPluginsRoute().go(context),
+          onTap: () => unawaited(openNuvioPlugins(context)),
         ),
         SettingsTile(
           reicon: Reicon.magnet,
           title: 'Stremio Add-ons',
           subtitle: 'Install add-ons by manifest URL',
           isLast: true,
-          onTap: () => const AddonsRoute().go(context),
+          onTap: () => unawaited(openStremioAddons(context)),
         ),
       ],
     );

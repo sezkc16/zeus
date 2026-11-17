@@ -23,6 +23,7 @@ import '../../explore/presentation/view_all_screen.dart';
 import '../../../shared/widgets/desktop_scroll_wrapper.dart';
 import '../../../shared/widgets/loading_indicator.dart';
 import '../../../shared/widgets/no_scrollbar_behavior.dart';
+import '../../../shared/widgets/striking_lightning.dart';
 import '../../extensions/providers/extensions_controller.dart';
 import '../../../core/extensions/models/extension_plugin.dart';
 
@@ -919,6 +920,11 @@ class _ProviderSelectorDialog extends StatefulWidget {
 }
 
 class _ProviderSelectorDialogState extends State<_ProviderSelectorDialog> {
+  /// How far the lightning reaches past the title on the left, top and
+  /// right: more than the title's own padding, so it covers the card's
+  /// edges (the card clips the rest).
+  static const double _lightningBleed = 40;
+
   final ScrollController _scrollController = ScrollController();
   final ScrollController _chipsScrollController = ScrollController();
   bool _didInitialScroll = false;
@@ -952,7 +958,26 @@ class _ProviderSelectorDialogState extends State<_ProviderSelectorDialog> {
     final activeProvider = widget.activeProvider;
 
     return AlertDialog(
-      title: Text(l10n.selectProvider),
+      // Clips the lightning to the card's rounded corners.
+      clipBehavior: Clip.antiAlias,
+      // 1.0.1 build 67 (design R3): lightning strikes behind the content.
+      // It hangs off the title - the first thing the card paints - and
+      // overflows it to cover the card, so the chips, the list and Close
+      // are painted above it and the list scrolls over it. Nothing in the
+      // dialog's layout changes: the Stack is exactly the title's size.
+      title: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: -_lightningBleed,
+            top: -_lightningBleed,
+            right: -_lightningBleed,
+            height: MediaQuery.sizeOf(context).height * 0.8,
+            child: const StrikingLightning(),
+          ),
+          Text(l10n.selectProvider),
+        ],
+      ),
       contentPadding: const EdgeInsets.fromLTRB(0, 20, 0, 0),
       content: SizedBox(
         width: 600,

@@ -267,7 +267,9 @@ void main() {
           await pump(tester, screen, mediaBottom: safeArea);
           expect(
             bottomPadding(tester),
-            safeArea + LayoutConstants.pillFreeEndPadding,
+            // Build 67: just the safe area (34), or the 8 px floor with
+            // no inset at all. It was safe area + 16.
+            safeArea == 0 ? 8.0 : safeArea,
             reason:
                 '$name still reserves room for a nav pill that is not on '
                 'screen',

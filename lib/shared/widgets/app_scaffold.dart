@@ -43,47 +43,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
     (i) => FocusNode(debugLabel: 'sidebar_$i'),
   );
 
-  /// The branch-switch glide (ZoroX v4): the shell swaps branch Navigators
-  /// instantly, so a tab tap — or the Settings gear — snapped the new
-  /// branch in ("jhatak se"). The new branch instead slides in from a
-  /// little to the right over 300 ms, the same motion as a pushed page.
-  /// Starts complete, so the first frame just appears.
-  ///
-  /// Slide only, no fade (v4): fading the whole shell made the incoming
-  /// branch translucent for 300 ms, and under Liquid Glass that read as
-  /// the two screens ghosting through each other. A slide keeps the
-  /// incoming branch fully opaque over the opaque scaffold background.
-  late final AnimationController _branchController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 300),
-    value: 1.0,
-  );
-  late final Animation<Offset> _branchSlide = _branchController.drive(
-    Tween<Offset>(
-      begin: const Offset(0.04, 0),
-      end: Offset.zero,
-    ).chain(CurveTween(curve: Curves.easeInOut)),
-  );
-  late int _currentBranchIndex = widget.navigationShell.currentIndex;
-
-  @override
-  void didUpdateWidget(AppScaffold oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.navigationShell.currentIndex != _currentBranchIndex) {
-      _currentBranchIndex = widget.navigationShell.currentIndex;
-      _branchController.forward(from: 0.0);
-    }
-  }
-
-  /// The shell content with the branch-switch glide. The shell itself is
-  /// never remounted — only its parent slides — so each branch keeps its
-  /// scroll position and navigation stack.
-  Widget _branchTransition() {
-    return SlideTransition(
-      position: _branchSlide,
-      child: widget.navigationShell,
-    );
-  }
+  /// The shell content. The branch-switch animation (tab cross-fade,
+  /// Settings slide) lives in the shell's branch container,
+  /// `BranchCrossFade` (see `AppShellRouteData.$navigatorContainerBuilder`),
+  /// so the shell itself is never moved or remounted here.
+  Widget _branchTransition() => widget.navigationShell;
 
   /// How long a pointer may sit still on a television before the cursor goes.
   ///
@@ -118,7 +82,6 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
   @override
   void dispose() {
     _cursorIdleTimer?.cancel();
-    _branchController.dispose();
     for (final n in _sidebarNodes) {
       n.dispose();
     }

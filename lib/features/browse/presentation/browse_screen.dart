@@ -6,12 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../core/addons/data/addon_repository.dart';
-import '../../../../core/router/app_router.dart';
+import '../../../../core/router/over_shell_routes.dart';
 import '../../../../core/utils/layout_constants.dart';
 import '../../../../shared/widgets/cards_wrapper.dart';
 import '../../addons/presentation/addon_providers.dart';
 import '../../addons/presentation/addons_screen.dart';
 import '../../explore/presentation/delegates/explore_search_delegate.dart';
+import 'browse_catalogue.dart';
 
 /// The Browse tab. It has no content of its own: it lists the catalogs of
 /// the Stremio add-ons the person installed (Cinemeta, Anime Kitsu, a
@@ -55,10 +56,10 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
     super.dispose();
   }
 
-  /// The Stremio add-ons screen lives in the Settings branch, so it is gone
-  /// to rather than pushed - the same way the Plugins tab opens it.
+  /// Opened over Browse (not gone to in the Settings branch), so Back
+  /// returns here - the same way the Plugins tab opens it.
   void _openAddons({bool discover = false}) {
-    AddonsRoute(initialTab: discover ? 1 : 0).go(context);
+    unawaited(openStremioAddons(context, discover: discover));
   }
 
   @override
@@ -80,6 +81,15 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
               addon.manifest!.catalogs.any((c) => c.supportsSearch),
         );
     final isDark = theme.brightness == Brightness.dark;
+    // The catalogue switcher (design B): only with two or more catalog
+    // add-ons; with one or none Browse looks exactly as before.
+    final showCatalogueLine =
+        hasCatalogs && ref.watch(browseCatalogueAddonsProvider).length >= 2;
+    final onlyAddonUrl = ref.watch(browseCatalogueProvider);
+    // The new catalogue's list starts at the top: clear the header fade.
+    ref.listen<String?>(browseCatalogueProvider, (_, _) {
+      _barOpacity.value = 0;
+    });
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -111,6 +121,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
           ),
         ),
         centerTitle: false,
+        bottom: showCatalogueLine ? const BrowseCatalogueBar() : null,
         actions: [
           _HeaderButton(
             key: const ValueKey('browse-addons-button'),
@@ -132,6 +143,11 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
           ? AddonCatalogsTabView(
               scrollController: _scrollController,
               firstActionFocusNode: _firstActionFocusNode,
+              // A new key per catalogue: the list starts again from the
+              // top with that add-on's hero.
+              key: ValueKey('browse-catalogs-${onlyAddonUrl ?? 'all'}'),
+              fullBleedHero: true,
+              onlyAddonUrl: onlyAddonUrl,
             )
           : loading
           ? const SizedBox.shrink()

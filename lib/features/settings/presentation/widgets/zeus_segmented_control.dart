@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../core/utils/motion.dart';
+
 /// Height of the track of a [ZeusSegmentedControl].
 const double kZeusSegmentedHeight = 40;
 
@@ -8,7 +10,7 @@ const double kZeusSegmentedHeight = 40;
 const double kZeusSegmentedInset = 3;
 
 /// How long the pill takes to slide to the tapped option.
-const Duration kZeusSegmentedSlide = Duration(milliseconds: 220);
+const Duration kZeusSegmentedSlide = kMotionPill;
 
 /// How strongly the track is tinted with the theme's text colour: a light
 /// tint on the dark themes, a dark tint on Frost.
@@ -156,7 +158,7 @@ class _ZeusSegmentedBodyState<T> extends State<_ZeusSegmentedBody<T>> {
             // The pill: one segment wide, slid to the selected option.
             AnimatedAlign(
               duration: duration,
-              curve: Curves.easeOutCubic,
+              curve: kMotionPillCurve,
               alignment: AlignmentDirectional(
                 -1 + 2 * index / (count - 1),
                 0,

@@ -16,6 +16,13 @@ import 'package:zorox/core/extensions/models/extension_repository.dart';
 import 'package:zorox/core/extensions/base_provider.dart';
 import 'package:zorox/shared/widgets/cards_wrapper.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
+import 'package:zorox/core/nuvio/data/nuvio_repository.dart';
+import 'package:zorox/features/nuvio/presentation/nuvio_plugins_screen.dart';
+
+class _NoNuvio extends NuvioRepository {
+  @override
+  NuvioState build() => const NuvioState(isLoading: false, repos: []);
+}
 
 /// A CloudStream store that is already loaded: the real one never finishes
 /// loading in the harness (its SharedPreferences / engine-host work has no
@@ -294,6 +301,49 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Installed Plugin'), findsOneWidget);
     expect(find.text('ADD REPOSITORY'), findsNothing);
+  });
+
+  // Build 67: Nuvio Plugins opens OVER the Plugins tab, so Back returns to
+  // it (it used to go to the Settings branch and Back landed on Settings).
+  testWidgets('Add Plugins -> Nuvio Plugins -> Back returns to Plugins', (
+    tester,
+  ) async {
+    _tallViewport(tester);
+    final container = ProviderContainer(
+      overrides: [
+        extensionsControllerProvider.overrideWith(
+          () => MockExtensionsController(oneInstalled()),
+        ),
+        extensionManagerProvider.overrideWith(() => MockExtensionManager()),
+        cloudStreamRepositoryProvider.overrideWith(() => _LoadedCloudStream()),
+        nuvioRepositoryProvider.overrideWith(_NoNuvio.new),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(hosted(container));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(addKey));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Nuvio Plugins'));
+    await tester.tap(find.text('Nuvio Plugins'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NuvioPluginsScreen), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NuvioPluginsScreen), findsNothing);
+    expect(find.byType(ExtensionsScreen), findsOneWidget);
+    expect(find.text('MORE SOURCES'), findsOneWidget);
+
+    // The system back (Android) does the same.
+    await tester.tap(find.text('Nuvio Plugins'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NuvioPluginsScreen), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(NuvioPluginsScreen), findsNothing);
+    expect(find.text('MORE SOURCES'), findsOneWidget);
   });
 
   testWidgets("the empty Installed state's button switches to Add Plugins", (
