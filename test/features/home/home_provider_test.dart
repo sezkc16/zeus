@@ -53,6 +53,23 @@ class _FakeScraper extends SkyStreamProvider {
   void resolve(int index, String section) =>
       calls[index].complete({section: <MultimediaItem>[]});
 
+  /// Completes the [index]-th outstanding call with no sections at all —
+  /// a plugin with no main page.
+  void resolveEmpty(int index) => calls[index].complete({});
+
+  /// Completes the [index]-th outstanding call with one section holding
+  /// one item — a plugin home that actually has something to show.
+  void resolveWithItems(int index, String section) =>
+      calls[index].complete({
+        section: [
+          MultimediaItem(
+            title: 'One Piece',
+            url: 'https://a.test/one-piece',
+            posterUrl: 'https://a.test/one-piece.jpg',
+          ),
+        ],
+      });
+
   void fail(int index, Object error) => calls[index].completeError(error);
 
   @override
@@ -116,16 +133,17 @@ Future<void> _waitForHome(
   fail('homeDataProvider did not reach the expected state');
 }
 
-ProviderContainer _containerWith(SkyStreamProvider? active) {
+ProviderContainer _containerWith(
+  SkyStreamProvider? active, [
+  _Sections feed = const {},
+]) {
   final container = ProviderContainer(
     overrides: [
       activeProviderProvider.overrideWith(() => _FakeActiveProvider(active)),
-      // The key-free feed needs the network; pin it empty so a deselect
-      // lands deterministically instead of hanging on a socket these tests
-      // never let complete.
-      keyFreeHomeFeedProvider.overrideWith(
-        (ref) async => const <String, List<MultimediaItem>>{},
-      ),
+      // The key-free feed needs the network; pin it so a deselect or a
+      // fallback lands deterministically instead of hanging on a socket
+      // these tests never let complete.
+      keyFreeHomeFeedProvider.overrideWith((ref) async => feed),
     ],
   );
   addTearDown(container.dispose);
@@ -215,6 +233,70 @@ void main() {
         (state as HomeError).message,
         contains('Extension returned invalid home data'),
       );
+    });
+  });
+
+  group('HomeData falls back to the For You feed when a plugin home fails', () {
+    test('a plugin failure shows the key-free feed and names the plugin',
+        () async {
+      final scraper = _FakeScraper('anikoto');
+      final container = _containerWith(
+        scraper,
+        const {'Popular Anime': <MultimediaItem>[]},
+      );
+      await _settle();
+
+      scraper.fail(0, Exception('boom'));
+      await _waitForHome(
+        container,
+        (state) => state is HomeSuccess && state.fellBackFrom != null,
+      );
+
+      final state = container.read(homeDataProvider);
+      expect(state, isA<HomeSuccess>());
+      expect(_sectionsOf(state), {'Popular Anime'});
+      expect((state as HomeSuccess).fellBackFrom, 'anikoto');
+    });
+
+    test('a plugin with no main page falls back too', () async {
+      final scraper = _FakeScraper('anikoto');
+      final container = _containerWith(
+        scraper,
+        const {'Popular Anime': <MultimediaItem>[]},
+      );
+      await _settle();
+
+      // No sections at all: the plugin has no main page worth showing.
+      scraper.resolveEmpty(0);
+      await _waitForHome(
+        container,
+        (state) => state is HomeSuccess && state.fellBackFrom != null,
+      );
+
+      final state = container.read(homeDataProvider);
+      expect(state, isA<HomeSuccess>());
+      expect(_sectionsOf(state), {'Popular Anime'});
+      expect((state as HomeSuccess).fellBackFrom, 'anikoto');
+    });
+
+    test('a working plugin home never falls back', () async {
+      final scraper = _FakeScraper('anikoto');
+      final container = _containerWith(
+        scraper,
+        const {'Popular Anime': <MultimediaItem>[]},
+      );
+      await _settle();
+
+      // A section with an item in it: the plugin's own home.
+      scraper.resolveWithItems(0, 'Trending');
+      await _waitForHome(
+        container,
+        (state) => state is HomeSuccess && state.fellBackFrom == null,
+      );
+
+      final state = container.read(homeDataProvider);
+      expect(_sectionsOf(state), {'Trending'});
+      expect((state as HomeSuccess).fellBackFrom, isNull);
     });
   });
 

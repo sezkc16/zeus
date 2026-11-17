@@ -94,7 +94,7 @@ class AppTheme {
         fontFamily,
       ], await rootBundle.loadString('assets/fonts/OFL.txt'));
       yield LicenseEntryWithLineBreaks(const <String>[
-        'ZoroX',
+        'Zeus',
       ], await rootBundle.loadString('LICENSE'));
     });
   }
@@ -209,7 +209,7 @@ class AppTheme {
   /// so this is only reached when the mode is later switched back).
   static ThemeData createDarkTheme(
     ColorScheme? dynamicScheme, {
-    Color seedColor = const Color(0xFFD4AF37),
+    Color seedColor = const Color(0xFF66BB6A),
     ZoroxThemeVariant variant = ZoroxThemeVariant.arenaGold,
   }) {
     _registerFontLicence();
@@ -222,7 +222,7 @@ class AppTheme {
     var colorScheme =
         dynamicScheme ??
         ColorScheme.fromSeed(
-          seedColor: seedColor, // Accent seed (Gold by default, v7 picker)
+          seedColor: seedColor, // Accent seed (Green by default, v4)
           brightness: Brightness.dark,
           surface: palette.surface, // Cards
         );

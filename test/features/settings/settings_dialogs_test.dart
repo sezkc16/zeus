@@ -15,6 +15,7 @@ import 'package:zorox/features/player/presentation/player_platform_service.dart'
 import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
 import 'package:zorox/features/settings/presentation/widgets/settings_dialogs.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
+import 'package:zorox/l10n/generated/app_localizations_en.dart';
 
 /// Keeps [playerSettingsProvider] off the on-disk repository: these tests are
 /// about what the dialogs *offer*, not about what is stored.
@@ -45,6 +46,29 @@ class _RecordingPlayerSettings extends PlayerSettingsNotifier {
   @override
   Future<void> setSubtitleDefault(SubtitleDefault value) async {
     subtitleDefaults.add(value);
+  }
+}
+
+/// Records the player + engine writes the Default Player dialog issues
+/// instead of writing them to Hive.
+class _RecordingPlayerChoice extends PlayerSettingsNotifier {
+  _RecordingPlayerChoice(this.initial);
+
+  final PlayerSettings initial;
+  final List<String?> players = [];
+  final List<PlayerEngine> engines = [];
+
+  @override
+  Future<PlayerSettings> build() async => initial;
+
+  @override
+  Future<void> setPreferredPlayer(String? playerId) async {
+    players.add(playerId);
+  }
+
+  @override
+  Future<void> setPlayerEngine(PlayerEngine engine) async {
+    engines.add(engine);
   }
 }
 
@@ -911,7 +935,7 @@ void main() {
       await _pumpOpener(
         tester,
         open: (context, ref) =>
-            showDefaultPlayerDialog(context, ref, 'potplayer'),
+            showDefaultPlayerDialog(context, ref, 'potplayer', PlayerEngine.mpv),
       );
 
       // PotPlayer is Windows-only and the test host reports Android.
@@ -921,18 +945,22 @@ void main() {
         findsOneWidget,
         reason: 'a row with no explanation is worse than the missing one',
       );
-      expect(_selectedRadioValues(tester), <String?>['potplayer']);
+      expect(_selectedRadioValues(tester), <String>['potplayer']);
     });
 
     testWidgets('an id no build ever had is named as itself', (tester) async {
       await _pumpOpener(
         tester,
-        open: (context, ref) =>
-            showDefaultPlayerDialog(context, ref, 'some_retired_player'),
+        open: (context, ref) => showDefaultPlayerDialog(
+          context,
+          ref,
+          'some_retired_player',
+          PlayerEngine.mpv,
+        ),
       );
 
       expect(find.text('some_retired_player'), findsOneWidget);
-      expect(_selectedRadioValues(tester), <String?>['some_retired_player']);
+      expect(_selectedRadioValues(tester), <String>['some_retired_player']);
     });
 
     testWidgets('a player this platform does list gets no extra row', (
@@ -941,24 +969,100 @@ void main() {
       await _pumpOpener(
         tester,
         open: (context, ref) =>
-            showDefaultPlayerDialog(context, ref, 'mx_player'),
+            showDefaultPlayerDialog(context, ref, 'mx_player', PlayerEngine.mpv),
       );
 
       expect(find.text('Not offered on this device'), findsNothing);
-      expect(_selectedRadioValues(tester), <String?>['mx_player']);
+      expect(_selectedRadioValues(tester), <String>['mx_player']);
+    });
+
+    testWidgets('both internal rows are offered', (tester) async {
+      await _pumpOpener(
+        tester,
+        open: (context, ref) =>
+            showDefaultPlayerDialog(context, ref, null, PlayerEngine.mpv),
+      );
+
+      expect(find.text('Internal (mpv)'), findsOneWidget);
+      expect(find.text('Internal (VLC)'), findsOneWidget);
+      expect(_selectedRadioValues(tester), <String>['internal-mpv']);
+    });
+
+    testWidgets('picking Internal (mpv) sets the internal player and engine', (
+      tester,
+    ) async {
+      final recording = _RecordingPlayerChoice(const PlayerSettings());
+      await _pumpOpener(
+        tester,
+        open: (context, ref) =>
+            showDefaultPlayerDialog(context, ref, null, PlayerEngine.vlc),
+        settings: () => recording,
+      );
+      expect(_selectedRadioValues(tester), <String>['internal-vlc']);
+
+      await tester.tap(find.text('Internal (mpv)'));
+      await tester.pumpAndSettle();
+
+      expect(recording.players, <String?>[null]);
+      expect(recording.engines, <PlayerEngine>[PlayerEngine.mpv]);
+      expect(find.text('Internal (mpv)'), findsNothing);
+    });
+
+    testWidgets('picking Internal (VLC) sets the internal player and engine', (
+      tester,
+    ) async {
+      final recording = _RecordingPlayerChoice(const PlayerSettings());
+      await _pumpOpener(
+        tester,
+        open: (context, ref) =>
+            showDefaultPlayerDialog(context, ref, null, PlayerEngine.mpv),
+        settings: () => recording,
+      );
+      expect(_selectedRadioValues(tester), <String>['internal-mpv']);
+
+      await tester.tap(find.text('Internal (VLC)'));
+      await tester.pumpAndSettle();
+
+      expect(recording.players, <String?>[null]);
+      expect(recording.engines, <PlayerEngine>[PlayerEngine.vlc]);
+      expect(find.text('Internal (VLC)'), findsNothing);
+    });
+  });
+
+  group('getPlayerDisplayName follows the engine', () {
+    test('internal + mpv reads Internal (mpv)', () {
+      expect(
+        getPlayerDisplayName(null, AppLocalizationsEn(), engine: PlayerEngine.mpv),
+        'Internal (mpv)',
+      );
+    });
+
+    test('internal + vlc reads Internal (VLC)', () {
+      expect(
+        getPlayerDisplayName(null, AppLocalizationsEn(), engine: PlayerEngine.vlc),
+        'Internal (VLC)',
+      );
+    });
+
+    test('internal with no engine given reads Internal (mpv)', () {
+      expect(
+        getPlayerDisplayName(null, AppLocalizationsEn()),
+        'Internal (mpv)',
+        reason: 'the engine defaults to libmpv, so the label does too',
+      );
     });
   });
 }
 
 /// The values of every radio the dialog is currently showing as chosen.
-List<String?> _selectedRadioValues(WidgetTester tester) {
-  final RadioGroup<String?> group = tester.widget<RadioGroup<String?>>(
-    find.byType(RadioGroup<String?>),
+List<String> _selectedRadioValues(WidgetTester tester) {
+  final RadioGroup<String> group = tester.widget<RadioGroup<String>>(
+    find.byType(RadioGroup<String>),
   );
   return tester
-      .widgetList<Radio<String?>>(find.byType(Radio<String?>))
-      .where((Radio<String?> r) => r.value == group.groupValue)
-      .map((Radio<String?> r) => r.value)
+      .widgetList<Radio<String>>(find.byType(Radio<String>))
+      .where((Radio<String> r) => r.value == group.groupValue)
+      .map((Radio<String> r) => r.value)
       .toList();
 }
 

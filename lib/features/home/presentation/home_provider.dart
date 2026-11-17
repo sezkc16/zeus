@@ -130,12 +130,53 @@ class HomeData extends _$HomeData {
         state = HomeError('${check.site} needs a check');
         return;
       }
+      // A plugin with no main page answers `{}` (see CloudStreamProvider):
+      // it has nothing to show, so fall back to the key-free For You
+      // feed instead of a blank Home, and let the screen say so once.
+      // Sections that came back empty are still that plugin's own home —
+      // a provider returning sections, even empty ones, is a success.
+      if (items.isEmpty) {
+        await _fallbackToKeyFree(token, activeProvider.name, null);
+        return;
+      }
       state = HomeSuccess(items);
     } catch (e) {
       if (!_isCurrent(token)) return;
       // A dead network must still reach the localized offline page rather than
       // a raw exception string, which is all the probe used to buy us.
-      state = _looksOffline(e) ? const HomeOffline() : HomeError(e.toString());
+      if (_looksOffline(e)) {
+        state = const HomeOffline();
+        return;
+      }
+      // The plugin's home failed: show the key-free feed instead of an
+      // error page.
+      await _fallbackToKeyFree(token, activeProvider.name, e.toString());
+    }
+  }
+
+  /// Serves the key-free For You feed after a plugin's home failed or came
+  /// back empty, so Home is never blank. [originalError] is the message
+  /// HomeError carries when even the fallback has nothing to show — a
+  /// plugin failure keeps its own message (see home_provider_test).
+  Future<void> _fallbackToKeyFree(
+    int token,
+    String pluginName,
+    String? originalError,
+  ) async {
+    try {
+      ref.invalidate(keyFreeHomeFeedProvider);
+      final feed = await ref.read(keyFreeHomeFeedProvider.future);
+      if (!_isCurrent(token)) return;
+      if (feed.isEmpty) {
+        state = HomeError(originalError ?? 'Could not load trending');
+        return;
+      }
+      state = HomeSuccess(feed, fellBackFrom: pluginName);
+    } catch (e) {
+      if (!_isCurrent(token)) return;
+      state = _looksOffline(e)
+          ? const HomeOffline()
+          : HomeError(originalError ?? e.toString());
     }
   }
 

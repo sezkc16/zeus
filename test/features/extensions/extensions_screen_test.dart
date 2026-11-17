@@ -695,7 +695,7 @@ void _tvDeadEndTests() {
     await tester.pumpAndSettle();
     expectFocusInBody(tester);
 
-    // The repository lands. The empty "No ZoroX repos yet" text is
+    // The repository lands. The empty "No SkyStream repos yet" text is
     // replaced by the repository card below the field — the field itself
     // stays, and the focus on it must stay live.
     controller.push(withRepository());

@@ -203,7 +203,7 @@ void main() {
       await tester.pump();
       expect(
         find.text(
-          'The check passed, but this site still refuses ZoroX. Trying '
+          'The check passed, but this site still refuses Zeus. Trying '
           'again in a few minutes.',
         ),
         findsOneWidget,

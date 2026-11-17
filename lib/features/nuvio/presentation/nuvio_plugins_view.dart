@@ -141,7 +141,7 @@ class _NuvioPluginsViewState extends ConsumerState<NuvioPluginsView> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'JS scrapers feed the Explore sources sheet alongside ZoroX plugins.',
+                              'JS scrapers feed the Explore sources sheet alongside Zeus plugins.',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: cs.onSurfaceVariant,
                               ),

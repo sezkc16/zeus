@@ -180,7 +180,7 @@ abstract class AppLocalizations {
   /// No description provided for @appTitle.
   ///
   /// In en, this message translates to:
-  /// **'ZoroX'**
+  /// **'Zeus'**
   String get appTitle;
 
   /// No description provided for @languageName.
@@ -558,13 +558,13 @@ abstract class AppLocalizations {
   /// No description provided for @openSourceLicencesSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'ZoroX is free software under the GNU GPL v3'**
+  /// **'Zeus is free software under the GNU GPL v3'**
   String get openSourceLicencesSubtitle;
 
   /// The GPL notice on the licence page: copyright, the licence, no warranty, where the source is.
   ///
   /// In en, this message translates to:
-  /// **'Copyright © 2025–2026 ZoroX contributors.\nZoroX is free software: you can redistribute it and modify it under the terms of the GNU General Public License, version 3. It comes with ABSOLUTELY NO WARRANTY. Its source code is at github.com/sezkc16/zorox-app.'**
+  /// **'Copyright © 2025–2026 Zeus contributors.\nZeus is free software: you can redistribute it and modify it under the terms of the GNU General Public License, version 3. It comes with ABSOLUTELY NO WARRANTY. Its source code is at github.com/sezkc16/zeus.'**
   String get appLegalese;
 
   /// No description provided for @enabled.
@@ -1149,11 +1149,29 @@ abstract class AppLocalizations {
   /// **'Internal (VLC)'**
   String get internalPlayer;
 
+  /// The built-in player using the mpv engine, in the Default Player picker and its Settings row. The mirror of internalPlayer (VLC).
+  ///
+  /// In en, this message translates to:
+  /// **'Internal (mpv)'**
+  String get internalPlayerMpv;
+
   /// No description provided for @builtInPlayer.
   ///
   /// In en, this message translates to:
   /// **'Built-in player'**
   String get builtInPlayer;
+
+  /// The first pill in the Home source selector: the key-free AniList feed, as opposed to one installed plugin's own home page.
+  ///
+  /// In en, this message translates to:
+  /// **'For You'**
+  String get homeForYou;
+
+  /// Toast when a plugin's home page fails to load and Home falls back to the key-free For You feed. {name} is the plugin's name.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load {name} — showing For You instead'**
+  String homeFallbackToForYou(String name);
 
   /// No description provided for @customNotSet.
   ///
@@ -1602,7 +1620,7 @@ abstract class AppLocalizations {
   /// Empty state of the Extensions > Repositories section: no repository added yet.
   ///
   /// In en, this message translates to:
-  /// **'No ZoroX repos yet'**
+  /// **'No SkyStream repos yet'**
   String get noZoroxReposYet;
 
   /// Helper text under the Add Repository URL field on the Extensions screen.
@@ -3702,7 +3720,7 @@ abstract class AppLocalizations {
   /// **'Not a video'**
   String get playerSourceNotVideo;
 
-  /// Title of the Nuvio source card on a TMDB details screen. Sits beside the 'Available sources' card, which is the ZoroX plugin system; the two are peers. 'Nuvio' is the name of the third-party scraper project and is never translated.
+  /// Title of the Nuvio source card on a TMDB details screen. Sits beside the 'Available sources' card, which is the Zeus plugin system; the two are peers. 'Nuvio' is the name of the third-party scraper project and is never translated.
   ///
   /// In en, this message translates to:
   /// **'Nuvio plugins'**
@@ -3786,16 +3804,16 @@ abstract class AppLocalizations {
   /// **'No installed add-on matches \"{query}\".'**
   String addonManageNoMatch(String query);
 
-  /// Name of CloudStream, the app whose extensions ZoroX runs; a proper noun, never translated. Shown on the CloudStream screen and on badges marking its providers.
+  /// Name of CloudStream, the app whose extensions Zeus runs; a proper noun, never translated. Shown on the CloudStream screen and on badges marking its providers.
   ///
   /// In en, this message translates to:
   /// **'CloudStream'**
   String get cloudStream;
 
-  /// Search: tag on a section of ZoroX extensions' results; the app's name, never translated.
+  /// Search: tag on a section of Zeus extensions' results; the app's name, never translated.
   ///
   /// In en, this message translates to:
-  /// **'ZoroX'**
+  /// **'Zeus'**
   String get searchTagSkyStream;
 
   /// Search: tag on a section of a Stremio add-on's results; a proper noun, never translated.
@@ -4146,10 +4164,10 @@ abstract class AppLocalizations {
   /// **'This device\'s browser is too old for this site\'s check'**
   String get checkStateTooOld;
 
-  /// A site's row: its check passed, but the site still refuses requests; ZoroX waits before trying again.
+  /// A site's row: its check passed, but the site still refuses requests; Zeus waits before trying again.
   ///
   /// In en, this message translates to:
-  /// **'The check passed, but this site still refuses ZoroX. Trying again in a few minutes.'**
+  /// **'The check passed, but this site still refuses Zeus. Trying again in a few minutes.'**
   String get checkStateIneffective;
 
   /// A site's row: its check came back after every clearance, even after a fresh start.
@@ -4200,10 +4218,10 @@ abstract class AppLocalizations {
   /// **'{site} needs a quick check'**
   String checkLineNeedsYou(String site);
 
-  /// In an extension's settings sheet, in place of a part ZoroX can't draw yet (a web page).
+  /// In an extension's settings sheet, in place of a part Zeus can't draw yet (a web page).
   ///
   /// In en, this message translates to:
-  /// **'This part can\'t be shown in ZoroX yet.'**
+  /// **'This part can\'t be shown in Zeus yet.'**
   String get extensionSheetCantShow;
 
   /// Closes the top window of an extension's settings sheet.

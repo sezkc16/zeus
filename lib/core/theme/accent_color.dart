@@ -5,8 +5,8 @@ import '../storage/settings_repository.dart';
 part 'accent_color.g.dart';
 
 /// The 8 accent presets — the design preview's swatch row (v3, 2.9.19+59).
-/// Gold is the default — the app's Gold & Black identity (see
-/// ZOROX_DESIGN_SPEC.md). The shades are picked to stay readable on the
+/// Green is the default (user 2026-11-17: fresh installs open green) —
+/// Gold stays a preset. The shades are picked to stay readable on the
 /// obsidian background (#0A0A0B): saturated enough to read as an accent,
 /// light enough that the active nav icon, section underlines and buttons
 /// stay legible. Only the accent changes; the background stays black and
@@ -15,7 +15,7 @@ part 'accent_color.g.dart';
 /// White / Black / Cyan were presets in earlier releases (White for the
 /// dark theme, Black for the light theme, M M 2026-11-14). The approved
 /// design preview shows exactly these 8 swatches, so the three are gone:
-/// a saved White / Black / Cyan falls back to Gold through [fromName],
+/// a saved White / Black / Cyan falls back to Green through [fromName],
 /// which is the same landing as an absent value.
 enum ZoroxAccent {
   gold('Gold', Color(0xFFD4AF37)),
@@ -35,16 +35,16 @@ enum ZoroxAccent {
   /// The accent color itself.
   final Color color;
 
-  /// The saved preset name, or Gold for anything this release never wrote.
+  /// The saved preset name, or Green for anything this release never wrote.
   /// Storage outlives downgrades and hand-editing, so an unrecognised value
   /// is reachable; it says no more than an absent one does, and lands in
   /// the same place.
   static ZoroxAccent fromName(String? name) {
-    if (name == null) return ZoroxAccent.gold;
+    if (name == null) return ZoroxAccent.green;
     for (final accent in ZoroxAccent.values) {
       if (accent.name == name) return accent;
     }
-    return ZoroxAccent.gold;
+    return ZoroxAccent.green;
   }
 }
 
@@ -65,11 +65,11 @@ class AccentColor extends _$AccentColor {
   }
 
   /// Whether the user has ever picked an accent in Settings (any preset,
-  /// Gold included). Until then the saved value is absent — and on Android
+  /// Green included). Until then the saved value is absent — and on Android
   /// the OS dynamic colour is used instead, so Material You keeps working.
-  /// Picking Gold explicitly IS a choice, not the default: Gold is both
+  /// Picking Green explicitly IS a choice, not the default: Green is both
   /// the fallback and a preset, so the accent state alone cannot tell
-  /// "never chose" from "chose Gold" — only the stored value can.
+  /// "never chose" from "chose Green" — only the stored value can.
   bool get hasExplicitChoice => _repository.getAccentColor() != null;
 
   Future<void> setAccent(ZoroxAccent accent) async {

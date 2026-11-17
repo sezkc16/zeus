@@ -122,7 +122,7 @@ void main() {
       },
     );
 
-    test('ZoroX\'s own licence ships and is on the licence page', () async {
+    test('Zeus\'s own licence ships and is on the licence page', () async {
       // Flutter's licence page lists what dependencies declare, never the app
       // itself, so the app's GPL-3.0 text has to be registered by hand.
       final licence = await rootBundle.loadString('LICENSE');
@@ -131,7 +131,7 @@ void main() {
 
       AppTheme.createDarkTheme(null);
       final entries = await LicenseRegistry.licenses.toList();
-      final own = entries.where((e) => e.packages.contains('ZoroX'));
+      final own = entries.where((e) => e.packages.contains('Zeus'));
       expect(own, hasLength(1), reason: 'registered once, however often a theme is built');
       expect(
         own.single.paragraphs.map((p) => p.text).join('\n'),

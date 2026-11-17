@@ -45,16 +45,18 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
 
   /// The branch-switch glide (ZoroX v4): the shell swaps branch Navigators
   /// instantly, so a tab tap — or the Settings gear — snapped the new
-  /// branch in ("jhatak se"). The new branch instead fades in from a
+  /// branch in ("jhatak se"). The new branch instead slides in from a
   /// little to the right over 300 ms, the same motion as a pushed page.
   /// Starts complete, so the first frame just appears.
+  ///
+  /// Slide only, no fade (v4): fading the whole shell made the incoming
+  /// branch translucent for 300 ms, and under Liquid Glass that read as
+  /// the two screens ghosting through each other. A slide keeps the
+  /// incoming branch fully opaque over the opaque scaffold background.
   late final AnimationController _branchController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 300),
     value: 1.0,
-  );
-  late final Animation<double> _branchFade = _branchController.drive(
-    CurveTween(curve: Curves.easeInOut),
   );
   late final Animation<Offset> _branchSlide = _branchController.drive(
     Tween<Offset>(
@@ -74,15 +76,12 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
   }
 
   /// The shell content with the branch-switch glide. The shell itself is
-  /// never remounted — only its parent fades and slides — so each branch
-  /// keeps its scroll position and navigation stack.
+  /// never remounted — only its parent slides — so each branch keeps its
+  /// scroll position and navigation stack.
   Widget _branchTransition() {
-    return FadeTransition(
-      opacity: _branchFade,
-      child: SlideTransition(
-        position: _branchSlide,
-        child: widget.navigationShell,
-      ),
+    return SlideTransition(
+      position: _branchSlide,
+      child: widget.navigationShell,
     );
   }
 
@@ -483,42 +482,15 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
                 // throws "Incorrect use of ParentDataWidget" on every
                 // frame and freezes the app — that was +15..+19.
                 //
-                // The solid backing plate below is a SIBLING Positioned,
-                // not a wrapper: it paints behind the nav and does not
-                // touch its ParentData. The package's glass refracts
-                // whatever is behind it, and v2's pill was translucent
-                // enough that row headers showed through it distorted
-                // (the "Top Movies in 4K" bleed). The plate is the pill's
-                // exact footprint in solid #101014 (see
-                // [CustomBottomNavBar.pillBackingColor]), so the glass
-                // samples a solid colour and the pill reads as opaque —
-                // nothing can show through it, however far the list
-                // scrolls. Hidden with the pill on the Settings branch.
-                if (showNavBar)
-                  Positioned(
-                    left: CustomBottomNavBar.pillHorizontalMargin(context),
-                    right: CustomBottomNavBar.pillHorizontalMargin(context),
-                    bottom:
-                        CustomBottomNavBar.navPaddingBottom(context) +
-                        CustomBottomNavBar.pillBottomMargin,
-                    height: CustomBottomNavBar.pillHeight,
-                    child: DecoratedBox(
-                      decoration: ShapeDecoration(
-                        // The package's pill shape is a rounded
-                        // superellipse of radius 34; its outlined
-                        // equivalent is Flutter's RoundedSuperellipseBorder
-                        // (the class itself is not exported by the package
-                        // barrel). The glass is a shader tint, not a solid
-                        // fill, so the plate underneath is the opacity.
-                        shape: RoundedSuperellipseBorder(
-                          borderRadius: BorderRadius.circular(
-                            CustomBottomNavBar.pillBorderRadius,
-                          ),
-                        ),
-                        color: CustomBottomNavBar.pillBackingColor,
-                      ),
-                    ),
-                  ),
+                // No backing plate behind the pill: the fork has none,
+                // and the pill is the fork's translucent frosted glass
+                // in both dark and light mode (v4). A solid plate made
+                // the pill read as a dark bar — and a fixed near-black
+                // slab is wrong in light mode too. The glass itself
+                // blurs whatever scrolls under it, and the shell's
+                // bottom clearance keeps the last row above the pill,
+                // so no row header can read through it. Hidden with
+                // the pill on the Settings branch.
                 if (showNavBar)
                   MediaQuery(
                     data: mq.copyWith(

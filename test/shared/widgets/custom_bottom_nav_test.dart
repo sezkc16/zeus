@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:liquid_glass_bottom_nav/liquid_glass_bottom_nav.dart';
 import 'package:reicons/reicons.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
 import 'package:zorox/shared/widgets/custom_bottom_nav.dart';
@@ -206,5 +207,24 @@ void main() {
     expect(CustomBottomNavBar.targetBottomGap, 8.0);
     // 8 (gap) + 68 (pill) + 12 (buffer).
     expect(CustomBottomNavBar.contentClearance, 88.0);
+  });
+
+  testWidgets('the fork glass pill renders in both dark and light mode', (
+    tester,
+  ) async {
+    // v4: the pill is the fork's translucent frosted glass in both
+    // brightnesses — never a solid bar, in dark mode or light. The
+    // package renders its glass only on Impeller, but the widget itself
+    // is in the tree either way; a theme-gated fallback would show up
+    // here as its absence.
+    for (final brightness in [Brightness.dark, Brightness.light]) {
+      await pump(tester, brightness);
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(LiquidGlassNavBar),
+        findsOneWidget,
+        reason: 'glass pill under $brightness',
+      );
+    }
   });
 }

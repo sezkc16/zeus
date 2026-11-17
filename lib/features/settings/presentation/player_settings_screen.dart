@@ -72,11 +72,13 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     value: getPlayerDisplayName(
                       playerSettings.preferredPlayer,
                       l10n,
+                      engine: playerSettings.playerEngine,
                     ),
                     onTap: () => showDefaultPlayerDialog(
                       context,
                       ref,
                       playerSettings.preferredPlayer,
+                      playerSettings.playerEngine,
                     ),
                   ),
                   // Player Engine (libmpv Golden / libVLC): which engine

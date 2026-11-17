@@ -1,9 +1,10 @@
 /// Which accent the app comes up in when the user has never chosen one.
 ///
-/// Gold is the default — the app's Gold & Black identity. An explicit
-/// choice in Settings > Accent color is honoured and persisted across
-/// restarts; a value no release ever wrote (storage outlives downgrades
-/// and hand-editing) falls back to Gold, the same as nothing recorded.
+/// Green is the default (user 2026-11-17: fresh installs open green).
+/// An explicit choice in Settings > Accent color is honoured and
+/// persisted across restarts; a value no release ever wrote (storage
+/// outlives downgrades and hand-editing) falls back to Green, the same
+/// as nothing recorded.
 ///
 /// These tests drive the real [StorageService] against a real Hive box in
 /// a temp directory, so "nothing recorded yet" is the genuine state rather
@@ -54,10 +55,10 @@ void main() {
   }
 
   group('nothing chosen yet', () {
-    test('comes up Gold', () {
+    test('comes up Green', () {
       expect(storage.getAccentColor(), isNull, reason: 'nothing recorded yet');
 
-      expect(boot().read(accentColorProvider), ZoroxAccent.gold);
+      expect(boot().read(accentColorProvider), ZoroxAccent.green);
     });
   });
 
@@ -81,28 +82,28 @@ void main() {
     });
   });
 
-  // Whether the user has ever picked an accent: Gold is both the fallback
+  // Whether the user has ever picked an accent: Green is both the fallback
   // and a preset, so the accent state alone cannot tell "never chose" from
-  // "chose Gold" — only the stored value can. The theme reads this to
+  // "chose Green" — only the stored value can. The theme reads this to
   // decide whether Android's Material You keeps winning.
   group('whether the user has ever picked one', () {
-    test('is false when nothing is recorded, though the accent reads Gold',
+    test('is false when nothing is recorded, though the accent reads Green',
         () {
       expect(storage.getAccentColor(), isNull);
 
       final container = boot();
-      expect(container.read(accentColorProvider), ZoroxAccent.gold);
+      expect(container.read(accentColorProvider), ZoroxAccent.green);
       expect(
         container.read(accentColorProvider.notifier).hasExplicitChoice,
         isFalse,
       );
     });
 
-    test('is true once Gold itself is picked', () async {
-      await storage.saveAccentColor('gold');
+    test('is true once Green itself is picked', () async {
+      await storage.saveAccentColor('green');
 
       final container = boot();
-      expect(container.read(accentColorProvider), ZoroxAccent.gold);
+      expect(container.read(accentColorProvider), ZoroxAccent.green);
       expect(
         container.read(accentColorProvider.notifier).hasExplicitChoice,
         isTrue,
@@ -119,10 +120,10 @@ void main() {
     });
   });
 
-  test('a value no release ever wrote falls back to Gold', () async {
+  test('a value no release ever wrote falls back to Green', () async {
     await storage.saveAccentColor('sepia');
 
-    expect(boot().read(accentColorProvider), ZoroxAccent.gold);
+    expect(boot().read(accentColorProvider), ZoroxAccent.green);
   });
 
   test('choosing an accent records it', () async {
@@ -148,11 +149,11 @@ void main() {
     }
   });
 
-  test('retired White / Black / Cyan fall back to Gold (v3, 2.9.19+59)', () {
+  test('retired White / Black / Cyan fall back to Green (v4, 2.9.19+60)', () {
     expect(ZoroxAccent.silver.color, const Color(0xFFE8E8EC));
-    expect(ZoroxAccent.fromName('white'), ZoroxAccent.gold);
-    expect(ZoroxAccent.fromName('black'), ZoroxAccent.gold);
-    expect(ZoroxAccent.fromName('cyan'), ZoroxAccent.gold);
+    expect(ZoroxAccent.fromName('white'), ZoroxAccent.green);
+    expect(ZoroxAccent.fromName('black'), ZoroxAccent.green);
+    expect(ZoroxAccent.fromName('cyan'), ZoroxAccent.green);
     expect(ZoroxAccent.fromName('violet'), ZoroxAccent.violet);
   });
 }

@@ -10,7 +10,7 @@ class AppLocalizationsKn extends AppLocalizations {
   AppLocalizationsKn([String locale = 'kn']) : super(locale);
 
   @override
-  String get appTitle => 'ZoroX';
+  String get appTitle => 'Zeus';
 
   @override
   String get languageName => 'ಕನ್ನಡ';
@@ -206,11 +206,11 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get openSourceLicencesSubtitle =>
-      'ZoroX, GNU GPL v3 ಅಡಿಯಲ್ಲಿ ಉಚಿತ ತಂತ್ರಾಂಶವಾಗಿದೆ';
+      'Zeus, GNU GPL v3 ಅಡಿಯಲ್ಲಿ ಉಚಿತ ತಂತ್ರಾಂಶವಾಗಿದೆ';
 
   @override
   String get appLegalese =>
-      'ಹಕ್ಕುಸ್ವಾಮ್ಯ © 2025–2026 ZoroX ಕೊಡುಗೆದಾರರು.\nZoroX ಉಚಿತ ತಂತ್ರಾಂಶ: GNU ಜನರಲ್ ಪಬ್ಲಿಕ್ ಲೈಸೆನ್ಸ್, ಆವೃತ್ತಿ 3 ರ ನಿಯಮಗಳ ಅಡಿಯಲ್ಲಿ ನೀವು ಇದನ್ನು ಮರುಹಂಚಿಕೆ ಮಾಡಬಹುದು ಮತ್ತು ಮಾರ್ಪಡಿಸಬಹುದು. ಇದು ಯಾವುದೇ ಖಾತರಿ ಇಲ್ಲದೆ ಬರುತ್ತದೆ. ಇದರ ಮೂಲ ಕೋಡ್ github.com/sezkc16/zorox-app ನಲ್ಲಿದೆ.';
+      'ಹಕ್ಕುಸ್ವಾಮ್ಯ © 2025–2026 Zeus ಕೊಡುಗೆದಾರರು.\nZeus ಉಚಿತ ತಂತ್ರಾಂಶ: GNU ಜನರಲ್ ಪಬ್ಲಿಕ್ ಲೈಸೆನ್ಸ್, ಆವೃತ್ತಿ 3 ರ ನಿಯಮಗಳ ಅಡಿಯಲ್ಲಿ ನೀವು ಇದನ್ನು ಮರುಹಂಚಿಕೆ ಮಾಡಬಹುದು ಮತ್ತು ಮಾರ್ಪಡಿಸಬಹುದು. ಇದು ಯಾವುದೇ ಖಾತರಿ ಇಲ್ಲದೆ ಬರುತ್ತದೆ. ಇದರ ಮೂಲ ಕೋಡ್ github.com/sezkc16/zeus ನಲ್ಲಿದೆ.';
 
   @override
   String get enabled => 'ಸಕ್ರಿಯಗೊಳಿಸಲಾಗಿದೆ';
@@ -544,7 +544,18 @@ class AppLocalizationsKn extends AppLocalizations {
   String get internalPlayer => 'ಆಂತರಿಕ (VLC)';
 
   @override
+  String get internalPlayerMpv => 'Internal (mpv)';
+
+  @override
   String get builtInPlayer => 'ಬಿಲ್ಟ್-ಇನ್ ಪ್ಲೇಯರ್';
+
+  @override
+  String get homeForYou => 'For You';
+
+  @override
+  String homeFallbackToForYou(String name) {
+    return 'Couldn\'t load $name — showing For You instead';
+  }
 
   @override
   String get customNotSet => 'ಕಸ್ಟಮ್ (ಸೆಟ್ ಮಾಡಿಲ್ಲ)';
@@ -790,7 +801,7 @@ class AppLocalizationsKn extends AppLocalizations {
       'CloudStream repos (.cs3), TojiX, Nuvio & Stremio';
 
   @override
-  String get noZoroxReposYet => 'No ZoroX repos yet';
+  String get noZoroxReposYet => 'No SkyStream repos yet';
 
   @override
   String get pasteRepoUrlHint =>
@@ -2098,7 +2109,7 @@ class AppLocalizationsKn extends AppLocalizations {
   String get cloudStream => 'CloudStream';
 
   @override
-  String get searchTagSkyStream => 'ZoroX';
+  String get searchTagSkyStream => 'Zeus';
 
   @override
   String get searchTagStremio => 'Stremio';
@@ -2362,7 +2373,7 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get checkStateIneffective =>
-      'ಪರಿಶೀಲನೆ ಪೂರ್ಣವಾಯಿತು, ಆದರೆ ಈ ಸೈಟ್ ಇನ್ನೂ ZoroX ಅನ್ನು ನಿರಾಕರಿಸುತ್ತಿದೆ. ಕೆಲವು ನಿಮಿಷಗಳಲ್ಲಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಲಾಗುತ್ತದೆ.';
+      'ಪರಿಶೀಲನೆ ಪೂರ್ಣವಾಯಿತು, ಆದರೆ ಈ ಸೈಟ್ ಇನ್ನೂ Zeus ಅನ್ನು ನಿರಾಕರಿಸುತ್ತಿದೆ. ಕೆಲವು ನಿಮಿಷಗಳಲ್ಲಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಲಾಗುತ್ತದೆ.';
 
   @override
   String get checkStateKeepsAsking =>
@@ -2397,7 +2408,7 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get extensionSheetCantShow =>
-      'ಈ ಭಾಗವನ್ನು ಇನ್ನೂ ZoroX ನಲ್ಲಿ ತೋರಿಸಲಾಗುವುದಿಲ್ಲ.';
+      'ಈ ಭಾಗವನ್ನು ಇನ್ನೂ Zeus ನಲ್ಲಿ ತೋರಿಸಲಾಗುವುದಿಲ್ಲ.';
 
   @override
   String get extensionSheetClose => 'ಮುಚ್ಚಿ';

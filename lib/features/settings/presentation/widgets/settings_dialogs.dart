@@ -676,8 +676,20 @@ String formatSeekDuration(int seconds, AppLocalizations l10n) {
 }
 
 /// Returns a human-readable name for a player ID.
-String getPlayerDisplayName(String? playerId, AppLocalizations l10n) {
-  if (playerId == null) return l10n.internalPlayer;
+String getPlayerDisplayName(
+  String? playerId,
+  AppLocalizations l10n, {
+  PlayerEngine? engine,
+}) {
+  if (playerId == null) {
+    // The internal player is whichever engine is current: the row must
+    // never read "Internal (VLC)" while the engine is libmpv Golden
+    // (v4). The engine defaults to libmpv, so a caller that does not
+    // pass one gets the mpv label.
+    return engine == PlayerEngine.vlc
+        ? l10n.internalPlayer
+        : l10n.internalPlayerMpv;
+  }
   final player = ExternalPlayerService.instance.getPlayerById(playerId);
   return player?.displayName ?? playerId;
 }
@@ -1061,10 +1073,20 @@ void showPreferredAudioLanguageDialog(
 }
 
 /// Shows a dialog to pick the default player (internal or external).
+///
+/// Two internal rows (v4): "Internal (mpv)" and "Internal (VLC)". The
+/// internal player is whichever engine is current, so picking a row sets
+/// both the preferred player (internal) and the engine — the "Default
+/// Player" row and the "Player Engine" row can never disagree again.
+/// mpv is the in-app Golden mpv player; there is no external mpv app on
+/// iOS, so no hand-off is offered. The choice is written to disk before
+/// the dialog closes: a relaunch in the gap would read the old player
+/// back and the row would lie until the next launch.
 void showDefaultPlayerDialog(
   BuildContext context,
   WidgetRef ref,
   String? currentPlayerId,
+  PlayerEngine currentEngine,
 ) {
   final l10n = AppLocalizations.of(context)!;
   final service = ExternalPlayerService.instance;
@@ -1080,38 +1102,67 @@ void showDefaultPlayerDialog(
       ? currentPlayerId
       : null;
 
+  // The radio group's choice: 'internal-mpv' / 'internal-vlc' for the two
+  // internal rows, an external player's id otherwise.
+  final currentChoice = currentPlayerId ??
+      (currentEngine == PlayerEngine.mpv ? 'internal-mpv' : 'internal-vlc');
+
+  Future<void> applyChoice(String choice) async {
+    final notifier = ref.read(playerSettingsProvider.notifier);
+    if (choice == 'internal-mpv') {
+      await notifier.setPreferredPlayer(null);
+      await notifier.setPlayerEngine(PlayerEngine.mpv);
+    } else if (choice == 'internal-vlc') {
+      await notifier.setPreferredPlayer(null);
+      await notifier.setPlayerEngine(PlayerEngine.vlc);
+    } else {
+      await notifier.setPreferredPlayer(choice);
+    }
+  }
+
   showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
       surfaceTintColor: Colors.transparent,
       title: Text(l10n.defaultPlayer),
       content: SingleChildScrollView(
-        child: RadioGroup<String?>(
-          groupValue: currentPlayerId,
+        child: RadioGroup<String>(
+          groupValue: currentChoice,
           onChanged: (val) async {
             // Close only once the choice is on disk: a relaunch in the gap
             // would read the old player back and the "Default Player" row
             // would lie until the next launch.
-            await ref
-                .read(playerSettingsProvider.notifier)
-                .setPreferredPlayer(val);
+            if (val == null) return;
+            await applyChoice(val);
             if (context.mounted) Navigator.pop<void>(context);
           },
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               currentOption(
-                isCurrent: currentPlayerId == null,
+                isCurrent: currentChoice == 'internal-mpv',
                 child: ListTile(
-                  autofocus: currentPlayerId == null,
-                  title: Text(l10n.internalPlayer),
+                  autofocus: currentChoice == 'internal-mpv',
+                  title: Text(l10n.internalPlayerMpv),
                   subtitle: Text(l10n.builtInPlayer),
-                  leading: const Radio<String?>(value: null),
+                  leading: const Radio<String>(value: 'internal-mpv'),
                   trailing: const Icon(Icons.play_circle_filled_rounded),
                   onTap: () async {
-                    await ref
-                        .read(playerSettingsProvider.notifier)
-                        .setPreferredPlayer(null);
+                    await applyChoice('internal-mpv');
+                    if (context.mounted) Navigator.pop<void>(context);
+                  },
+                ),
+              ),
+              currentOption(
+                isCurrent: currentChoice == 'internal-vlc',
+                child: ListTile(
+                  autofocus: currentChoice == 'internal-vlc',
+                  title: Text(l10n.internalPlayer),
+                  subtitle: Text(l10n.builtInPlayer),
+                  leading: const Radio<String>(value: 'internal-vlc'),
+                  trailing: const Icon(Icons.play_circle_filled_rounded),
+                  onTap: () async {
+                    await applyChoice('internal-vlc');
                     if (context.mounted) Navigator.pop<void>(context);
                   },
                 ),
@@ -1124,12 +1175,10 @@ void showDefaultPlayerDialog(
                   child: ListTile(
                     autofocus: isCurrent,
                     title: Text(player.displayName),
-                    leading: Radio<String?>(value: player.id),
+                    leading: Radio<String>(value: player.id),
                     trailing: Icon(player.icon),
                     onTap: () async {
-                      await ref
-                          .read(playerSettingsProvider.notifier)
-                          .setPreferredPlayer(player.id);
+                      await applyChoice(player.id);
                       if (context.mounted) Navigator.pop<void>(context);
                     },
                   ),
@@ -1146,7 +1195,7 @@ void showDefaultPlayerDialog(
                           unavailable,
                     ),
                     subtitle: Text(l10n.playerNotOnThisDevice),
-                    leading: Radio<String?>(value: unavailable),
+                    leading: Radio<String>(value: unavailable),
                     trailing: const Icon(Icons.block_rounded),
                   ),
                 ),

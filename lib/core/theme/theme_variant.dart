@@ -139,8 +139,35 @@ class ThemeVariant extends _$ThemeVariant {
   Future<void> setVariant(ZoroxThemeVariant variant) async {
     state = variant;
     await _repository.saveThemeVariant(variant.name);
+    // Remember the last dark variant, so the Dark Mode toggle knows
+    // where to return to from Frost.
+    if (variant.isDark) {
+      await _repository.saveLastDarkThemeVariant(variant.name);
+    }
     await ref
         .read(appThemeModeProvider.notifier)
         .setThemeMode(variant.isDark ? ThemeMode.dark : ThemeMode.light);
+  }
+
+  /// The Dark Mode toggle (Settings → General, under the variant
+  /// picker). The variant stays the single source of truth, so the
+  /// toggle and the picker can never fight: picking a dark variant
+  /// turns the toggle on (its mode is dark); picking Frost turns it
+  /// off. Toggling off from a dark variant switches to the light look
+  /// (Frost); toggling on from Frost returns to the last dark variant
+  /// (Liquid Glass if none was ever picked).
+  Future<void> setDarkMode(bool enabled) async {
+    if (enabled) {
+      if (state.isDark) return;
+      final lastDark = ZoroxThemeVariant.fromName(
+        _repository.getLastDarkThemeVariant(),
+      );
+      await setVariant(
+        lastDark.isDark ? lastDark : ZoroxThemeVariant.liquidGlass,
+      );
+    } else {
+      if (!state.isDark) return;
+      await setVariant(ZoroxThemeVariant.frost);
+    }
   }
 }

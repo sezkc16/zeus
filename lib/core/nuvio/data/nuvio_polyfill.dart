@@ -1420,7 +1420,7 @@ const String nuvioPolyfillSource = r'''
       return assert;
     }
     if (moduleStubs[id]) return moduleStubs[id];
-    throw new Error("Module '" + id + "' is not available in ZoroX");
+    throw new Error("Module '" + id + "' is not available in Zeus");
   };
   G.require.resolve = function (n) { return n; };
 

@@ -493,7 +493,7 @@ class _MyAppState extends ConsumerState<MyApp> {
 
     final reports = await Future.wait(<Future<ExtensionUpdateReport>>[
       _updating(
-        'ZoroX plugins',
+        'Zeus plugins',
         () => ref.read(extensionsControllerProvider.notifier).autoUpdate(),
       ),
       _updating(
@@ -638,7 +638,7 @@ class _MyAppState extends ConsumerState<MyApp> {
           scaffoldMessengerKey: ref
               .read(notificationServiceProvider)
               .messengerKey,
-          title: 'ZoroX',
+          title: 'Zeus',
           debugShowCheckedModeBanner: false,
           themeMode: themeMode,
           theme: lightDynamic != null
@@ -732,7 +732,7 @@ class _MyAppState extends ConsumerState<MyApp> {
           rootWidget = PlatformMenuBar(
             menus: <PlatformMenuItem>[
               PlatformMenu(
-                label: 'ZoroX',
+                label: 'Zeus',
                 menus: <PlatformMenuItem>[
                   if (PlatformProvidedMenuItem.hasMenu(
                     PlatformProvidedMenuItemType.about,

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/layout_constants.dart';
 import '../../../core/theme/theme_variant.dart';
+import '../../../core/theme/theme_provider.dart';
 import '../../../core/services/notification_service.dart';
 
 import 'widgets/settings_widgets.dart';
@@ -76,7 +77,7 @@ class SettingsScreen extends ConsumerWidget {
                     SettingsTile(
                       emoji: '🧩',
                       title: 'CloudStream Repos (.cs3)',
-                      subtitle: 'TojiX repo & official CloudStream repo',
+                      subtitle: 'Zeus repo & official CloudStream repo',
                       onTap: () => const ExtensionsRoute().go(context),
                     ),
                     SettingsTile(
@@ -119,9 +120,9 @@ class SettingsScreen extends ConsumerWidget {
       children: [
         // App Theme as one segmented control — the design preview's
         // "App Theme" block: Midnight | Arena Gold | Frost | Liquid Glass.
-        // The four variants already cover dark/light (Frost is the light
-        // one), so the separate Dark/Light App Theme row is gone; picking
-        // a variant flips the mode to match its brightness.
+        // Picking a variant flips the mode to match its brightness, and
+        // the Dark Mode toggle below flips it back the other way — the
+        // two stay in sync through the variant (see ThemeVariant).
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Column(
@@ -171,6 +172,32 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ],
           ),
+        ),
+        // Dark Mode (v4): the on/off switch under the variant picker, so
+        // Liquid Glass works on all of them — the glass pill nav renders
+        // in every variant and both modes, its frost adapting to
+        // brightness. The variant stays the single source of truth, so
+        // the toggle and the picker stay in sync both ways: picking a
+        // dark variant turns it on, picking Frost turns it off, flipping
+        // it off goes to Frost, flipping it on returns to the last dark
+        // variant (Liquid Glass if none was ever picked).
+        SettingsTile(
+          emoji: '🌙',
+          title: 'Dark Mode',
+          subtitle: 'Dark backgrounds, light text',
+          trailing: Switch(
+            value: ref.watch(appThemeModeProvider) == ThemeMode.dark,
+            onChanged: (val) => ref
+                .read(themeVariantProvider.notifier)
+                .setDarkMode(val),
+          ),
+          onTap: () async {
+            final isDark =
+                ref.read(appThemeModeProvider) == ThemeMode.dark;
+            await ref
+                .read(themeVariantProvider.notifier)
+                .setDarkMode(!isDark);
+          },
         ),
         // Accent color (Gold by default, 8 presets) — the preview's
         // swatch row, right under the theme control.
@@ -323,20 +350,15 @@ class SettingsScreen extends ConsumerWidget {
         SettingsTile(
           emoji: '👨‍💻',
           title: l10n.developer,
-          subtitle: 'Made by Toji',
+          subtitle: 'Legion',
           trailing: const SizedBox.shrink(),
           onTap: () => showDeveloperDialog(context),
         ),
-        // Discord / Telegram rows are shown per the design, but they do
-        // NOT link to SkyStream's servers (the invites the fork shipped)
-        // — tapping one says "coming soon" until ZoroX has its own
-        // community links.
-        SettingsTile(
-          emoji: '💬',
-          title: 'Discord',
-          subtitle: 'Join the community server',
-          onTap: () => _showCommunityComingSoon(context, ref, 'Discord'),
-        ),
+        // The Telegram row is shown per the design, but it does NOT
+        // link to SkyStream's server (the invite the fork shipped) —
+        // tapping it says "coming soon" until Zeus has its own
+        // community link. (Discord was removed from About at the
+        // user's request, 2026-11-17.)
         SettingsTile(
           emoji: '✈️',
           title: 'Telegram',
@@ -353,7 +375,7 @@ class SettingsScreen extends ConsumerWidget {
           subtitle: l10n.openSourceLicencesSubtitle,
           onTap: () => showLicensePage(
             context: context,
-            applicationName: 'ZoroX',
+            applicationName: 'Zeus',
             applicationVersion: versionAsync.value,
             applicationLegalese: l10n.appLegalese,
           ),
@@ -361,7 +383,7 @@ class SettingsScreen extends ConsumerWidget {
         SettingsTile(
           emoji: '🏷️',
           title: l10n.version,
-          subtitle: 'ZoroX for iOS',
+          subtitle: 'Zeus for iOS',
           value: versionAsync.when(
             data: (v) => v,
             loading: () => l10n.loading,

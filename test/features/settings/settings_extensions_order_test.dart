@@ -1,6 +1,8 @@
-/// Settings' Extensions group, in the owner's order: ZoroX, CloudStream,
-/// Nuvio, Stremio - with CloudStream marked BETA, as the skip-time providers
-/// are under Accounts.
+/// Settings' Extensions group, in the owner's order: CloudStream (.cs3),
+/// Nuvio, Stremio. The Zeus repo lives on the Plugins screen's own Zeus
+/// section (not in the CloudStream section), and there is no BETA marker
+/// any more — the v3 restyle dropped the old ZoroX Providers row and the
+/// CloudStream BETA flag with it.
 library;
 
 import 'package:flutter/material.dart';
@@ -42,6 +44,19 @@ class _QuietSettings extends SettingsRepository {
   bool isIntroDbIntegrationEnabled() => false;
   @override
   bool getDevLoadAssets() => false;
+  // The theme variant is read when the Settings screen builds (the
+  // variant picker + Dark Mode toggle read it); the box is never
+  // initialised here, so no variant was ever picked — the default.
+  @override
+  String? getThemeVariant() => null;
+  // Same for the developer-options switch (the App Data group reads it);
+  // its default is off.
+  @override
+  bool getDevQoeLog() => false;
+  // Same for the accent picker (the App Theme section reads it); no
+  // accent was ever picked, so the default applies.
+  @override
+  String? getAccentColor() => null;
 }
 
 class _NoTokens extends SecureTokenStorage {
@@ -66,8 +81,7 @@ class _SignedOutTrackers extends TrackingAuth {
 }
 
 void main() {
-  testWidgets('the extensions come in the owner\'s order, CloudStream marked '
-      'BETA', (tester) async {
+  testWidgets('the extensions come in the owner\'s order', (tester) async {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -107,21 +121,19 @@ void main() {
         )
         .toList();
     expect(tiles.map((t) => t.title), [
-      'ZoroX Providers',
-      'CloudStream Extensions',
+      'CloudStream Repos (.cs3)',
       'Nuvio Plugins',
       'Stremio Add-ons',
     ]);
-    expect(tiles.where((t) => t.isBeta).map((t) => t.title), [
-      'CloudStream Extensions',
-    ]);
-    expect(tiles.last.isLast, isTrue, reason: 'the card closes on Stremio');
+    // The first tile leads to the Plugins screen, where the owner's repo
+    // is the Zeus Repo (same TojiX repo.json) in its own Zeus section.
+    expect(tiles.first.subtitle, 'Zeus repo & official CloudStream repo');
     expect(
-      find.descendant(
-        of: find.widgetWithText(SettingsTile, 'CloudStream Extensions'),
-        matching: find.text('BETA'),
-      ),
-      findsOneWidget,
+      tiles.where((t) => t.isBeta),
+      isEmpty,
+      reason: 'no extension row is marked BETA any more',
     );
+    expect(tiles.last.isLast, isTrue, reason: 'the card closes on Stremio');
+    expect(find.text('BETA'), findsNothing);
   });
 }

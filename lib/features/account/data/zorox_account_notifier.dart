@@ -559,7 +559,7 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
         extensionsState = ref.read(extensionsControllerProvider);
       }
     } catch (e) {
-      errors.add('ZoroX plugins were not restored: $e');
+      errors.add('Zeus plugins were not restored: $e');
     }
 
     // CloudStream repositories, then their plugins.
@@ -705,7 +705,7 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
     final fileName = 'zorox-backup-$stamp.json';
     try {
       final uri = await FilePicker.saveFile(
-        dialogTitle: 'Save ZoroX backup',
+        dialogTitle: 'Save Zeus backup',
         fileName: fileName,
         type: FileType.custom,
         allowedExtensions: ['json'],
@@ -763,7 +763,7 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       // so the next tap works. (Only the picker in this block can throw a
       // PlatformException, so the catch below is effectively pick-only.)
       final picked = await FilePicker.pickFile(
-        dialogTitle: 'Import ZoroX backup',
+        dialogTitle: 'Import Zeus backup',
         type: FileType.custom,
         allowedExtensions: ['json'],
       );
@@ -775,7 +775,7 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
           : await picked.xFile.readAsBytes();
       final decoded = jsonDecode(utf8.decode(bytes));
       if (decoded is! Map) {
-        throw const ZoroxSyncException('That file is not a ZoroX backup.');
+        throw const ZoroxSyncException('That file is not a Zeus backup.');
       }
       return ZoroxBackup.fromJson(Map<String, dynamic>.from(decoded));
     } on PlatformException catch (e) {

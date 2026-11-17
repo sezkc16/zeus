@@ -67,7 +67,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('About opens the licence page with ZoroX\'s notice', (
+  testWidgets('About opens the licence page with Zeus\'s notice', (
     tester,
   ) async {
     await pumpSettings(tester);
@@ -81,7 +81,7 @@ void main() {
     // jump out.
     await tester.pump();
     expect(
-      find.text('ZoroX is free software under the GNU GPL v3'),
+      find.text('Zeus is free software under the GNU GPL v3'),
       findsOneWidget,
     );
 

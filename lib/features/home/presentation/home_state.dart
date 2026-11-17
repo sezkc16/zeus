@@ -23,5 +23,12 @@ class HomeError extends HomeState {
 
 class HomeSuccess extends HomeState {
   final Map<String, List<MultimediaItem>> data;
-  const HomeSuccess(this.data);
+
+  /// The plugin Home fell back from, when that plugin's home page failed
+  /// (or had no main page) and the key-free For You feed is showing
+  /// instead. Null for a normal feed — the screen shows a toast only
+  /// while this is set.
+  final String? fellBackFrom;
+
+  const HomeSuccess(this.data, {this.fellBackFrom});
 }

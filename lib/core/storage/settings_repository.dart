@@ -40,6 +40,15 @@ class SettingsRepository {
     return _storageService.getThemeVariant();
   }
 
+  /// Last dark theme variant name. `null` = never picked a dark variant.
+  Future<void> saveLastDarkThemeVariant(String name) async {
+    await _storageService.saveLastDarkThemeVariant(name);
+  }
+
+  String? getLastDarkThemeVariant() {
+    return _storageService.getLastDarkThemeVariant();
+  }
+
   Future<void> setSidebarExpanded(bool expanded) async {
     await _storageService.setSidebarExpanded(expanded);
   }

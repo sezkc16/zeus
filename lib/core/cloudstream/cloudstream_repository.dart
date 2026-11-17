@@ -251,21 +251,29 @@ class CloudStreamRepository extends _$CloudStreamRepository {
     _cloudStreamRepositoryUrl,
   ];
 
-  /// The repositories ZoroX seeds, as the Plugins screen labels them:
+  /// The repositories Zeus seeds, as the Plugins screen labels them:
   /// the official CloudStream providers repository is the "CloudStream"
   /// option. The owner's repo (TojiX) is a CloudStream-format repository
-  /// too, so it is shown under its manifest name ("TojiX Repo") in the
-  /// CloudStream section — it used to be labelled with the app's old name
-  /// because the label was computed from its URL, which put a CloudStream
-  /// repo under the wrong section. A manifest's own `name` is what a refresh stores,
-  /// so a stored rename would not survive one, which is why the label for
-  /// the official repository is still computed from the URL at display
-  /// time. Anything else is shown under its manifest name.
+  /// too, but it is NOT shown in the CloudStream section: it has its own
+  /// "Zeus" section above the SkyStream one, labelled "Zeus Repo"
+  /// ([displayNameFor]). A manifest's own `name` is what a refresh stores,
+  /// so a stored rename would not survive one, which is why both labels
+  /// are computed from the URL at display time. Anything else is shown
+  /// under its manifest name.
   static bool isCloudStreamRepository(String url) =>
       url == _cloudStreamRepositoryUrl;
 
+  /// The owner's own repository: the same TojiX repo.json, shown as the
+  /// "Zeus Repo" in its own section. It stays in this (CloudStream) store
+  /// — it is a CloudStream-format repository, and the installed plugins
+  /// (Anikoto et al.) update through this store — only its display
+  /// grouping moved. Never remove it from the store to hide the row:
+  /// [removeRepository] would uninstall its plugins.
+  static bool isZeusRepository(String url) => url == _tojiXRepositoryUrl;
+
   static String displayNameFor(CsRepository repo) {
     if (isCloudStreamRepository(repo.url)) return 'CloudStream';
+    if (isZeusRepository(repo.url)) return 'Zeus Repo';
     return repo.name;
   }
 

@@ -42,6 +42,8 @@ import '../../../../core/providers/device_info_provider.dart';
 import 'dart:async';
 
 import 'widgets/dashboard_header_bar.dart';
+import 'widgets/home_source_selector.dart';
+import '../../../core/services/notification_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -60,6 +62,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   /// Carousel controller exposed by ExploreCarousel via [onControllerReady].
   /// Used by DashboardHeaderBar arrows.
   HeroCarouselController? _carouselController;
+
+  /// The plugin a fallback toast was last shown for. A fallback stays on
+  /// screen while its feed does, so the toast fires once per fallback —
+  /// not on every rebuild — and resets when a working feed returns, so
+  /// the same plugin failing again still says so.
+  String? _lastFallbackShown;
 
   @override
   bool get wantKeepAlive => true;
@@ -330,6 +338,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
+  /// The source pills at the top of Home (v4): "For You" + one pill per
+  /// installed plugin. Mobile sits below the transparent AppBar, so it
+  /// clears the status bar + toolbar; widescreen's header is outside the
+  /// scroll view, so it needs only a little breathing room.
+  Widget _buildSourceSelector(BuildContext context, {required bool isWidescreen}) {
+    final topPadding = isWidescreen
+        ? 8.0
+        : MediaQuery.paddingOf(context).top + kToolbarHeight + 8;
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: EdgeInsets.only(top: topPadding, bottom: 12),
+        child: const HomeSourceSelector(),
+      ),
+    );
+  }
+
+  /// Shows the fallback toast once per fallback: the plugin's home failed
+  /// and Home is showing the key-free For You feed instead.
+  void _maybeShowFallbackToast(String? fellBackFrom, AppLocalizations l10n) {
+    if (fellBackFrom == null) {
+      _lastFallbackShown = null;
+      return;
+    }
+    if (fellBackFrom == _lastFallbackShown) return;
+    _lastFallbackShown = fellBackFrom;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref
+          .read(notificationServiceProvider)
+          .showInfo(l10n.homeFallbackToForYou(fellBackFrom));
+    });
+  }
+
   /// Home's wait or error, or in its place the bot check Home's plugin met.
   Widget _checkGate(Widget child) => HomeCheckGate(
     provider: ref.watch(activeProviderProvider),
@@ -348,6 +389,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }) {
     final l10n = AppLocalizations.of(context)!;
     final isResolving = ref.watch(providerResolutionLoadingProvider);
+
+    // The fallback toast lives here, not in the switch below: the switch
+    // arms are expressions, and the toast fires once per fallback while
+    // its feed is on screen.
+    _maybeShowFallbackToast(
+      state is HomeSuccess ? state.fellBackFrom : null,
+      l10n,
+    );
 
     if (isResolving) {
       return Center(
@@ -369,6 +418,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           CustomScrollView(
             controller: _scrollController,
             slivers: [
+              _buildSourceSelector(context, isWidescreen: isWidescreen),
               SliverToBoxAdapter(child: _buildCarouselShimmer(context)),
               SliverToBoxAdapter(child: _buildListShimmer(context)),
               SliverToBoxAdapter(child: _buildListShimmer(context)),
@@ -392,6 +442,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           child: CustomScrollView(
             controller: _scrollController,
             slivers: [
+              _buildSourceSelector(context, isWidescreen: isWidescreen),
               if (data.containsKey('Trending'))
                 SliverToBoxAdapter(
                   child: ExploreCarousel(

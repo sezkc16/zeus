@@ -52,33 +52,8 @@ class CustomBottomNavBar extends StatelessWidget {
   /// no separate bottom offset.
   static const double _kBottomMargin = 8.0;
 
-  /// The pill's bottom offset, exposed for the shell's backing plate.
-  static const double pillBottomMargin = _kBottomMargin;
-
   /// The pill's height (package: fixed 68).
   static const double _kPillHeight = 68.0;
-
-  /// The pill's height, exposed for the shell's backing plate.
-  static const double pillHeight = _kPillHeight;
-
-  /// The pill's corner radius (package default 34 — a full stadium at the
-  /// fixed 68px height). The backing plate uses the same shape.
-  static const double pillBorderRadius = 34.0;
-
-  /// The solid colour behind the glass pill (the v5 preview's opaque
-  /// #101014). The package's glass refracts whatever is behind it, so a
-  /// solid plate in exactly the pill's footprint makes the pill read as
-  /// solid — no row header can show through it, however far the list
-  /// scrolls. The plate is a sibling Positioned in the shell's Stack,
-  /// never a wrapper around the nav (see AppScaffold).
-  static const Color pillBackingColor = Color(0xFF101014);
-
-  /// The pill's side margin: the package uses `insets` on screens 360 dp
-  /// and wider, half that below. The backing plate mirrors it exactly.
-  static double pillHorizontalMargin(BuildContext context) {
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    return screenWidth < 360 ? _kBottomMargin / 2 : _kBottomMargin;
-  }
 
   /// How far the pill's bottom edge sits above the physical screen bottom
   /// — the Android spot the user asked for (blue mark, 2026-11-14).

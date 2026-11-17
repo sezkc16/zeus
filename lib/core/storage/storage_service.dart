@@ -225,6 +225,19 @@ class StorageService {
     return _settingsBox.get('theme_variant') as String?;
   }
 
+  /// Last dark theme variant (Settings → General, Dark Mode toggle):
+  /// the dark variant in force before the toggle went off, so turning
+  /// it back on returns there instead of always landing on Liquid
+  /// Glass. `null` means no dark variant was ever picked — Liquid
+  /// Glass. Only dark variant names are ever written here.
+  Future<void> saveLastDarkThemeVariant(String name) async {
+    await _settingsBox.put('last_dark_theme_variant', name);
+  }
+
+  String? getLastDarkThemeVariant() {
+    return _settingsBox.get('last_dark_theme_variant') as String?;
+  }
+
   // --- Sidebar State ---
   Future<void> setSidebarExpanded(bool expanded) async {
     await _settingsBox.put('sidebar_expanded', expanded);

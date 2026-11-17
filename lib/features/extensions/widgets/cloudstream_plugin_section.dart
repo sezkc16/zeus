@@ -15,31 +15,65 @@ import '../../cloudstream/presentation/extension_ui/extension_settings_flow.dart
 
 /// The CloudStream part of the Plugins (Extensions) screen.
 ///
-/// ZoroX's own extension system and CloudStream are two separate stores,
-/// and the Extensions screen only reads the ZoroX one — so a CloudStream
+/// Zeus's own extension system and CloudStream are two separate stores,
+/// and the Extensions screen only reads the Zeus one — so a CloudStream
 /// repository seeded at launch never showed up here, and the screen looked
 /// empty on a fresh install. These widgets list the CloudStream repositories
-/// (and the installed CloudStream plugins) beside ZoroX's own, with
+/// (and the installed CloudStream plugins) beside Zeus's own, with
 /// install / update / uninstall wired to [CloudStreamRepository].
 ///
-/// Both stores are shown under one "CloudStream" section here: the owner's
-/// repo (TojiX) is a CloudStream-format repository (repo.json), so it sits
-/// in this section under its manifest name, next to the official CloudStream
-/// providers repository. It used to be labelled "ZoroX" because the
-/// label was computed from its URL — a CloudStream repo under the wrong
-/// section. The section has its own add row, which uses the CloudStream
+/// The owner's repo (TojiX) is a CloudStream-format repository (repo.json),
+/// but it does NOT sit in the "CloudStream" section: it has its own "Zeus"
+/// section above the SkyStream one ([ZeusRepositorySection]), labelled
+/// "Zeus Repo". The "CloudStream" section here holds the official
+/// CloudStream providers repository and any repository the user added.
+/// The section has its own add row, which uses the CloudStream
 /// fetcher: a repo.json manifest (name + pluginLists, no id/packageName
 /// needed) or a bare plugin list lands here, and a repository that is
-/// already there is refreshed in place, not duplicated. ZoroX's own
-/// add row lives in the ZoroX section of the Repositories tab.
+/// already there is refreshed in place, not duplicated. Zeus's own
+/// add row lives in the Zeus (SkyStream) section of the Repositories tab.
 ///
 /// The full CloudStream screen (Settings → CloudStream Extensions) still has
 /// the switch, the add-repository dialog and each plugin's settings / support
 /// buttons; this section is only the repositories and their plugins.
 
+/// The owner's own repository, in its own "Zeus" section above the
+/// "Zeus (SkyStream)" one: the same TojiX repo.json (14 .cs3 extensions),
+/// shown as "Zeus Repo". It is still stored in the CloudStream store —
+/// the .cs3 install / update flow and the installed plugins (Anikoto)
+/// run through that store — so this section only groups it for display,
+/// keeping the .cs3 own-repo apart from the .sky repos below.
+/// Hidden entirely when the repository is not stored (the user removed
+/// it); the seed never re-adds a removed repository.
+class ZeusRepositorySection extends ConsumerWidget {
+  const ZeusRepositorySection({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(cloudStreamRepositoryProvider);
+    final repo = state.repositories
+        .where((r) => CloudStreamRepository.isZeusRepository(r.url))
+        .firstOrNull;
+    if (repo == null) return const SizedBox.shrink();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const RepositoryGroupHeader(
+          icon: Icons.bolt_rounded,
+          label: 'Zeus',
+        ),
+        _CloudStreamRepositoryCard(repo: repo),
+      ],
+    );
+  }
+}
+
 /// The CloudStream repositories, under the one "CloudStream" section
-/// header — the owner's TojiX repo and the official repository, plus any
-/// other CloudStream-format repository the user added. The section has its
+/// header — the official repository, plus any other CloudStream-format
+/// repository the user added. The owner's repo is NOT listed here: it has
+/// its own "Zeus" section above the SkyStream one ([ZeusRepositorySection]).
+/// The section has its
 /// own add row (see [_showAddRepoDialog]) unless [showAddRow] is false:
 /// the Extensions screen's inline Add Repository card already feeds this
 /// same CloudStream flow, so the section's own row is hidden there to
@@ -131,6 +165,13 @@ class CloudStreamRepositoriesSection extends ConsumerWidget {
       );
     }
     final l10n = AppLocalizations.of(context)!;
+    // The owner's repo is NOT listed here: it has its own "Zeus" section
+    // above the SkyStream one ([ZeusRepositorySection]). Only the official
+    // repository and repositories the user added stay under "CloudStream".
+    final repos = [
+      for (final r in state.repositories)
+        if (!CloudStreamRepository.isZeusRepository(r.url)) r,
+    ];
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,12 +180,12 @@ class CloudStreamRepositoriesSection extends ConsumerWidget {
           icon: Icons.cloud_rounded,
           label: 'CloudStream',
         ),
-        for (final repo in state.repositories)
+        for (final repo in repos)
           _CloudStreamRepositoryCard(repo: repo),
         // The section stays when its last repository is removed: the
         // header and the add row remain, so a repository can be added
         // back into this section.
-        if (state.repositories.isEmpty)
+        if (repos.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: LayoutConstants.spacingMd,
@@ -305,8 +346,8 @@ class _CloudStreamRepositoryCard extends ConsumerWidget {
 
   Future<void> _confirmRemove(BuildContext context, WidgetRef ref) async {
     final l10n = AppLocalizations.of(context)!;
-    // The card's label: the manifest's own name ("TojiX Repo"), or
-    // "CloudStream" for the official repository.
+    // The card's label: "Zeus Repo" for the owner's repository,
+    // "CloudStream" for the official one, else the manifest's own name.
     final displayName = CloudStreamRepository.displayNameFor(repo);
     final remove = await showDialog<bool>(
       context: context,
@@ -348,8 +389,8 @@ class _CloudStreamRepositoryCard extends ConsumerWidget {
   Future<void> _refresh(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
     final l10n = AppLocalizations.of(context)!;
-    // The card's label: the manifest's own name ("TojiX Repo"), or
-    // "CloudStream" for the official repository.
+    // The card's label: "Zeus Repo" for the owner's repository,
+    // "CloudStream" for the official one, else the manifest's own name.
     final displayName = CloudStreamRepository.displayNameFor(repo);
     final failure = await ref
         .read(cloudStreamRepositoryProvider.notifier)
@@ -387,8 +428,8 @@ class _CloudStreamRepositoryCard extends ConsumerWidget {
         collapsedShape: const Border(),
         initiallyExpanded: repo.plugins.length <= 12,
         title: Text(
-          // The card's label: the manifest's own name, or "CloudStream"
-          // for the official repository.
+          // The card's label: "Zeus Repo" for the owner's repository,
+          // "CloudStream" for the official one, else the manifest's name.
           CloudStreamRepository.displayNameFor(repo),
           style: theme.textTheme.titleMedium?.copyWith(
             color: cs.primary,

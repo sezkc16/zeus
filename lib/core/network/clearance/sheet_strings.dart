@@ -10,7 +10,7 @@ import 'package:flutter/foundation.dart';
 ChallengeSheetStrings checkSheetStrings(String site) => ChallengeSheetStrings(
   note:
       '$site checks that you are a person. Finish the check below; '
-      'ZoroX remembers it for a while.',
+      'Zeus remembers it for a while.',
   retry: 'Retry',
   fullScreen: 'Full screen',
   exitFullScreen: 'Exit full screen',

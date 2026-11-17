@@ -69,7 +69,7 @@ class ZoroxBackup {
 
   factory ZoroxBackup.fromJson(Map<String, dynamic> json) {
     if (json['format'] != format) {
-      throw const FormatException('That file is not a ZoroX backup.');
+      throw const FormatException('That file is not a Zeus backup.');
     }
     final version = (json['version'] as num?)?.toInt() ?? 0;
     if (version != currentVersion) {

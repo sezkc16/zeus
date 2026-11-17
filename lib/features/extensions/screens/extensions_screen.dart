@@ -197,7 +197,7 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
     ExtensionsState state,
   ) {
     final l10n = AppLocalizations.of(context)!;
-    // Installed CloudStream plugins live beside ZoroX's own: without
+    // Installed CloudStream plugins live beside Zeus's own: without
     // them here, a plugin installed from the Repositories tab would not
     // show up as installed anywhere on this screen.
     final csInstalled = ref.watch(
@@ -298,8 +298,8 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
   ) {
     final l10n = AppLocalizations.of(context)!;
     // CloudStream's repositories live in their own store, separate from
-    // ZoroX's extension system. ZoroX's section keeps its own add row
-    // below (a ZoroX manifest carries an id/packageName, which the
+    // Zeus's extension system. Zeus's section keeps its own add row
+    // below (a Zeus manifest carries an id/packageName, which the
     // CloudStream flow does not need); the CloudStream section's add row
     // is hidden because the inline Add Repository card above already
     // feeds that flow. A repository added in one section lands in that
@@ -316,20 +316,24 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
         csLoading) {
       return [const Center(child: AppLoadingIndicator())];
     }
-    // Two separate sections, so a repository lands in the section it
-    // belongs to. ZoroX's own extension system takes a repository
-    // manifest (name + id/packageName + pluginLists) or a shortcode;
-    // CloudStream's store takes repo.json or a bare plugin list. The
-    // single add row used to feed only ZoroX's fetcher, which requires
-    // a manifest to carry an id/packageName — so no CloudStream
-    // repo.json could be added at all.
-    // Both sections stay visible even with nothing in them yet, so each
-    // add flow is always reachable.
+    // Three separate sections, so a repository lands in the section it
+    // belongs to. The owner's own repo (TojiX repo.json, .cs3) has its
+    // own "Zeus" section first ([ZeusRepositorySection]); Zeus's own
+    // extension system (.sky manifests) takes the "Zeus (SkyStream)"
+    // section next; CloudStream's store (repo.json) takes the
+    // "CloudStream" section last. The single add row used to feed only
+    // Zeus's fetcher, which requires a manifest to carry an id/packageName
+    // — so no CloudStream repo.json could be added at all.
+    // The SkyStream and CloudStream sections stay visible even with
+    // nothing in them yet, so each add flow is always reachable. The
+    // Zeus section hides when its repository is not stored (removed).
     return [
-      // ZoroX's own extension system (repository manifest).
+      // The owner's own repository (.cs3), in its own section.
+      const ZeusRepositorySection(),
+      // Zeus's own extension system (.sky repository manifests).
       const RepositoryGroupHeader(
         icon: Icons.extension_rounded,
-        label: 'ZoroX',
+        label: 'Zeus (SkyStream)',
       ),
       for (final repo in state.repositories)
         _buildRepositoryCard(
@@ -370,7 +374,7 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
   }
 
   /// The preview's Add Repository card: a URL field and a solid gold Add
-  /// button, feeding the CloudStream (.cs3) flow. The ZoroX-manifest add
+  /// button, feeding the CloudStream (.cs3) flow. The Zeus-manifest add
   /// row stays in the Repositories section below for its own store.
   Widget _buildAddRepositoryCard(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);

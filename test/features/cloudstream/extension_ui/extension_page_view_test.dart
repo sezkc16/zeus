@@ -241,7 +241,7 @@ void main() {
       () => failing.open({'rid': 3, 'session': session.id, 'node': 7, 'url': 'x'}, PageReports().call),
     );
     await show(tester, session, UiNode.fromJson(_page));
-    expect(find.text("This part can't be shown in ZoroX yet."), findsOneWidget);
+    expect(find.text("This part can't be shown in Zeus yet."), findsOneWidget);
   });
 
   testWidgets('the page view is kept across trees while its node stays', (tester) async {

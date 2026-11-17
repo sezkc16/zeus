@@ -296,6 +296,39 @@ void main() {
         );
       }
     });
+
+    test('every variant is fully opaque in both dark and light (v4)', () {
+      // The Liquid Glass ghosting the user reported — Settings rows over
+      // the Home hero — came from translucent layers during navigation;
+      // the themes themselves must never be one. Every scaffold and
+      // surface is fully opaque, so at rest nothing can show through
+      // another screen, on any variant in either brightness.
+      for (final variant in ZoroxThemeVariant.values) {
+        for (final theme in [
+          AppTheme.createDarkTheme(null, variant: variant),
+          AppTheme.createLightTheme(null, variant: variant),
+        ]) {
+          expect(
+            theme.scaffoldBackgroundColor.a,
+            1.0,
+            reason: '${variant.name} ${theme.brightness} scaffold',
+          );
+          expect(
+            theme.colorScheme.surface.a,
+            1.0,
+            reason: '${variant.name} ${theme.brightness} surface',
+          );
+          final cardColor = theme.cardTheme.color;
+          if (cardColor != null) {
+            expect(
+              cardColor.a,
+              1.0,
+              reason: '${variant.name} ${theme.brightness} card',
+            );
+          }
+        }
+      }
+    });
   });
 
   group('persistence and live switching', () {
@@ -399,6 +432,75 @@ void main() {
         ZoroxThemeVariant.liquidGlass,
       );
       expect(container.read(appThemeModeProvider), ThemeMode.dark);
+    });
+
+    test('the Dark Mode toggle off goes to Frost, on returns to the last dark variant',
+        () async {
+      final container = boot();
+      await container
+          .read(themeVariantProvider.notifier)
+          .setVariant(ZoroxThemeVariant.midnight);
+      expect(container.read(appThemeModeProvider), ThemeMode.dark);
+
+      await container.read(themeVariantProvider.notifier).setDarkMode(false);
+
+      expect(container.read(themeVariantProvider), ZoroxThemeVariant.frost);
+      expect(container.read(appThemeModeProvider), ThemeMode.light);
+
+      await container.read(themeVariantProvider.notifier).setDarkMode(true);
+
+      expect(container.read(themeVariantProvider), ZoroxThemeVariant.midnight);
+      expect(container.read(appThemeModeProvider), ThemeMode.dark);
+    });
+
+    test('the toggle on from Frost with no dark variant remembered returns to Liquid Glass',
+        () async {
+      final container = boot();
+      await container
+          .read(themeVariantProvider.notifier)
+          .setVariant(ZoroxThemeVariant.frost);
+      expect(
+        storage.getLastDarkThemeVariant(),
+        isNull,
+        reason: 'Frost is not a dark variant, so nothing is remembered',
+      );
+
+      await container.read(themeVariantProvider.notifier).setDarkMode(true);
+
+      expect(
+        container.read(themeVariantProvider),
+        ZoroxThemeVariant.liquidGlass,
+      );
+      expect(container.read(appThemeModeProvider), ThemeMode.dark);
+    });
+
+    test('picking a dark variant remembers it for the toggle', () async {
+      final container = boot();
+      await container
+          .read(themeVariantProvider.notifier)
+          .setVariant(ZoroxThemeVariant.arenaGold);
+      expect(storage.getLastDarkThemeVariant(), 'arenaGold');
+
+      await container.read(themeVariantProvider.notifier).setDarkMode(false);
+      await container.read(themeVariantProvider.notifier).setDarkMode(true);
+
+      expect(container.read(themeVariantProvider), ZoroxThemeVariant.arenaGold);
+    });
+
+    test('the toggle is a no-op when already on its side', () async {
+      final container = boot();
+      // A fresh install is Liquid Glass / dark.
+      await container.read(themeVariantProvider.notifier).setDarkMode(true);
+      expect(
+        container.read(themeVariantProvider),
+        ZoroxThemeVariant.liquidGlass,
+      );
+
+      await container
+          .read(themeVariantProvider.notifier)
+          .setVariant(ZoroxThemeVariant.frost);
+      await container.read(themeVariantProvider.notifier).setDarkMode(false);
+      expect(container.read(themeVariantProvider), ZoroxThemeVariant.frost);
     });
   });
 }

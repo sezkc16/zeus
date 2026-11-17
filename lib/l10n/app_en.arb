@@ -1,6 +1,6 @@
 {
   "@@locale": "en",
-  "appTitle": "ZoroX",
+  "appTitle": "Zeus",
   "languageName": "English",
   "addonHealthChecking": "Checking add-on…",
   "@addonHealthChecking": {
@@ -114,8 +114,8 @@
   "about": "About",
   "version": "Version",
   "openSourceLicences": "Open-source licences",
-  "openSourceLicencesSubtitle": "ZoroX is free software under the GNU GPL v3",
-  "appLegalese": "Copyright © 2025–2026 ZoroX contributors.\nZoroX is free software: you can redistribute it and modify it under the terms of the GNU General Public License, version 3. It comes with ABSOLUTELY NO WARRANTY. Its source code is at github.com/sezkc16/zorox-app.",
+  "openSourceLicencesSubtitle": "Zeus is free software under the GNU GPL v3",
+  "appLegalese": "Copyright © 2025–2026 Zeus contributors.\nZeus is free software: you can redistribute it and modify it under the terms of the GNU General Public License, version 3. It comes with ABSOLUTELY NO WARRANTY. Its source code is at github.com/sezkc16/zeus.",
   "@appLegalese": {
     "description": "The GPL notice on the licence page: copyright, the licence, no warranty, where the source is."
   },
@@ -306,7 +306,24 @@
     }
   },
   "internalPlayer": "Internal (VLC)",
+  "internalPlayerMpv": "Internal (mpv)",
+  "@internalPlayerMpv": {
+    "description": "The built-in player using the mpv engine, in the Default Player picker and its Settings row. The mirror of internalPlayer (VLC)."
+  },
   "builtInPlayer": "Built-in player",
+  "homeForYou": "For You",
+  "@homeForYou": {
+    "description": "The first pill in the Home source selector: the key-free AniList feed, as opposed to one installed plugin's own home page."
+  },
+  "homeFallbackToForYou": "Couldn't load {name} — showing For You instead",
+  "@homeFallbackToForYou": {
+    "description": "Toast when a plugin's home page fails to load and Home falls back to the key-free For You feed. {name} is the plugin's name.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "customNotSet": "Custom (not set)",
   "selectGesture": "Select {side} Gesture",
   "@selectGesture": {
@@ -408,7 +425,7 @@
   "@extensionsSubtitle": {
     "description": "Subtitle under the Extensions title: which plugin sources the screen lists."
   },
-  "noZoroxReposYet": "No ZoroX repos yet",
+  "noZoroxReposYet": "No SkyStream repos yet",
   "@noZoroxReposYet": {
     "description": "Empty state of the Extensions > Repositories section: no repository added yet."
   },
@@ -1523,7 +1540,7 @@
   },
   "nuvioPlugins": "Nuvio plugins",
   "@nuvioPlugins": {
-    "description": "Title of the Nuvio source card on a TMDB details screen. Sits beside the 'Available sources' card, which is the ZoroX plugin system; the two are peers. 'Nuvio' is the name of the third-party scraper project and is never translated."
+    "description": "Title of the Nuvio source card on a TMDB details screen. Sits beside the 'Available sources' card, which is the Zeus plugin system; the two are peers. 'Nuvio' is the name of the third-party scraper project and is never translated."
   },
   "nuvioSearchForStreams": "Search for streams",
   "@nuvioSearchForStreams": {
@@ -1595,11 +1612,11 @@
   },
   "cloudStream": "CloudStream",
   "@cloudStream": {
-    "description": "Name of CloudStream, the app whose extensions ZoroX runs; a proper noun, never translated. Shown on the CloudStream screen and on badges marking its providers."
+    "description": "Name of CloudStream, the app whose extensions Zeus runs; a proper noun, never translated. Shown on the CloudStream screen and on badges marking its providers."
   },
-  "searchTagSkyStream": "ZoroX",
+  "searchTagSkyStream": "Zeus",
   "@searchTagSkyStream": {
-    "description": "Search: tag on a section of ZoroX extensions' results; the app's name, never translated."
+    "description": "Search: tag on a section of Zeus extensions' results; the app's name, never translated."
   },
   "searchTagStremio": "Stremio",
   "@searchTagStremio": {
@@ -1880,8 +1897,8 @@
   "@checkStateOutdated": {"description": "A site's row: Android System WebView is too old for its check; nothing is tried until it's updated."},
   "checkStateTooOld": "This device's browser is too old for this site's check",
   "@checkStateTooOld": {"description": "A site's row: Android System WebView is too old for its check, and this Android version can't update it."},
-  "checkStateIneffective": "The check passed, but this site still refuses ZoroX. Trying again in a few minutes.",
-  "@checkStateIneffective": {"description": "A site's row: its check passed, but the site still refuses requests; ZoroX waits before trying again."},
+  "checkStateIneffective": "The check passed, but this site still refuses Zeus. Trying again in a few minutes.",
+  "@checkStateIneffective": {"description": "A site's row: its check passed, but the site still refuses requests; Zeus waits before trying again."},
   "checkStateKeepsAsking": "This site keeps asking. Try later, or without a VPN.",
   "@checkStateKeepsAsking": {"description": "A site's row: its check came back after every clearance, even after a fresh start."},
   "checkUpdateWebView": "Update",
@@ -1898,8 +1915,8 @@
   "@checkLineChecking": {"description": "Under a spinner: the one site the screen waits on is being checked automatically.", "placeholders": {"site": {"type": "String"}, "seconds": {"type": "int"}}},
   "checkLineNeedsYou": "{site} needs a quick check",
   "@checkLineNeedsYou": {"description": "Home, or under a spinner: the one site the screen waits on needs a person.", "placeholders": {"site": {"type": "String"}}},
-  "extensionSheetCantShow": "This part can't be shown in ZoroX yet.",
-  "@extensionSheetCantShow": {"description": "In an extension's settings sheet, in place of a part ZoroX can't draw yet (a web page)."},
+  "extensionSheetCantShow": "This part can't be shown in Zeus yet.",
+  "@extensionSheetCantShow": {"description": "In an extension's settings sheet, in place of a part Zeus can't draw yet (a web page)."},
   "extensionSheetClose": "Close",
   "@extensionSheetClose": {"description": "Closes the top window of an extension's settings sheet."},
   "extensionSheetForceClose": "Force close",

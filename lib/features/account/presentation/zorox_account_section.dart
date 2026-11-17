@@ -10,7 +10,7 @@ import '../data/zorox_account_notifier.dart';
 import '../data/zorox_backup.dart';
 import '../data/zorox_sync_client.dart';
 
-/// The "ZoroX Account" group on the Accounts settings screen.
+/// The "Zeus Account" group on the Accounts settings screen.
 ///
 /// Gold & Black comes from the theme itself (primary is Zoro gold), so
 /// nothing here sets its own colours. All strings are plain English, like
@@ -48,11 +48,11 @@ class ZoroxAccountSection extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         SettingsGroup(
-          title: 'ZoroX Account',
+          title: 'Zeus Account',
           children: [
             SettingsTile(
               emoji: '👤',
-              title: 'ZoroX Account',
+              title: 'Zeus Account',
               subtitle: account.loggedIn
                   ? 'Logged in as ${account.email}'
                   : 'Back up watch history, plugins & library',
@@ -98,14 +98,14 @@ class ZoroxAccountSection extends ConsumerWidget {
     if (ok) {
       notifications.showSuccess(
         'Backed up to the cloud.',
-        title: 'ZoroX Account',
+        title: 'Zeus Account',
         icon: Icons.cloud_done_rounded,
       );
     } else {
       notifications.showError(
         ref.read(zoroxAccountProvider).error ??
             'Could not sync. Try again.',
-        title: 'ZoroX Account',
+        title: 'Zeus Account',
         icon: Icons.cloud_off_rounded,
       );
     }
@@ -124,7 +124,7 @@ class ZoroxAccountSection extends ConsumerWidget {
             result.openedShareSheet
                 ? 'Backup ready — save it from the share sheet to keep it.'
                 : 'Backup exported.',
-            title: 'ZoroX Account',
+            title: 'Zeus Account',
             icon: Icons.file_download_rounded,
           );
     } catch (e) {
@@ -133,7 +133,7 @@ class ZoroxAccountSection extends ConsumerWidget {
           .read(notificationServiceProvider)
           .showError(
             'Could not export the backup: $e',
-            title: 'ZoroX Account',
+            title: 'Zeus Account',
             icon: Icons.error_outline_rounded,
           );
     }
@@ -151,7 +151,7 @@ class ZoroxAccountSection extends ConsumerWidget {
     if (notifier.importInProgress) {
       notifications.showInfo(
         'A backup import is already running — please wait.',
-        title: 'ZoroX Account',
+        title: 'Zeus Account',
         icon: Icons.hourglass_top_rounded,
       );
       return;
@@ -164,7 +164,7 @@ class ZoroxAccountSection extends ConsumerWidget {
     } on ZoroxSyncException catch (e) {
       notifications.showError(
         e.message,
-        title: 'ZoroX Account',
+        title: 'Zeus Account',
         icon: Icons.error_outline_rounded,
       );
       return;
@@ -176,14 +176,14 @@ class ZoroxAccountSection extends ConsumerWidget {
         e.code == 'multiple_request'
             ? 'The file picker was already open — please tap Import again.'
             : 'Could not import the backup: ${e.message ?? e.code}',
-        title: 'ZoroX Account',
+        title: 'Zeus Account',
         icon: Icons.error_outline_rounded,
       );
       return;
     } catch (e) {
       notifications.showError(
         'Could not import the backup: $e',
-        title: 'ZoroX Account',
+        title: 'Zeus Account',
         icon: Icons.error_outline_rounded,
       );
       return;
@@ -231,7 +231,7 @@ class ZoroxAccountSection extends ConsumerWidget {
     if (failure != null) {
       notifications.showError(
         'Could not import the backup: $failure',
-        title: 'ZoroX Account',
+        title: 'Zeus Account',
         icon: Icons.error_outline_rounded,
       );
       return;
@@ -253,7 +253,7 @@ Future<void> _restoreAndConfirm(
   } catch (e) {
     notifications.showError(
       'Could not import the backup: $e',
-      title: 'ZoroX Account',
+      title: 'Zeus Account',
       icon: Icons.error_outline_rounded,
     );
   }
@@ -268,7 +268,7 @@ void _confirmRestore(
 ) {
   notifications.showSuccess(
     report.summary,
-    title: 'ZoroX Account',
+    title: 'Zeus Account',
     icon: Icons.restore_rounded,
     duration: const Duration(seconds: 5),
   );
@@ -368,7 +368,7 @@ class _ZoroxAccountDialogState extends ConsumerState<ZoroxAccountDialog> {
     final account = ref.watch(zoroxAccountProvider);
     final primary = Theme.of(context).colorScheme.primary;
     return AlertDialog(
-      title: const Text('ZoroX Account'),
+      title: const Text('Zeus Account'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -547,7 +547,7 @@ class _ZoroxAccountDialogState extends ConsumerState<ZoroxAccountDialog> {
           .read(notificationServiceProvider)
           .showSuccess(
             'Backed up to the cloud.',
-            title: 'ZoroX Account',
+            title: 'Zeus Account',
             icon: Icons.cloud_done_rounded,
           );
     }
