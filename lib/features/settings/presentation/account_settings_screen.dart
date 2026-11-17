@@ -20,6 +20,7 @@ import '../../../core/config/tmdb_config.dart';
 import '../../tracking/presentation/tracking_auth_provider.dart';
 import '../../tracking/data/simkl_service.dart';
 import '../../tracking/data/trakt_service.dart';
+import '../../tracking/data/wetrakr_service.dart';
 import '../../tracking/data/mal_service.dart';
 import '../../tracking/data/anilist_service.dart';
 import '../../tracking/sign_in/sign_in_runner.dart';
@@ -42,6 +43,7 @@ class AccountSettingsScreen extends ConsumerStatefulWidget {
 class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
   final FocusNode _simklFocusNode = FocusNode();
   final FocusNode _traktFocusNode = FocusNode();
+  final FocusNode _wetrakrFocusNode = FocusNode();
   final FocusNode _malFocusNode = FocusNode();
   final FocusNode _anilistFocusNode = FocusNode();
 
@@ -49,6 +51,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
   void dispose() {
     _simklFocusNode.dispose();
     _traktFocusNode.dispose();
+    _wetrakrFocusNode.dispose();
     _malFocusNode.dispose();
     _anilistFocusNode.dispose();
     super.dispose();
@@ -199,8 +202,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                               loading: () => l10n.loading,
                               error: (_, _) => l10n.unknown,
                             ),
-                            value:
-                                trackingAuthAsync.value?['simkl'] == true
+                            value: trackingAuthAsync.value?['simkl'] == true
                                 ? 'Active'
                                 : 'Connect',
                             onTap: () async {
@@ -305,8 +307,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                               loading: () => l10n.loading,
                               error: (_, _) => l10n.unknown,
                             ),
-                            value:
-                                trackingAuthAsync.value?['trakt'] == true
+                            value: trackingAuthAsync.value?['trakt'] == true
                                 ? 'Active'
                                 : 'Connect',
                             onTap: () async {
@@ -400,6 +401,114 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                               ref.invalidate(trackingAuthProvider);
                             },
                           ),
+                          if (ref.watch(wetrakrConfiguredProvider))
+                            SettingsTile(
+                              key: const ValueKey('account-wetrakr'),
+                              focusNode: _wetrakrFocusNode,
+                              reicon: Reicon.tv,
+                              title: 'WeTrakr',
+                              subtitle: trackingAuthAsync.when(
+                                data: (state) => state['wetrakr'] == true
+                                    ? 'Connected · sync on'
+                                    : l10n.notLoggedIn,
+                                loading: () => l10n.loading,
+                                error: (_, _) => l10n.unknown,
+                              ),
+                              value: trackingAuthAsync.value?['wetrakr'] == true
+                                  ? 'Active'
+                                  : 'Connect',
+                              onTap: () async {
+                                final state = trackingAuthAsync.value ?? {};
+                                if (state['wetrakr'] == true) {
+                                  final confirm = await _confirmDisconnect(
+                                    context,
+                                    'WeTrakr',
+                                  );
+                                  if (confirm) {
+                                    await ref
+                                        .read(wetrakrServiceProvider)
+                                        .logout();
+                                    ref.invalidate(trackingAuthProvider);
+                                    if (context.mounted) {
+                                      _wetrakrFocusNode.requestFocus();
+                                    }
+                                  }
+                                } else {
+                                  bool isCancelled = false;
+                                  bool isDialogShowing = false;
+                                  BuildContext? dialogContext;
+                                  bool success = false;
+                                  try {
+                                    success = await ref
+                                        .read(wetrakrServiceProvider)
+                                        .login(
+                                          isCancelled: () => isCancelled,
+                                          onDeviceCodeGenerated: (url, code) async {
+                                            if (context.mounted) {
+                                              isDialogShowing = true;
+                                              unawaited(
+                                                showDialog<void>(
+                                                  context: context,
+                                                  barrierDismissible: true,
+                                                  builder: (ctx) {
+                                                    dialogContext = ctx;
+                                                    return TrackingAuthDialog(
+                                                      providerName: 'WeTrakr',
+                                                      verificationUrl: url,
+                                                      userCode: code,
+                                                    );
+                                                  },
+                                                ).then((_) {
+                                                  isCancelled = true;
+                                                  isDialogShowing = false;
+                                                  if (context.mounted) {
+                                                    _wetrakrFocusNode
+                                                        .requestFocus();
+                                                  }
+                                                }),
+                                              );
+                                            }
+                                          },
+                                        );
+                                  } catch (error, stackTrace) {
+                                    talker.error(
+                                      'AccountSettingsScreen: WeTrakr login threw',
+                                      error,
+                                      stackTrace,
+                                    );
+                                  }
+                                  if (success && context.mounted) {
+                                    ref
+                                        .read(notificationServiceProvider)
+                                        .showSuccess(
+                                          'Successfully connected to WeTrakr!',
+                                          title: 'WeTrakr',
+                                          icon: Icons.sync_rounded,
+                                        );
+                                  } else if (!isCancelled && context.mounted) {
+                                    // A device-code login that times out, is denied, or
+                                    // throws all land here. Without this branch the tile
+                                    // just falls back to "Not logged in" and the viewer
+                                    // is told nothing at all. A dialog the viewer
+                                    // dismissed is not a failure, hence the isCancelled
+                                    // guard.
+                                    ref
+                                        .read(notificationServiceProvider)
+                                        .showError(
+                                          l10n.connectionFailed,
+                                          title: 'WeTrakr',
+                                          icon: Icons.sync_problem_rounded,
+                                        );
+                                  }
+                                  if (isDialogShowing &&
+                                      dialogContext != null &&
+                                      dialogContext!.mounted) {
+                                    Navigator.of(dialogContext!).pop();
+                                  }
+                                }
+                                ref.invalidate(trackingAuthProvider);
+                              },
+                            ),
                           SettingsTile(
                             focusNode: _malFocusNode,
                             reicon: Reicon.listCheck,
@@ -411,8 +520,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                               loading: () => l10n.loading,
                               error: (_, _) => l10n.unknown,
                             ),
-                            value:
-                                trackingAuthAsync.value?['mal'] == true
+                            value: trackingAuthAsync.value?['mal'] == true
                                 ? 'Active'
                                 : 'Connect',
                             onTap: () async {
@@ -472,8 +580,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                               loading: () => l10n.loading,
                               error: (_, _) => l10n.unknown,
                             ),
-                            value:
-                                trackingAuthAsync.value?['anilist'] == true
+                            value: trackingAuthAsync.value?['anilist'] == true
                                 ? 'Active'
                                 : 'Connect',
                             isLast: true,
@@ -642,8 +749,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                             subtitle: 'For repo & extension downloads',
                             value: githubProxyLabel(generalSettings),
                             isLast: true,
-                            onTap: () =>
-                                showGithubProxyDialog(context, ref),
+                            onTap: () => showGithubProxyDialog(context, ref),
                           ),
                         ],
                       );

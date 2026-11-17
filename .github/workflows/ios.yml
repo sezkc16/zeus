@@ -79,9 +79,15 @@ jobs:
 
       # No dart-defines file: the own app has no TMDB/Trakt/Simkl API secrets,
       # so those integrations run without keys (they degrade gracefully).
+      # WeTrakr's client id comes from the repository secret
+      # WETRAKR_CLIENT_ID and is never written to the source or the log;
+      # without it the build still succeeds and the WeTrakr row is hidden.
       - name: Build iOS (No Codesign)
+        env:
+          WETRAKR_CLIENT_ID: ${{ secrets.WETRAKR_CLIENT_ID }}
         run: |
-          flutter build ios --release --no-codesign
+          if [ -z "$WETRAKR_CLIENT_ID" ]; then echo "::warning::WETRAKR_CLIENT_ID is not set: the WeTrakr row will be hidden"; fi
+          flutter build ios --release --no-codesign --dart-define=WETRAKR_CLIENT_ID="$WETRAKR_CLIENT_ID"
           mkdir -p Payload
           mv build/ios/iphoneos/Runner.app Payload/
           VERSION=$(grep '^version:' pubspec.yaml | cut -d ' ' -f 2 | cut -d '+' -f 1)

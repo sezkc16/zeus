@@ -16,6 +16,14 @@ class SyncConfig {
     'TRAKT_CLIENT_SECRET',
   );
 
+  /// WeTrakr's app key (a public client: device flow, no secret - the
+  /// app must never carry one). Supplied at build time and kept out of
+  /// the source, as WeTrakr's terms ask; empty in a build without it,
+  /// which hides the WeTrakr row.
+  static const String wetrakrClientId = String.fromEnvironment(
+    'WETRAKR_CLIENT_ID',
+  );
+
   static const String anilistClientId = String.fromEnvironment(
     'ANILIST_CLIENT_ID',
   );

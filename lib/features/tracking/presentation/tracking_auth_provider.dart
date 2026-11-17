@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../data/simkl_service.dart';
 import '../data/trakt_service.dart';
+import '../data/wetrakr_service.dart';
 import '../data/mal_service.dart';
 import '../data/anilist_service.dart';
 
@@ -13,12 +14,14 @@ class TrackingAuth extends _$TrackingAuth {
   FutureOr<Map<String, bool>> build() async {
     final simkl = ref.watch(simklServiceProvider);
     final trakt = ref.watch(traktServiceProvider);
+    final wetrakr = ref.watch(wetrakrServiceProvider);
     final mal = ref.watch(malServiceProvider);
     final anilist = ref.watch(aniListServiceProvider);
 
     return {
       'simkl': await simkl.isLoggedIn,
       'trakt': await trakt.isLoggedIn,
+      'wetrakr': await wetrakr.isLoggedIn,
       'mal': await mal.isLoggedIn,
       'anilist': await anilist.isLoggedIn,
     };

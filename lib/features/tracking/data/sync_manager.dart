@@ -13,6 +13,7 @@ import '../domain/sync_ids.dart';
 import 'simkl_service.dart';
 import 'sync_outbox.dart';
 import 'trakt_service.dart';
+import 'wetrakr_service.dart';
 import 'anilist_service.dart';
 import 'mal_service.dart';
 import 'tracking_service.dart';
@@ -334,6 +335,7 @@ SyncManager syncManager(Ref ref) {
   return SyncManager([
     ref.watch(simklServiceProvider),
     ref.watch(traktServiceProvider),
+    ref.watch(wetrakrServiceProvider),
     ref.watch(aniListServiceProvider),
     ref.watch(malServiceProvider),
   ], outbox: outbox);
