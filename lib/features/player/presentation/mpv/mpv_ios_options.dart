@@ -140,6 +140,11 @@ String mpvIosHwdec({required bool pipEnabled}) =>
 /// `'videotoolbox-copy'` session under a normal expectation is the same
 /// hardware decoder. Pure, so it is unit-tested (see
 /// `mpv_hwdec_resume_test.dart`).
+///
+/// Build 71 note: the bundled libmpv is mpv 0.36.0 (read from the
+/// shipped Mpv.framework), and that version reports software decode as
+/// an EMPTY `hwdec-current`, not `no` — so the empty overlay line means
+/// "decoding in software", not "unreadable".
 bool hwdecSessionLost({required String current}) {
   const alive = <String>{'videotoolbox', 'videotoolbox-copy'};
   return !alive.contains(current.trim());
@@ -245,25 +250,123 @@ bool hwdecResumeContinues({
   }
 }
 
-/// The QoE overlay's `hw-restore:` line (build 70): what the
-/// hardware-decode watch did on the last Home → return, so one
-/// screenshot says whether it ran and how it ended. `-` until a return
-/// has armed it.
+/// What the hardware-decode restore does when the app comes back to
+/// the foreground (build 71).
+enum HwdecReturnPlan {
+  /// Not a return from the background (Control Center, Notification
+  /// Center, a call banner): nothing is done and the overlay keeps the
+  /// last return's line.
+  none,
+
+  /// This film was never seen on VideoToolbox: nothing to restore.
+  skipNoHardwareBefore,
+
+  /// The film is already playing (a PiP window kept it running): the
+  /// bounded watch starts at once.
+  watchNow,
+
+  /// The film is paused and its decoder may not be refreshed here (the
+  /// PiP renderer's session, or an open still landing): the bounded
+  /// watch starts when playback does.
+  watchOnPlay,
+
+  /// The film is paused on the hardware renderer — what every Home →
+  /// return looks like on the phone: re-create the decoder now, while
+  /// nothing is moving, then run the bounded watch when playback
+  /// starts.
+  refreshThenWatchOnPlay,
+}
+
+/// Decides the hardware-decode restore for one `resumed` (build 71).
 ///
-/// [checks] is how many times the decoder was read, [cycles] how many
-/// times `hwdec` was switched off and on, [reopened] whether the last
-/// rung ran, [outcome] the short state word (`waiting`, `ok`, `lost`,
-/// `reopened`, `stopped`).
+/// Why this exists: build 70's watch never ran on the phone
+/// (2026-11-18, 4K, PiP mode iOS: `hw-restore: -` after two returns,
+/// `hwdec:` empty, `vo-drop` 0 → 164). Both recordings show the same
+/// thing on return — the film comes back PAUSED with the play button
+/// up, the viewer taps play, and no source re-open happens. Home
+/// pauses the film, and nothing un-pauses it: Flutter replays
+/// `hidden` → `inactive` → `resumed` on the way back in, the
+/// `inactive` snapshot of "was it playing" is taken again while the
+/// film is already paused, so the auto-resume / 4K re-open never run.
+/// Build 70 armed the watch only inside that never-running path and in
+/// a hook that stands down when the film is paused. So the watch is
+/// now decided here, on every `resumed`, whatever the film is doing.
+///
+/// Why the decoder is refreshed while paused
+/// ([HwdecReturnPlan.refreshThenWatchOnPlay]): iOS invalidates the
+/// VideoToolbox session of a backgrounded app. With
+/// `hwdec-software-fallback: 3` (see [kMpvIosOptions]) the first three
+/// frames after play fail on the dead session and mpv drops to
+/// software decode for the rest of the file. Re-creating the decoder
+/// before play (mpv re-initialises it and seeks in place to the frame
+/// on screen) gives it a fresh session and a clean keyframe start, so
+/// there is nothing to fall back from. Whether that holds on the phone
+/// is what the overlay line reports — the watch after play is the
+/// safety net either way.
+///
+/// [wasBackgrounded] is the real-backgrounding flag (`paused`/`hidden`
+/// seen since the last `resumed`). [seenAlive] is whether this film was
+/// observed on VideoToolbox (see [hwdecRestoreAllowed]). [playing] is
+/// the live playing state at `resumed`. [refreshAllowed] is false for
+/// the PiP renderer's session, under a PiP window, and while an open
+/// is still landing. Pure, so it is unit-tested (see
+/// `mpv_hwdec_resume_test.dart`).
+HwdecReturnPlan hwdecReturnPlan({
+  required bool wasBackgrounded,
+  required bool seenAlive,
+  required bool playing,
+  required bool refreshAllowed,
+}) {
+  if (!wasBackgrounded) return HwdecReturnPlan.none;
+  if (!hwdecRestoreAllowed(seenAlive: seenAlive)) {
+    return HwdecReturnPlan.skipNoHardwareBefore;
+  }
+  if (playing) return HwdecReturnPlan.watchNow;
+  return refreshAllowed
+      ? HwdecReturnPlan.refreshThenWatchOnPlay
+      : HwdecReturnPlan.watchOnPlay;
+}
+
+/// The overlay word for a film that was never on VideoToolbox.
+const String kHwdecOutcomeSkipNoHardware = 'skip (no hw before)';
+
+/// The overlay word while the watch waits for the viewer to press play.
+const String kHwdecOutcomeWaitPlay = 'wait play';
+
+/// The QoE overlay's `hw-restore:` line (build 70, reworked in 71):
+/// what the hardware-decode restore did on the last return from the
+/// background, so one screenshot says whether it ran and how it ended.
+///
+/// `hw-restore: -` only until the first return from the background.
+/// After that it always starts with `#N`, the number of returns handled
+/// in this player session — so a `-` after a Home → return now means
+/// the return itself was not seen, and a number that does not grow
+/// means the same.
+///
+/// [pre] is the decoder refresh done while the film was still paused:
+/// `-` not attempted, `sent` issued but not read back yet, `ok` the
+/// decoder read back as VideoToolbox, `lost` it did not, `fail` the
+/// property could not be set. [checks] is how many times the decoder
+/// was read after playback started, [cycles] how many times `hwdec` was
+/// switched off and on by the watch, [reopened] whether the last rung
+/// ran, [outcome] the short state word ([kHwdecOutcomeWaitPlay],
+/// `waiting`, `ok`, `lost`, `unreadable`, `reopened`, `stopped`, or
+/// [kHwdecOutcomeSkipNoHardware]).
 String hwdecResumeOverlayLine({
-  required bool armed,
+  required int returns,
+  required String pre,
   required int checks,
   required int cycles,
   required bool reopened,
   required String outcome,
 }) {
-  if (!armed) return 'hw-restore: -';
+  if (returns <= 0) return 'hw-restore: -';
+  if (outcome == kHwdecOutcomeSkipNoHardware) {
+    return 'hw-restore: #$returns $outcome';
+  }
   final reopen = reopened ? ' reopen 1' : '';
-  return 'hw-restore: checks $checks cycles $cycles$reopen $outcome';
+  return 'hw-restore: #$returns pre:$pre chk $checks cyc $cycles'
+      '$reopen $outcome';
 }
 
 /// Whether the stream needs a re-open as the +55 stall fallback
@@ -365,6 +468,24 @@ IosResumeAction iosResumeAction({
   if (!wasBackgrounded || inPip || !wasPlaying) return IosResumeAction.none;
   return is4K ? IosResumeAction.reopen4K : IosResumeAction.plainResume;
 }
+
+/// Whether [iosResumeAction] does anything at all for this return —
+/// i.e. whether the player's resume path will itself play or re-open
+/// the film (build 71). When it will, that path starts the
+/// hardware-decode watch; when it will not (the film comes back
+/// paused), the return hook arms it instead (see [hwdecReturnPlan]).
+bool iosResumePathActs({
+  required bool wasBackgrounded,
+  required bool wasInPip,
+  required bool wasPlaying,
+}) =>
+    iosResumeAction(
+      wasBackgrounded: wasBackgrounded,
+      inPip: wasInPip,
+      wasPlaying: wasPlaying,
+      is4K: false,
+    ) !=
+    IosResumeAction.none;
 
 /// The iOS HDR choice's render options (+57; two choices since v9).
 ///

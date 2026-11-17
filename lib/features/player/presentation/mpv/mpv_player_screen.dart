@@ -468,11 +468,21 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// the moment it is superseded. The counters feed the QoE overlay's
   /// `hw-restore:` line ([hwdecResumeOverlayLine]).
   int _hwdecWatchToken = 0;
-  bool _hwdecWatchArmed = false;
   int _hwdecWatchChecks = 0;
   int _hwdecWatchCycles = 0;
   bool _hwdecWatchReopened = false;
   String _hwdecWatchOutcome = 'waiting';
+
+  /// Build 71: how many returns from the background the restore has
+  /// handled in this player session (the overlay's `#N`; 0 = none
+  /// yet), what the paused-decoder refresh did on the last one (the
+  /// overlay's `pre:`), and whether the watch is waiting for the
+  /// viewer to press play — the film comes back from Home PAUSED, so
+  /// the watch starts from the playing stream, not from the return
+  /// (see [_onIosReturnHwdec]).
+  int _hwdecReturns = 0;
+  String _hwdecPre = '-';
+  bool _hwdecWatchPending = false;
 
   /// Whether this source has been SEEN decoding on VideoToolbox (build
   /// 70). The restore only ever brings back what was there: with the
@@ -836,6 +846,19 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         // before the playing stream can flip [_playing] false, so it
         // still holds the pre-background playing state the `resumed`
         // branch needs (see [_wasPlayingBeforeBackground]).
+        //
+        // Build 71 finding, NOT changed here: Flutter replays `hidden`
+        // → `inactive` → `resumed` on the way back IN as well, so this
+        // line runs a second time while Home's pause is in force and
+        // the snapshot reads false at `resumed`. On the phone the film
+        // therefore always returns paused, the viewer taps play, and
+        // [_resumeIosAfterBackground] (auto-play, the 4K re-open, the
+        // stall timer) never acts — both 2026-11-18 recordings show
+        // exactly that. Making the snapshot stick would turn the
+        // auto-play and the 4K re-open (black, 00:00/LIVE) on for the
+        // first time, which is the viewer's call, not this build's.
+        // The hardware-decode restore no longer depends on it (see
+        // [_onIosReturnHwdec]).
         _wasPlayingBeforeBackground = _playing;
       } else {
         // Home swipe / app switcher on Android: the moment to enter PiP.
@@ -874,9 +897,20 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // app is backgrounded, and the file then decodes in software for
       // the rest of its run — 4K lags after every Home → return even
       // though PiP was never used (user proof 2026-11-15). Check the
-      // live decoder and restore it when it is actually lost (see
-      // [_restoreHwdecOnResume]) — never when it is healthy.
-      unawaited(_restoreHwdecOnResume());
+      // live decoder and restore it when it is actually lost — never
+      // when it is healthy. Build 71: decided on every `resumed` by
+      // [_onIosReturnHwdec]; build 70 only armed its watch in places
+      // that never run when the film comes back paused, which is how
+      // it always comes back.
+      _onIosReturnHwdec(
+        wasBackgrounded: wasBackgrounded,
+        wasInPip: wasInPip,
+        resumePathActs: iosResumePathActs(
+          wasBackgrounded: wasBackgrounded,
+          wasInPip: wasInPip,
+          wasPlaying: _wasPlayingBeforeBackground,
+        ),
+      );
       // +55: NO re-open on return (user 2026-11-16, +54 installed:
       // every Home → return showed 00:00/LIVE + black + spinner for
       // ~3-4 s before resuming at the paused position — the +49
@@ -922,6 +956,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // Build 70: a new backgrounding ends the last return's
       // hardware-decode watch; the next return arms a fresh one.
       _hwdecWatchToken++;
+      _hwdecWatchPending = false;
       _flushProgress();
       // +55: Home PAUSES the film (user 2026-11-16: "home se janepe
       // pause ho"). With automatic PiP removed there is no window any
@@ -965,7 +1000,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     required bool wasPlaying,
   }) async {
     if (_disposed || !mounted) return;
-    if (!wasBackgrounded || wasInPip || !wasPlaying) return;
+    if (!iosResumePathActs(
+      wasBackgrounded: wasBackgrounded,
+      wasInPip: wasInPip,
+      wasPlaying: wasPlaying,
+    )) {
+      return;
+    }
     final is4K = await _isCurrentVideo4K();
     if (_disposed || !mounted) return;
     if (is4K) {
@@ -1772,6 +1813,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       _player.stream.playing.listen((playing) {
         if (_disposed) return;
         _playing = playing;
+        // Build 71: the hardware-decode watch armed by the last return
+        // from the background starts here, when the viewer presses
+        // play (see [_onIosReturnHwdec]).
+        if (playing && _hwdecWatchPending) {
+          _hwdecWatchPending = false;
+          unawaited(_runHwdecResumeWatch());
+        }
         if (playing && _videoIsHdr.value == null) {
           unawaited(_refreshVideoIsHdr());
         }
@@ -1794,13 +1842,15 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         if (playing) {
           final firstPlay = !_startedPlaying;
           _startedPlaying = true;
-          if (firstPlay) {
-            // Build 70: the decoder baseline for this open, read once
-            // frames are flowing (see [_hwdecSeenAlive]).
-            Future<void>.delayed(const Duration(seconds: 3), () {
-              if (!_disposed && mounted) unawaited(_noteHwdecBaseline());
-            });
-          }
+          // Build 70: the decoder baseline, read once frames are
+          // flowing (see [_hwdecSeenAlive]). Build 71: after every
+          // play, not only the first — the baseline must come from
+          // normal playback whether or not the overlay is on.
+          Future<void>.delayed(const Duration(seconds: 3), () {
+            if (!_disposed && mounted && _playing) {
+              unawaited(_noteHwdecBaseline());
+            }
+          });
           // v7: this source plays, so it is the one remembered for this
           // title (see [streamSourceKey]) — the next episode starts on it
           // and the Sources list tags it "Last used".
@@ -2491,7 +2541,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     final platform = _player.platform;
     if (platform is! NativePlayer) return;
     final token = ++_hwdecWatchToken;
-    _hwdecWatchArmed = true;
+    // Build 71: a watch started from the PiP-stop hook, with no return
+    // counted yet, still shows up on the overlay.
+    if (_hwdecReturns == 0) _hwdecReturns = 1;
+    _hwdecWatchPending = false;
     _hwdecWatchChecks = 0;
     _hwdecWatchCycles = 0;
     _hwdecWatchReopened = false;
@@ -2500,7 +2553,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // This film was never seen on VideoToolbox (the PiP renderer's
       // software session, or a file the phone cannot hardware-decode):
       // there is nothing to restore, and a re-open would only flash.
-      _hwdecWatchOutcome = 'skip (no hw before)';
+      _hwdecWatchOutcome = kHwdecOutcomeSkipNoHardware;
       return;
     }
     bool live() => !_disposed && mounted && token == _hwdecWatchToken;
@@ -2556,15 +2609,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
           _hwdecWatchOutcome = 'lost';
           debugPrint('[mpv] hwdec watch: lost (hwdec-current="$current"), '
               'cycling hwdec to "$expected" (check ${attempt + 1})');
-          try {
-            // Off, then on: a same-value set can be a no-op in mpv, a
-            // real change always re-creates the decoder.
-            await platform.setProperty('hwdec', 'no');
-            await Future<void>.delayed(const Duration(milliseconds: 150));
-            await platform.setProperty('hwdec', expected);
-          } catch (e) {
-            debugPrint('[mpv] hwdec watch: cycle failed: $e');
-          }
+          await _cycleHwdec(platform, expected);
           if (!live()) return;
         case HwdecResumeStep.reopen:
           if (_streamIndex < 0 || _streamIndex >= _streams.length) {
@@ -2591,6 +2636,119 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       }
       if (!hwdecResumeContinues(step: step, attempt: attempt)) return;
       attempt++;
+    }
+  }
+
+  /// Re-creates the video decoder in place: `hwdec` off, then back to
+  /// [expected]. A same-value set is a no-op in mpv, a real change
+  /// makes it re-initialise the decoder and seek to the frame on
+  /// screen — same position, no new connection. Both sets are
+  /// synchronous in libmpv, so there is no wait between them (build 70
+  /// waited 150 ms, which only let the software decoder start work it
+  /// would throw away). Returns whether both sets went through.
+  Future<bool> _cycleHwdec(NativePlayer platform, String expected) async {
+    try {
+      await platform.setProperty('hwdec', 'no');
+      await platform.setProperty('hwdec', expected);
+      return true;
+    } catch (e) {
+      debugPrint('[mpv] hwdec cycle failed: $e');
+      return false;
+    }
+  }
+
+  /// The hardware-decode restore's entry point, called on every iOS
+  /// `resumed` (build 71). Implements [hwdecReturnPlan]:
+  ///
+  ///  * not a real backgrounding — nothing, the overlay keeps its line;
+  ///  * never seen on VideoToolbox — `skip (no hw before)`;
+  ///  * already playing (a PiP window kept the film running) — the
+  ///    bounded watch starts now;
+  ///  * paused — what every Home → return is on the phone — the watch
+  ///    waits for the viewer's play ([_hwdecWatchPending], consumed by
+  ///    the playing stream), and on the hardware renderer the decoder
+  ///    is re-created at once, while nothing is moving
+  ///    ([_refreshHwdecWhilePaused]).
+  ///
+  /// [resumePathActs]: [_resumeIosAfterBackground] is about to play or
+  /// re-open the film itself and starts the watch from there, so this
+  /// only counts the return. Synchronous on purpose — it must read
+  /// [_playing] before anything in the same `resumed` changes it.
+  void _onIosReturnHwdec({
+    required bool wasBackgrounded,
+    required bool wasInPip,
+    required bool resumePathActs,
+  }) {
+    if (defaultTargetPlatform != TargetPlatform.iOS) return;
+    if (_disposed || !mounted) return;
+    if (_player.platform is! NativePlayer) return;
+    final plan = hwdecReturnPlan(
+      wasBackgrounded: wasBackgrounded,
+      seenAlive: _hwdecSeenAlive,
+      playing: _playing,
+      refreshAllowed: !_iosMpvPipEnabled &&
+          !wasInPip &&
+          !_awaitingPrebuffer &&
+          _startedPlaying,
+    );
+    if (plan == HwdecReturnPlan.none) return;
+    _hwdecWatchToken++;
+    _hwdecReturns++;
+    _hwdecPre = '-';
+    _hwdecWatchPending = false;
+    _hwdecWatchChecks = 0;
+    _hwdecWatchCycles = 0;
+    _hwdecWatchReopened = false;
+    _hwdecWatchOutcome = 'waiting';
+    debugPrint('[mpv] hwdec return #$_hwdecReturns: $plan '
+        '(resumePathActs=$resumePathActs)');
+    if (plan == HwdecReturnPlan.skipNoHardwareBefore) {
+      _hwdecWatchOutcome = kHwdecOutcomeSkipNoHardware;
+      return;
+    }
+    if (resumePathActs) return;
+    switch (plan) {
+      case HwdecReturnPlan.none:
+      case HwdecReturnPlan.skipNoHardwareBefore:
+        return;
+      case HwdecReturnPlan.watchNow:
+        unawaited(_runHwdecResumeWatch());
+      case HwdecReturnPlan.watchOnPlay:
+        _hwdecWatchOutcome = kHwdecOutcomeWaitPlay;
+        _hwdecWatchPending = true;
+      case HwdecReturnPlan.refreshThenWatchOnPlay:
+        _hwdecWatchOutcome = kHwdecOutcomeWaitPlay;
+        _hwdecWatchPending = true;
+        unawaited(_refreshHwdecWhilePaused(_hwdecReturns));
+    }
+  }
+
+  /// Re-creates the decoder while the film is still paused after a
+  /// return from the background (build 71, see [hwdecReturnPlan] for
+  /// why). One cycle, then one read-back about a second later for the
+  /// overlay's `pre:` word — the read-back decides nothing, the watch
+  /// after play does. [returnId] is the return this belongs to: a
+  /// newer return, or dispose, ends it.
+  Future<void> _refreshHwdecWhilePaused(int returnId) async {
+    final platform = _player.platform;
+    if (platform is! NativePlayer) return;
+    bool live() => !_disposed && mounted && returnId == _hwdecReturns;
+    final expected = mpvIosHwdec(pipEnabled: _iosMpvPipEnabled);
+    final sent = await _cycleHwdec(platform, expected);
+    if (!live()) return;
+    _hwdecPre = sent ? 'sent' : 'fail';
+    if (!sent) return;
+    await Future<void>.delayed(const Duration(seconds: 1));
+    if (!live()) return;
+    try {
+      final current = (await platform.getProperty('hwdec-current')).toString();
+      if (!live()) return;
+      final lost = hwdecSessionLost(current: current);
+      _hwdecPre = lost ? 'lost' : 'ok';
+      debugPrint('[mpv] hwdec return #$returnId: paused refresh read back '
+          '"$current"');
+    } catch (_) {
+      // Unreadable: the overlay keeps `sent`.
     }
   }
 
@@ -2897,7 +3055,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // return (iOS only — Android has no such watch).
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       buffer.writeln(hwdecResumeOverlayLine(
-        armed: _hwdecWatchArmed,
+        returns: _hwdecReturns,
+        pre: _hwdecPre,
         checks: _hwdecWatchChecks,
         cycles: _hwdecWatchCycles,
         reopened: _hwdecWatchReopened,

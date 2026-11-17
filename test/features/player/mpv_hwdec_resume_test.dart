@@ -189,56 +189,217 @@ void main() {
     });
   });
 
+  // Build 71: build 70's watch never ran on the phone (2026-11-18:
+  // `hw-restore: -` after two Home → returns). The film comes back
+  // PAUSED and the viewer taps play, so the restore is decided on
+  // every `resumed`, whatever the film is doing.
+  group('hwdecReturnPlan', () {
+    test('the phone case: paused on return, hardware renderer => '
+        'refresh now, watch when play is pressed', () {
+      expect(
+        hwdecReturnPlan(
+          wasBackgrounded: true,
+          seenAlive: true,
+          playing: false,
+          refreshAllowed: true,
+        ),
+        HwdecReturnPlan.refreshThenWatchOnPlay,
+      );
+    });
+
+    test('paused on return never leaves the watch un-armed', () {
+      for (final refreshAllowed in <bool>[true, false]) {
+        final plan = hwdecReturnPlan(
+          wasBackgrounded: true,
+          seenAlive: true,
+          playing: false,
+          refreshAllowed: refreshAllowed,
+        );
+        expect(
+          plan,
+          anyOf(
+            HwdecReturnPlan.refreshThenWatchOnPlay,
+            HwdecReturnPlan.watchOnPlay,
+          ),
+        );
+      }
+    });
+
+    test('paused, refresh not allowed (PiP renderer / PiP window / open '
+        'landing) => watch on play, decoder left alone', () {
+      expect(
+        hwdecReturnPlan(
+          wasBackgrounded: true,
+          seenAlive: true,
+          playing: false,
+          refreshAllowed: false,
+        ),
+        HwdecReturnPlan.watchOnPlay,
+      );
+    });
+
+    test('already playing (PiP window kept it running) => watch now, '
+        'never a refresh under a moving film', () {
+      for (final refreshAllowed in <bool>[true, false]) {
+        expect(
+          hwdecReturnPlan(
+            wasBackgrounded: true,
+            seenAlive: true,
+            playing: true,
+            refreshAllowed: refreshAllowed,
+          ),
+          HwdecReturnPlan.watchNow,
+        );
+      }
+    });
+
+    test('never seen on VideoToolbox => skip, whatever else is true '
+        '(the 1080p PiP-return misfire stays fixed)', () {
+      for (final playing in <bool>[true, false]) {
+        for (final refreshAllowed in <bool>[true, false]) {
+          expect(
+            hwdecReturnPlan(
+              wasBackgrounded: true,
+              seenAlive: false,
+              playing: playing,
+              refreshAllowed: refreshAllowed,
+            ),
+            HwdecReturnPlan.skipNoHardwareBefore,
+          );
+        }
+      }
+    });
+
+    test('not a real backgrounding (Control Center) => nothing', () {
+      for (final seenAlive in <bool>[true, false]) {
+        for (final playing in <bool>[true, false]) {
+          expect(
+            hwdecReturnPlan(
+              wasBackgrounded: false,
+              seenAlive: seenAlive,
+              playing: playing,
+              refreshAllowed: true,
+            ),
+            HwdecReturnPlan.none,
+          );
+        }
+      }
+    });
+  });
+
+  group('iosResumePathActs', () {
+    test('the phone case: film paused by Home reads "was not playing" '
+        '=> the resume path does nothing, the return hook arms', () {
+      expect(
+        iosResumePathActs(
+          wasBackgrounded: true,
+          wasInPip: false,
+          wasPlaying: false,
+        ),
+        isFalse,
+      );
+    });
+
+    test('was playing, real backgrounding, no PiP => it acts', () {
+      expect(
+        iosResumePathActs(
+          wasBackgrounded: true,
+          wasInPip: false,
+          wasPlaying: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('PiP window or no backgrounding => it does not act', () {
+      expect(
+        iosResumePathActs(
+          wasBackgrounded: true,
+          wasInPip: true,
+          wasPlaying: true,
+        ),
+        isFalse,
+      );
+      expect(
+        iosResumePathActs(
+          wasBackgrounded: false,
+          wasInPip: false,
+          wasPlaying: true,
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('hwdecResumeOverlayLine', () {
-    test('a dash until a return has armed the watch', () {
-      expect(
+    String line({
+      int returns = 1,
+      String pre = '-',
+      int checks = 0,
+      int cycles = 0,
+      bool reopened = false,
+      String outcome = 'waiting',
+    }) =>
         hwdecResumeOverlayLine(
-          armed: false,
-          checks: 0,
-          cycles: 0,
-          reopened: false,
-          outcome: 'waiting',
-        ),
-        'hw-restore: -',
-      );
+          returns: returns,
+          pre: pre,
+          checks: checks,
+          cycles: cycles,
+          reopened: reopened,
+          outcome: outcome,
+        );
+
+    test('a dash only before the first return from the background', () {
+      expect(line(returns: 0), 'hw-restore: -');
     });
 
-    test('healthy on the first check', () {
-      expect(
-        hwdecResumeOverlayLine(
-          armed: true,
-          checks: 1,
-          cycles: 0,
-          reopened: false,
-          outcome: 'ok',
-        ),
-        'hw-restore: checks 1 cycles 0 ok',
-      );
+    test('never a dash once a return was handled, in any state', () {
+      for (final outcome in <String>[
+        kHwdecOutcomeSkipNoHardware,
+        kHwdecOutcomeWaitPlay,
+        'waiting',
+        'ok',
+        'lost',
+        'unreadable',
+        'reopened',
+        'stopped',
+      ]) {
+        final text = line(outcome: outcome);
+        expect(text, isNot('hw-restore: -'));
+        expect(text, startsWith('hw-restore: #1 '));
+      }
     });
 
-    test('restored by one cycle', () {
-      expect(
-        hwdecResumeOverlayLine(
-          armed: true,
-          checks: 2,
-          cycles: 1,
-          reopened: false,
-          outcome: 'ok',
-        ),
-        'hw-restore: checks 2 cycles 1 ok',
-      );
+    test('the return counter grows with each return', () {
+      expect(line(returns: 2, outcome: kHwdecOutcomeWaitPlay),
+          'hw-restore: #2 pre:- chk 0 cyc 0 wait play');
+    });
+
+    test('skip names its reason', () {
+      expect(line(outcome: kHwdecOutcomeSkipNoHardware),
+          'hw-restore: #1 skip (no hw before)');
+    });
+
+    test('paused refresh worked, healthy on the first check', () {
+      expect(line(pre: 'ok', checks: 1, outcome: 'ok'),
+          'hw-restore: #1 pre:ok chk 1 cyc 0 ok');
+    });
+
+    test('restored by one cycle of the watch', () {
+      expect(line(pre: 'lost', checks: 2, cycles: 1, outcome: 'ok'),
+          'hw-restore: #1 pre:lost chk 2 cyc 1 ok');
     });
 
     test('the last rung is visible', () {
       expect(
-        hwdecResumeOverlayLine(
-          armed: true,
+        line(
+          pre: 'sent',
           checks: 3,
           cycles: 2,
           reopened: true,
           outcome: 'reopened',
         ),
-        'hw-restore: checks 3 cycles 2 reopen 1 reopened',
+        'hw-restore: #1 pre:sent chk 3 cyc 2 reopen 1 reopened',
       );
     });
   });
