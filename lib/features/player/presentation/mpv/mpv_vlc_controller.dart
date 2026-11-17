@@ -408,9 +408,19 @@ class MpvVlcController implements VlcPlayerController {
 
   bool get timelineHeld => _heldPosition != null;
 
-  void holdTimeline({required Duration position, required Duration duration}) {
+  /// Build 73: [playing] — the film will play by itself when the move
+  /// lands, so the chrome draws it as a playing film that is
+  /// buffering (spinner, pause icon), not as a paused one.
+  bool _heldPlaying = true;
+
+  void holdTimeline({
+    required Duration position,
+    required Duration duration,
+    bool playing = true,
+  }) {
     _heldPosition = position;
     _heldDuration = duration;
+    _heldPlaying = playing;
     publish();
   }
 
@@ -538,7 +548,9 @@ class MpvVlcController implements VlcPlayerController {
 
     final VlcPlaybackState playbackState;
     if (held) {
-      playbackState = VlcPlaybackState.buffering;
+      playbackState = _heldPlaying
+          ? VlcPlaybackState.buffering
+          : VlcPlaybackState.paused;
     } else if (_errorDescription != null && !state.playing) {
       playbackState = VlcPlaybackState.error;
     } else if (state.completed) {

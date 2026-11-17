@@ -98,6 +98,18 @@ class NativeVideoController extends PlatformVideoController {
         videoParamsWidth = width;
         videoParamsHeight = height;
 
+        // Zeus fork (build 73): a fixed output size ([setSize] with a
+        // width and a height — the PiP / thermal render cap) must
+        // survive a video-parameter change. Before this, every open
+        // re-sent the video's own size here and silently lifted the
+        // cap on the native side, while [width]/[height] still read
+        // "capped" — so re-applying the same cap was a no-op (see the
+        // early return in [setSize]) and a 4K film was software
+        // rendered at full size inside the small PiP window.
+        if (this.width != null && this.height != null) {
+          return;
+        }
+
         await _channel.invokeMethod(
           'VideoOutputManager.SetSize',
           {
@@ -202,6 +214,16 @@ class NativeVideoController extends PlatformVideoController {
   /// * “With great power comes great responsibility”
   @override
   Future<void> setSize({
+    int? width,
+    int? height,
+  }) => _sizeLock.synchronized(() => _setSize(width: width, height: height));
+
+  /// Zeus fork (build 73): [setSize] runs under the same lock as the
+  /// video-parameter listener, so a fixed size and a parameter change
+  /// can never cross on the way to the native side.
+  Lock get _sizeLock => lock;
+
+  Future<void> _setSize({
     int? width,
     int? height,
   }) async {

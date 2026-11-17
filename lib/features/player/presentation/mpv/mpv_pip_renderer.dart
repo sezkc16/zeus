@@ -183,3 +183,107 @@ String rendererOverlayLine(MpvRendererPhase phase, {required bool onDemand}) {
     MpvRendererPhase.toHardware => 'renderer: switching > hw',
   };
 }
+
+// ---------------------------------------------------------------------------
+// Build 73: the fast move, the small PiP render, no automatic PiP.
+// ---------------------------------------------------------------------------
+//
+// Phone result on build 72 (2026-11-18, Avengers 4K, PiP mode mpv):
+// the return from the PiP window sat ~14 s on a frozen picture with
+// the play icon, flashed black once, and only then played on hardware;
+// the PiP window itself stuttered (`vo-drop +48` per 2 s with a
+// 3840x2160 software texture); and after that first round trip a plain
+// Home swipe opened a PiP window by itself.
+//
+// Build 73: a move no longer waits on the outgoing engine at all (no
+// awaited pause, no screenshot, no awaited dispose, no pre-buffer
+// hold) — the old engine's own picture stays on screen until the new
+// engine has drawn a frame; a 4K film is software-rendered small; and
+// the native PiP controller only exists between the button and the end
+// of that window.
+
+/// A software render size: width x height in pixels.
+class RenderSize {
+  const RenderSize(this.width, this.height);
+  final int width;
+  final int height;
+
+  @override
+  bool operator ==(Object other) =>
+      other is RenderSize && other.width == width && other.height == height;
+
+  @override
+  int get hashCode => Object.hash(width, height);
+
+  @override
+  String toString() => '${width}x$height';
+}
+
+/// The width a 4K film is software-rendered at. The PiP feed is at
+/// most 640 px wide (`maxPipWidth` in the native plugin); 960 leaves
+/// the in-player moments either side of the window (before it opens,
+/// after it closes, until the move back to hardware) watchable.
+const int kSoftwareRenderWidth4K = 960;
+
+/// The size the SOFTWARE renderer draws at, or null for the video's
+/// own size.
+///
+/// Only a 4K picture ([is4K] — the same test that sends the session
+/// back to hardware after PiP, see [pipEndNeedsHardware]) is shrunk:
+/// the software renderer cannot keep up with it (phone proof: about a
+/// second of frames dropped every second), and a 4K film is only on
+/// the software renderer for the PiP window and the moments around
+/// it. Everything below 4K keeps its own size, because below 4K the
+/// session STAYS on the software renderer after PiP and is watched
+/// full screen on it.
+///
+/// The aspect of the video is kept (a scope picture is not squeezed
+/// into 16:9) and both sides are even.
+RenderSize? softwareRenderSize({
+  required int? videoWidth,
+  required int? videoHeight,
+  required bool is4K,
+  int targetWidth = kSoftwareRenderWidth4K,
+}) {
+  if (!is4K) return null;
+  final w = videoWidth ?? 0;
+  final h = videoHeight ?? 0;
+  if (w <= 0 || h <= 0) return null;
+  if (w <= targetWidth) return null;
+  var outH = (h * targetWidth / w).round();
+  if (outH.isOdd) outH += 1;
+  if (outH < 2) outH = 2;
+  return RenderSize(targetWidth, outH);
+}
+
+/// Whether the native PiP bridge (controller, layer, frame tap) may
+/// exist. Only while a window is being opened or is up: with no
+/// controller iOS has nothing to bring back on a Home swipe, which is
+/// what "PiP only from the button" needs.
+bool pipBridgeWanted({required bool entering, required bool windowUp}) =>
+    entering || windowUp;
+
+/// Whether the film pauses when the PiP window goes away.
+///
+/// [restored] — the viewer tapped the window to come back into the
+/// player: the film keeps going, whatever the lifecycle says at that
+/// instant (iOS reports the stop a beat before the app is `resumed`,
+/// and Flutter replays `hidden` on the way back in; build 72 paused
+/// there — the play icon in the phone recording). Otherwise the window
+/// was closed with X while the app is in the background: nothing is
+/// showing the film, so it pauses.
+bool pipEndPauses({required bool restored, required bool appForeground}) =>
+    !restored && !appForeground;
+
+/// The QoE overlay's line for the last move: how long each step took,
+/// in milliseconds — the phone test's proof of where the time goes.
+String switchTimingLine({
+  required String direction,
+  required Map<String, int> steps,
+  required String outcome,
+}) {
+  if (direction.isEmpty) return 'switch: -';
+  final parts = steps.entries.map((e) => '${e.key} ${e.value}').join(' ');
+  final total = steps.values.fold<int>(0, (a, b) => a + b);
+  return 'switch $direction: $parts = ${total}ms $outcome'.trimRight();
+}

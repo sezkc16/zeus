@@ -154,6 +154,29 @@ class MpvPipIos {
     }
   }
 
+  /// Tears the native PiP controller, its layer and the frame tap down
+  /// but keeps this bridge (and its callbacks) for a later [prepare].
+  ///
+  /// Zeus build 73: once a PiP window has been up, iOS can bring it
+  /// back by itself the next time the app is backgrounded, even with
+  /// automatic PiP switched off (phone proof 2026-11-18: after one
+  /// PiP round trip a plain Home swipe opened a window on its own).
+  /// With no controller there is nothing for the system to start, so
+  /// the screen suspends the bridge whenever PiP is over. Safe to call
+  /// when not prepared.
+  Future<void> suspend() async {
+    if (defaultTargetPlatform != TargetPlatform.iOS) return;
+    final wasPrepared = _prepared;
+    _prepared = false;
+    _inPip = false;
+    if (!wasPrepared) return;
+    try {
+      await _channel.invokeMethod<void>('release');
+    } catch (_) {
+      // Best-effort: a failed release leaves the old behaviour.
+    }
+  }
+
   /// Tears the native session down. Safe to call when not prepared.
   Future<void> dispose() async {
     if (defaultTargetPlatform != TargetPlatform.iOS) return;

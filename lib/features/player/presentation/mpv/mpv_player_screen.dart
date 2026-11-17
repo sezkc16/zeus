@@ -238,10 +238,39 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// Where the on-demand renderer is.
   MpvRendererPhase _rendererPhase = MpvRendererPhase.hardware;
 
-  /// The last picture of the outgoing engine, shown while a move is in
-  /// flight so the viewer never sees black. Null when the capture
-  /// failed (the poster/backdrop is shown instead).
-  Uint8List? _switchFrame;
+  /// Build 73: the outgoing engine during a move. It is not disposed
+  /// before the new one opens any more — it stays alive, paused, and
+  /// its own texture is the held picture (see the move overlay in
+  /// [build]). Nothing is asked of it while it waits, so a saturated
+  /// engine cannot stall the move; it is disposed after the swap.
+  VideoController? _outgoingController;
+  GlobalKey<VideoState> _outgoingKey = GlobalKey<VideoState>();
+
+  /// Build 73: how long each step of the last move took, for the QoE
+  /// overlay (see [switchTimingLine]).
+  String _switchDirection = '';
+  Map<String, int> _switchSteps = const <String, int>{};
+  String _switchOutcome = '';
+
+  /// Build 73: the last PiP window, for the QoE overlay — how long it
+  /// was up and how many frames the renderer dropped under it.
+  String _pipLastLine = 'pip-last: -';
+  DateTime? _pipStartedAt;
+  int? _pipStartDrops;
+
+  /// Build 73: the viewer tapped the PiP window to come back (the
+  /// native restore). Sticky until the app is `resumed`: iOS sends a
+  /// plain "stopped" after it, and Flutter replays `hidden` on the way
+  /// in — neither may pause the film.
+  bool _pipRestoring = false;
+
+  /// Build 73: whether the film was playing in the window when it
+  /// went away — what the move back to hardware resumes.
+  bool _pipEndWasPlaying = false;
+
+  /// Build 73: a PiP entry (prepare → move → window) is in flight; the
+  /// native bridge must not be suspended under it.
+  bool _pipEntering = false;
 
   /// A move back to hardware that has to wait for the foreground (GPU
   /// work is not allowed in the background).
@@ -899,6 +928,14 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         // The hardware-decode restore no longer depends on it (see
         // [_onIosReturnHwdec]).
         _wasPlayingBeforeBackground = _playing;
+        // Build 73: on the way back IN (`hidden` → `inactive` →
+        // `resumed`) this is the first foreground signal — a move
+        // back to hardware that was waiting for the foreground starts
+        // here instead of after `resumed` and its backstop.
+        if (_appWasBackgrounded &&
+            (_pendingSwitchToHardware || _pipRestoring)) {
+          unawaited(_onPipEnded(reason: 'inactive'));
+        }
       } else {
         // Home swipe / app switcher on Android: the moment to enter PiP.
         // `inactive` is the activity pausing while still visible, so the
@@ -1035,9 +1072,22 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // return is cancelled: a new backgrounding starts a fresh cycle.
       _resumeStallTimer?.cancel();
       _resumeStallTimer = null;
-      if (!_inPip && _engineReady && !rendererSwitching(_rendererPhase)) {
+      // Build 73: nor on the way back in from the PiP window — the
+      // native restore lands before Flutter replays `hidden`, and the
+      // build-72 pause here is what left the film on the play icon.
+      if (!_inPip &&
+          !_pipRestoring &&
+          _engineReady &&
+          !rendererSwitching(_rendererPhase)) {
         unawaited(_player.pause());
       }
+    }
+    if (state == AppLifecycleState.resumed) {
+      // The return is complete: the restore no longer needs protecting.
+      Future<void>.delayed(const Duration(milliseconds: 600), () {
+        if (_disposed) return;
+        _pipRestoring = false;
+      });
     }
   }
 
@@ -1375,24 +1425,23 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         case PipButtonPlan.ignore:
           return;
         case PipButtonPlan.enter:
-          await _enterIosMpvPip(fromButton: fromButton);
-        case PipButtonPlan.switchThenEnter:
-          final moved = await _switchRenderer(toSoftware: true);
-          if (_disposed || !mounted) return;
-          if (!moved) {
-            ref.read(notificationServiceProvider).showInfo(
-              'Picture-in-picture could not start for this video.',
-              title: 'Picture-in-picture',
-            );
-            return;
+          _pipEntering = true;
+          try {
+            await _prepareIosPipBridge();
+            if (_disposed || !mounted) return;
+            await _enterIosMpvPip(fromButton: fromButton);
+          } finally {
+            _pipEntering = false;
           }
-          // The PiP layer is primed from a software-rendered frame:
-          // give the new renderer a moment to produce one.
-          await Future<void>.delayed(const Duration(milliseconds: 700));
-          if (_disposed || !mounted) return;
-          if (_rendererPhase != MpvRendererPhase.software) return;
-          await _enterIosMpvPip(fromButton: fromButton);
-          if (!_inPip) unawaited(_onPipEnded(reason: 'enter refused'));
+          if (!_inPip) unawaited(_suspendIosPipBridge());
+        case PipButtonPlan.switchThenEnter:
+          _pipEntering = true;
+          try {
+            await _switchThenEnterPip(fromButton: fromButton);
+          } finally {
+            _pipEntering = false;
+          }
+          if (!_inPip) unawaited(_suspendIosPipBridge());
       }
       return;
     }
@@ -1426,6 +1475,63 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // reported through `pipModeChanged`. If neither arrives, the watchdog
     // takes the chrome back (see [_armPipWatchdog]).
     _armPipWatchdog();
+  }
+
+  /// Build 73: creates the native PiP controller, layer and frame tap
+  /// for one window. They exist only from the button to the end of
+  /// that window (see [_suspendIosPipBridge]).
+  Future<void> _prepareIosPipBridge() async {
+    final pip = _iosPip;
+    if (pip == null || pip.isPrepared) return;
+    try {
+      await pip.prepare(
+        position: _position,
+        duration: _duration,
+        playing: _playing,
+      );
+    } catch (e) {
+      debugPrint('[mpv] PiP prepare failed: $e');
+    }
+  }
+
+  /// Build 73: tears the native PiP controller down once no window is
+  /// up or being opened. Phone proof on build 72: after one PiP round
+  /// trip a plain Home swipe opened a PiP window by itself (automatic
+  /// PiP was off; iOS brought the previous window back on its own).
+  /// With no controller there is nothing for iOS to start.
+  Future<void> _suspendIosPipBridge() async {
+    final pip = _iosPip;
+    if (pip == null || !pip.isPrepared) return;
+    if (pipBridgeWanted(
+      entering: _pipEntering,
+      windowUp: _inPip || pip.inPip,
+    )) {
+      return;
+    }
+    await pip.suspend();
+  }
+
+  Future<void> _switchThenEnterPip({required bool fromButton}) async {
+    // The tap has to be listening before the software renderer draws
+    // its first frames: they prime the PiP layer.
+    await _prepareIosPipBridge();
+    if (_disposed || !mounted) return;
+    final moved = await _switchRenderer(toSoftware: true);
+    if (_disposed || !mounted) return;
+    if (!moved) {
+      ref.read(notificationServiceProvider).showInfo(
+        'Picture-in-picture could not start for this video.',
+        title: 'Picture-in-picture',
+      );
+      return;
+    }
+    // The PiP layer is primed from a software-rendered frame: give the
+    // new renderer a moment to produce one.
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    if (_disposed || !mounted) return;
+    if (_rendererPhase != MpvRendererPhase.software) return;
+    await _enterIosMpvPip(fromButton: fromButton);
+    if (!_inPip) unawaited(_onPipEnded(reason: 'enter refused'));
   }
 
   /// Enters the iOS mpv PiP window through the native bridge.
@@ -1493,6 +1599,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // shows the live-feed throughput while PiP runs.
       _startPipDiagLog();
       if (!_inPip) setState(() => _inPip = true);
+      _pipRestoring = false;
+      _pipStartedAt = DateTime.now();
+      _pipStartDrops = null;
+      unawaited(_readVoDrops(_player).then((v) => _pipStartDrops = v));
       // +35 P1: cap the SW render target while the window is up (see
       // [_applyPipRenderCap]) — full 4K software render in the
       // background, under iOS CPU throttling, is what lags the PiP
@@ -1501,6 +1611,31 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     };
     pip.onPipStopped = (restored) {
       if (!mounted || _disposed) return;
+      // Build 73: iOS reports a restore (the viewer tapped the window)
+      // and then a plain stop for the same window. The first report
+      // decides; the film's state is read before anything can pause
+      // it.
+      final firstReport = _pipStartedAt != null;
+      if (firstReport) {
+        _pipEndWasPlaying = _playing;
+        unawaited(_notePipWindowStats(_player, _pipStartedAt!));
+        _pipStartedAt = null;
+      }
+      if (restored) {
+        _pipRestoring = true;
+        // Bounded: a later Home swipe must pause the film as always.
+        Future<void>.delayed(const Duration(seconds: 3), () {
+          if (_disposed) return;
+          _pipRestoring = false;
+        });
+      }
+      // The native controller goes once the restore animation is over
+      // (see [_suspendIosPipBridge]): nothing is left for iOS to
+      // re-open on a later Home swipe.
+      Future<void>.delayed(const Duration(milliseconds: 1200), () {
+        if (_disposed) return;
+        unawaited(_suspendIosPipBridge());
+      });
       unawaited(_restoreMpvSubtitlesAfterPip());
       _pipDiagTimer?.cancel();
       _pipDiagTimer = null;
@@ -1517,7 +1652,12 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // (below 4K), or move back to the hardware renderer (4K). The
       // build-69/71 decoder restore no longer runs here: it re-opened
       // the source on a healthy software session.
-      unawaited(_onPipEnded(reason: 'pipStopped', restored: restored));
+      unawaited(
+        _onPipEnded(
+          reason: 'pipStopped',
+          restored: restored || _pipRestoring,
+        ),
+      );
     };
     pip.onPipFailed = (reason) {
       if (kDebugMode) {
@@ -1535,6 +1675,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
             );
       }
       setState(() => _inPip = false);
+      unawaited(_suspendIosPipBridge());
       unawaited(_onPipEnded(reason: 'pipFailed'));
     };
     pip.onPipSetPlaying = (playing) {
@@ -1547,12 +1688,46 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     };
     _iosPip = pip;
     _iosPipSupported = true;
-    await pip.prepare(
-      position: _position,
-      duration: _duration,
-      playing: _playing,
-    );
+    // Build 73: on demand the native controller is NOT created here —
+    // only by the PiP button (see [_prepareIosPipBridge]), so a Home
+    // swipe has nothing iOS could open by itself.
+    if (!_iosPipOnDemand) {
+      await pip.prepare(
+        position: _position,
+        duration: _duration,
+        playing: _playing,
+      );
+    }
     if (mounted && !_disposed) setState(() {});
+  }
+
+  /// Build 73: mpv's cumulative presentation-drop counter, or null.
+  Future<int?> _readVoDrops(Player player) async {
+    try {
+      final platform = player.platform;
+      if (platform is! NativePlayer) return null;
+      return int.tryParse(
+        (await platform.getProperty('frame-drop-count')).toString(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Build 73: what the last PiP window cost, for the QoE overlay —
+  /// its length, the frames the renderer dropped under it and the size
+  /// it was rendered at. The proof the phone test reads for "is the
+  /// window smooth".
+  Future<void> _notePipWindowStats(Player player, DateTime startedAt) async {
+    final seconds = DateTime.now().difference(startedAt).inSeconds;
+    final rect = _videoController.rect.value;
+    final tex = rect == null
+        ? '?'
+        : '${rect.width.toInt()}x${rect.height.toInt()}';
+    final before = _pipStartDrops;
+    final after = await _readVoDrops(player);
+    final drops = before != null && after != null ? '+${after - before}' : '?';
+    _pipLastLine = 'pip-last: ${seconds}s vo-drop $drops tex $tex';
   }
 
   /// Syncs playback state into the iOS PiP bridge: the scrubber, the
@@ -1770,7 +1945,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// or the software renderer. Used by [_init] and by every renderer
   /// move ([_switchRenderer]). Returns null on success, else the error
   /// text.
-  Future<String?> _createEngine({required bool software}) async {
+  Future<String?> _createEngine({
+    required bool software,
+    RenderSize? renderSize,
+  }) async {
     final settings = _playerSettings.value;
     final Player player;
     try {
@@ -1799,6 +1977,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
               ? mpvIosHwdec(pipEnabled: software)
               : mpvHwdecForPlatform(defaultTargetPlatform),
           enableHardwareAcceleration: !software,
+          // Build 73: a 4K film on the software (PiP) renderer is
+          // drawn small from its very first frame (see
+          // [softwareRenderSize]).
+          width: software ? renderSize?.width : null,
+          height: software ? renderSize?.height : null,
         ),
       );
     } catch (e) {
@@ -1808,6 +1991,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _player = player;
     _videoController = controller;
     _iosMpvPipEnabled = software;
+    _pipRenderCapped = software && renderSize != null;
     _videoKey = GlobalKey<VideoState>();
     _lastSubtitlePadding = null;
     if (_adapterCreated) {
@@ -1858,6 +2042,9 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
           contrast: settings.pictureContrast,
           saturation: settings.pictureSaturation,
         );
+        if (software && renderSize != null) {
+          await _applyFastSoftwareScaler(iosPlatform);
+        }
       }
     }
     // Subtitle options for every platform (+26): the secondary track
@@ -1871,6 +2058,58 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
 
   /// Stops and disposes an engine. Never throws: an engine that is
   /// already gone is fine.
+  /// Build 73: the cheap scaler for a 4K film drawn small by the
+  /// software renderer — the picture is a PiP window, and the scaler
+  /// is the larger part of the per-frame cost. Best-effort.
+  Future<void> _applyFastSoftwareScaler(NativePlayer platform) async {
+    for (final entry in const <String, String>{
+      'sws-fast': 'yes',
+      'sws-scaler': 'fast-bilinear',
+    }.entries) {
+      try {
+        await platform.setProperty(entry.key, entry.value);
+      } catch (_) {}
+    }
+  }
+
+  /// Build 73: sizes the software renderer for the film that is
+  /// actually decoding (see [softwareRenderSize]): a 4K picture is
+  /// drawn small for the whole time it is on the software renderer,
+  /// anything below 4K at its own size. On demand only — a session
+  /// that lives on the software renderer is watched full screen.
+  Future<void> _applySoftwareRenderSize() async {
+    if (defaultTargetPlatform != TargetPlatform.iOS) return;
+    if (!_iosPipOnDemand || !_engineReady || !_iosMpvPipEnabled) return;
+    final params = _player.state.videoParams;
+    final width = params.dw ?? params.w;
+    final height = params.dh ?? params.h;
+    final size = softwareRenderSize(
+      videoWidth: width,
+      videoHeight: height,
+      is4K: is4KVideo(width: width, height: height),
+    );
+    if (size == null) {
+      if (!_pipRenderCapped) return;
+      if (width == null || height == null) return;
+      // The film turned out to be below 4K: back to its own size.
+      _pipRenderCapped = false;
+      await _setIosRenderCap(_thermalGovernor.isLightened);
+      return;
+    }
+    final controller = _videoController;
+    if (await _setIosRenderCap(
+      true,
+      width: size.width,
+      height: size.height,
+    )) {
+      if (identical(controller, _videoController)) _pipRenderCapped = true;
+      final platform = _player.platform;
+      if (platform is NativePlayer) {
+        await _applyFastSoftwareScaler(platform);
+      }
+    }
+  }
+
   Future<void> _disposeEngine(Player player) async {
     try {
       await player.stop();
@@ -1893,12 +2132,25 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// scrobble or history point is fired twice. Returns whether the
   /// session ended on the renderer asked for; a failed move to software
   /// comes back on hardware.
-  Future<bool> _switchRenderer({required bool toSoftware}) async {
+  Future<bool> _switchRenderer({
+    required bool toSoftware,
+    bool? playing,
+  }) async {
     if (defaultTargetPlatform != TargetPlatform.iOS) return false;
     if (_disposed || !mounted || !_engineReady) return false;
     if (rendererSwitching(_rendererPhase)) return false;
     if (_streamIndex < 0 || _streamIndex >= _streams.length) return false;
     final token = ++_switchToken;
+    // Build 73: every step is timed for the QoE overlay.
+    final clock = Stopwatch()..start();
+    final steps = <String, int>{};
+    var lapStart = 0;
+    void lap(String name) {
+      final now = clock.elapsedMilliseconds;
+      steps[name] = now - lapStart;
+      lapStart = now;
+    }
+    final direction = toSoftware ? '>sw' : '>hw';
     bool live() => !_disposed && mounted && token == _switchToken;
     _pendingSwitchToHardware = false;
     // The PiP quality drop (+31), folded into the move so it costs no
@@ -1928,37 +2180,54 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       }
     }
     final old = _player;
+    final oldController = _videoController;
+    final wasPlaying = playing ?? _playing;
     final carry = RendererCarryOver(
       position: _position,
       duration: _duration,
-      wasPlaying: _playing,
+      wasPlaying: wasPlaying,
       rate: old.state.rate,
       volume: old.state.volume,
       streamIndex: targetIndex,
     );
+    var software = toSoftware;
+    final autoPlay = carry.autoPlay(toSoftware: software);
+    // The size the software renderer draws at, known up front when the
+    // same stream is re-opened (a quality drop opens another file; its
+    // size is applied when its parameters arrive, see [_listen]).
+    final oldParams = old.state.videoParams;
+    final oldWidth = oldParams.dw ?? oldParams.w;
+    final oldHeight = oldParams.dh ?? oldParams.h;
+    final renderSize = targetIndex == _streamIndex
+        ? softwareRenderSize(
+            videoWidth: oldWidth,
+            videoHeight: oldHeight,
+            is4K: is4KVideo(width: oldWidth, height: oldHeight),
+          )
+        : null;
     debugPrint('[mpv] renderer move → ${toSoftware ? 'software' : 'hardware'} '
-        'at ${carry.position} (stream $targetIndex)');
-    // Freeze the old picture first, so the last frame stays put.
-    try {
-      await old.pause();
-    } catch (_) {}
-    Uint8List? frame;
-    try {
-      frame = await old
-          .screenshot(format: 'image/jpeg')
-          .timeout(const Duration(seconds: 3));
-    } catch (_) {
-      frame = null;
-    }
-    if (!live()) return false;
-    _adapter.holdTimeline(position: carry.position, duration: carry.duration);
+        'at ${carry.position} (stream $targetIndex, size $renderSize)');
+    // Build 73: nothing below waits on the old engine. Build 72 awaited
+    // its pause, a full-size JPEG screenshot (3 s timeout) and its
+    // dispose (4 s timeout) one after the other before the new engine
+    // was even created — on a software engine saturated by 4K those
+    // are the frozen seconds of the phone recording. The old engine is
+    // told to pause and then left alone: its own texture is the held
+    // picture, and it is disposed after the swap.
+    _adapter.holdTimeline(
+      position: carry.position,
+      duration: carry.duration,
+      playing: autoPlay,
+    );
     setState(() {
-      _switchFrame = frame;
+      _outgoingController = oldController;
+      _outgoingKey = GlobalKey<VideoState>();
       _rendererPhase = toSoftware
           ? MpvRendererPhase.toSoftware
           : MpvRendererPhase.toHardware;
       _engineReady = false;
     });
+    unawaited(old.pause().catchError((Object _) {}));
     // Everything that watched the old engine stands down.
     _hwdecWatchToken++;
     _hwdecWatchPending = false;
@@ -1978,29 +2247,48 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       unawaited(sub.cancel());
     }
     _subs.clear();
-    // The old engine goes first: two engines would be two 768 MiB
-    // caches, two decoders and two audio outputs.
-    await _disposeEngine(old).timeout(
-      const Duration(seconds: 4),
-      onTimeout: () {},
+    lap('hold');
+
+    void releaseOutgoing() {
+      _outgoingController = null;
+      // Paused since the first line of the move: the stop and the
+      // dispose run behind the new picture, not in front of it.
+      unawaited(_disposeEngine(old));
+    }
+
+    void finish(String outcome) {
+      _switchDirection = direction;
+      _switchSteps = steps;
+      _switchOutcome = outcome;
+    }
+
+    if (!live()) {
+      releaseOutgoing();
+      return false;
+    }
+    var error = await _createEngine(
+      software: software,
+      renderSize: software ? renderSize : null,
     );
-    if (!live()) return false;
-    var software = toSoftware;
-    var error = await _createEngine(software: software);
     if (error != null && software) {
       // Could not get the software renderer: come back on hardware.
       software = false;
       error = await _createEngine(software: false);
     }
-    if (!live()) return false;
+    lap('new');
+    if (!live()) {
+      releaseOutgoing();
+      return false;
+    }
     if (error != null) {
       _adapter.releaseTimeline();
       setState(() {
-        _switchFrame = null;
+        releaseOutgoing();
         _rendererPhase = MpvRendererPhase.hardware;
         _stage = _Stage.failed;
         _error = error;
       });
+      finish('failed');
       return false;
     }
     final rate = carry.rateToApply;
@@ -2012,15 +2300,22 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // engine reports its own (see the position listener).
     _position = carry.position;
     _duration = carry.duration;
-    final autoPlay = carry.autoPlay(toSoftware: software);
+    final play = carry.autoPlay(toSoftware: software);
     setState(() {});
+    // Build 73: no pre-buffer hold on a move — the film starts on its
+    // first frame; the stall logic covers a slow source from there.
     await _openStream(
       carry.streamIndex,
       start: carry.start,
-      autoPlay: autoPlay,
+      autoPlay: play,
       keepSession: true,
+      skipPrebuffer: true,
     );
-    if (!live()) return false;
+    lap('open');
+    if (!live()) {
+      releaseOutgoing();
+      return false;
+    }
     // Hold the old picture until the new engine has one of its own.
     final deadline = DateTime.now().add(const Duration(seconds: 25));
     var firstFrame = false;
@@ -2029,18 +2324,23 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         firstFrame = true;
       }).catchError((Object _) {}),
     );
+    var gotPicture = false;
     while (live() && DateTime.now().isBefore(deadline)) {
       if (_stage == _Stage.failed) break;
       final rect = _videoController.rect.value;
       final hasPicture =
           firstFrame || (rect != null && rect.width > 0 && rect.height > 0);
-      if (hasPicture && !_awaitingPrebuffer && (_startedPlaying || !autoPlay)) {
+      if (hasPicture && (_startedPlaying || !play)) {
+        gotPicture = true;
         break;
       }
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
     }
-    if (!live()) return false;
-    if (!autoPlay) {
+    if (!live()) {
+      releaseOutgoing();
+      return false;
+    }
+    if (!play) {
       // Held paused: the startup watchdog must not call a paused film
       // a dead source.
       _watchdogTimer?.cancel();
@@ -2048,7 +2348,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // A beat for the first texture frame to reach the screen before
     // the held picture goes.
     await Future<void>.delayed(const Duration(milliseconds: 150));
-    if (!live()) return false;
+    lap('frame');
+    if (!live()) {
+      releaseOutgoing();
+      return false;
+    }
     _position = _player.state.position > Duration.zero
         ? _player.state.position
         : carry.position;
@@ -2057,28 +2361,21 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     }
     _adapter.releaseTimeline();
     setState(() {
-      _switchFrame = null;
+      releaseOutgoing();
       _rendererPhase = rendererPhaseAfterSwitch(
         toSoftware: toSoftware,
         succeeded: software == toSoftware,
       );
     });
+    finish(gotPicture ? 'ok' : 'no-frame');
     _syncIosPipState();
-    debugPrint('[mpv] renderer move done: $_rendererPhase');
+    debugPrint(
+      '[mpv] renderer move done: $_rendererPhase '
+      '${switchTimingLine(direction: direction, steps: steps, outcome: _switchOutcome)}',
+    );
     return software == toSoftware;
   }
 
-  /// PiP is over — or never started (build 72). Implements
-  /// [pipEndPlan]: below 4K the software session simply keeps playing
-  /// in the player (no re-open: "PiP bada hoke direct play"); 4K, or a
-  /// PiP quality drop to undo, moves back to the hardware renderer —
-  /// in the foreground only, since GPU work is not allowed in the
-  /// background. Safe to call from every PiP-end signal: it acts once.
-  ///
-  /// [restored] is the native "the viewer tapped back into the app":
-  /// the film then keeps playing (the lifecycle `resumed` may arrive a
-  /// moment later). Without it the window was closed on the Home
-  /// screen, so the film pauses — nothing is showing it.
   Future<void> _onPipEnded({
     required String reason,
     bool restored = false,
@@ -2086,16 +2383,21 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     if (!_iosPipOnDemand || _disposed || !mounted) return;
     if (_rendererPhase != MpvRendererPhase.software) return;
     if (_inPip || (_iosPip?.inPip ?? false)) return;
+    final cameBack = restored || _pipRestoring;
     final is4K = _engineReady && await _isCurrentVideo4K();
     if (_disposed || !mounted) return;
     if (_rendererPhase != MpvRendererPhase.software) return;
     if (_inPip || (_iosPip?.inPip ?? false)) return;
-    final resumed = WidgetsBinding.instance.lifecycleState ==
-        AppLifecycleState.resumed;
+    // Build 73: `inactive` on the way back in is already the
+    // foreground (GPU work is allowed again); build 72 waited for
+    // `resumed`, a frame, and then a 1.5 s backstop.
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    final foreground = lifecycle == AppLifecycleState.resumed ||
+        lifecycle == AppLifecycleState.inactive;
     final plan = pipEndPlan(
       phase: _rendererPhase,
       pipWindowUp: false,
-      appResumed: resumed,
+      appResumed: foreground,
       needsHardware: _pendingSwitchToHardware ||
           pipEndNeedsHardware(
             is4K: is4K,
@@ -2103,22 +2405,31 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
           ),
     );
     debugPrint('[mpv] PiP ended ($reason): $plan');
+    final pauses = pipEndPauses(restored: cameBack, appForeground: foreground);
     switch (plan) {
       case PipEndPlan.none:
         return;
       case PipEndPlan.stayOnSoftware:
         // The window was closed while the app is still in the
         // background: nothing is showing the film, so it pauses.
-        if (!resumed && !restored && _engineReady) {
+        if (pauses && _engineReady) {
+          _pipEndWasPlaying = false;
           unawaited(_player.pause());
         }
         return;
       case PipEndPlan.pauseAndDefer:
         _pendingSwitchToHardware = true;
-        if (!restored && _engineReady) unawaited(_player.pause());
+        if (pauses && _engineReady) {
+          _pipEndWasPlaying = false;
+          unawaited(_player.pause());
+        }
         return;
       case PipEndPlan.switchNow:
-        await _switchRenderer(toSoftware: false);
+        // The film does on hardware what it was doing in the window.
+        await _switchRenderer(
+          toSoftware: false,
+          playing: _pipEndWasPlaying || _playing,
+        );
     }
   }
 
@@ -2217,7 +2528,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
             // up would silently drop the PiP cap — re-apply it here
             // too. The PiP cap is 960x540, the thermal cap 1080p, so
             // the two are re-applied at their own sizes.
-            if (_pipRenderCapped) {
+            if (_iosPipOnDemand && _iosMpvPipEnabled) {
+              // Build 73: sized from the film that is decoding.
+              unawaited(_applySoftwareRenderSize());
+            } else if (_pipRenderCapped) {
               unawaited(_setIosRenderCap(true, width: 960, height: 540));
             } else if (_thermalGovernor.isLightened) {
               unawaited(_setIosRenderCap(true));
@@ -2284,6 +2598,18 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         }
       }),
     );
+    // Build 73: the software renderer is sized the moment the film's
+    // real size is known — before its first frame where possible.
+    if (defaultTargetPlatform == TargetPlatform.iOS &&
+        _iosPipOnDemand &&
+        _iosMpvPipEnabled) {
+      _subs.add(
+        _player.stream.videoParams.listen((_) {
+          if (_disposed) return;
+          unawaited(_applySoftwareRenderSize());
+        }),
+      );
+    }
     _subs.add(
       _player.stream.duration.listen((duration) {
         if (_disposed) return;
@@ -2482,6 +2808,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     Duration? start,
     bool autoPlay = true,
     bool keepSession = false,
+    bool skipPrebuffer = false,
   }) async {
     if (_disposed || _streams.isEmpty) return;
     // A genuinely different source (failover / source pick) ends the old
@@ -2569,7 +2896,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
           httpHeaders: stream.headers,
           start: start != null && start > Duration.zero ? start : null,
         ),
-        play: false,
+        // Build 73: a renderer move starts on its first frame.
+        play: skipPrebuffer && autoPlay,
       );
     } catch (e) {
       if (kDebugMode) debugPrint('mpv open failed: $e');
@@ -2579,7 +2907,15 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       return;
     }
     _armWatchdog();
-    _waitForPrebuffer(autoPlay: autoPlay);
+    if (skipPrebuffer) {
+      _prebufferToken++;
+      _awaitingPrebuffer = false;
+      _prebufferHoldPlay = false;
+      _prebufferTimer?.cancel();
+      _prebufferTimer = null;
+    } else {
+      _waitForPrebuffer(autoPlay: autoPlay);
+    }
     if (mounted) setState(() {});
   }
 
@@ -2812,6 +3148,12 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// min of the two. No toast — the cap is not a heat event. No-op
   /// when already capped or when the source is at or below 1080p.
   Future<void> _applyPipRenderCap() async {
+    if (_iosPipOnDemand) {
+      // Build 73: the label is not trusted (a 4K file with no quality
+      // label was never capped) — the size comes from the film itself.
+      await _applySoftwareRenderSize();
+      return;
+    }
     if (_pipRenderCapped) return;
     final target = pipRenderCapTarget(
       pipUp: true,
@@ -2831,6 +3173,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// lighten); otherwise full size returns. No-op when the PiP cap
   /// was never applied.
   Future<void> _restorePipRenderCap() async {
+    // Build 73: on demand nothing is restored here. A 4K film leaves
+    // the software renderer right after the window (rendering it at
+    // full size for those moments is what build 72 did — `vo-drop
+    // +48`), and a film below 4K was never shrunk.
+    if (_iosPipOnDemand) return;
     if (!_pipRenderCapped) return;
     _pipRenderCapped = false;
     final target = pipRenderCapTarget(
@@ -3410,6 +3757,17 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       buffer.writeln(
         rendererOverlayLine(_rendererPhase, onDemand: _iosPipOnDemand),
       );
+      if (_iosPipOnDemand) {
+        buffer
+          ..writeln(
+            switchTimingLine(
+              direction: _switchDirection,
+              steps: _switchSteps,
+              outcome: _switchOutcome,
+            ),
+          )
+          ..writeln(_pipLastLine);
+      }
     }
     final text = buffer.toString().trimRight();
     if (_mpvStatsText.value != text) _mpvStatsText.value = text;
@@ -4387,17 +4745,27 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
           // Build 72: a renderer move in flight — the old engine's last
           // picture (else the backdrop) covers the new engine until it
           // has a picture of its own. Never black, never interactive.
+          // Build 73: the picture is the OLD engine's own texture —
+          // still alive, paused — so there is no capture to wait for
+          // and no moment without a picture.
           if (rendererSwitching(_rendererPhase))
             IgnorePointer(
               child: ColoredBox(
                 color: Colors.black,
-                child: _switchFrame != null
-                    ? Image.memory(
-                        _switchFrame!,
-                        fit: BoxFit.contain,
-                        gaplessPlayback: true,
-                        filterQuality: FilterQuality.medium,
-                        errorBuilder: (_, _, _) => const SizedBox.expand(),
+                child: _outgoingController != null
+                    ? Center(
+                        child: Video(
+                          key: _outgoingKey,
+                          controller: _outgoingController!,
+                          fit: _boxFitFor(_fit),
+                          fill: Colors.black,
+                          controls: (_) => const SizedBox.shrink(),
+                          pauseUponEnteringBackgroundMode: false,
+                          resumeUponEnteringForegroundMode: false,
+                          wakelock: false,
+                          subtitleViewConfiguration:
+                              const SubtitleViewConfiguration(visible: false),
+                        ),
                       )
                     : widget.item.backdropImageUrl.isNotEmpty
                     ? Image.network(

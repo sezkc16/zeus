@@ -1406,7 +1406,12 @@ class _GoldenPlayerControlsState
                         if (!_boosting)
                           Center(
                             child: _CentreTransport(
-                              isPlaying: value.isPlaying,
+                              // Build 73: a film that is buffering is
+                              // a playing film (the spinner says it is
+                              // waiting) — it must not show the play
+                              // icon as if the viewer had paused it.
+                              isPlaying: value.isPlaying ||
+                                  value.state == VlcPlaybackState.buffering,
                               onTogglePlay: _togglePlay,
                               onRewind: () => _seekBy(-_kGoldenSeekStep),
                               onForward: () => _seekBy(_kGoldenSeekStep),
