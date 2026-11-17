@@ -571,6 +571,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get homeProviderSelect => 'Select';
 
   @override
+  String get homeProviderFrom => 'from';
+
+  @override
+  String get homeProviderSelectSource => 'Select source';
+
+  @override
   String get sourcesNoneFound => 'No sources found — install a plugin or addon';
 
   @override

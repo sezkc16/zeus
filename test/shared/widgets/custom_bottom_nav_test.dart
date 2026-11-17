@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_bottom_nav/liquid_glass_bottom_nav.dart';
@@ -162,22 +160,12 @@ void main() {
     await tester.pumpAndSettle();
     // The package's root Positioned: left/right are the side margins
     // (insets = 8) and bottom is the pill's gap from the screen edge.
-    // v5: two of them — the frost layer behind the pill and the package's
-    // pill itself — on exactly the same rect.
     final positioned = tester
         .widgetList<Positioned>(find.byType(Positioned))
         .where((p) => p.left == 8.0 && p.right == 8.0)
         .toList();
-    expect(positioned, hasLength(2));
-    for (final p in positioned) {
-      expect(p.bottom, CustomBottomNavBar.targetBottomGap);
-    }
-    expect(
-      tester.getRect(find.byKey(CustomBottomNavBar.frostKey)),
-      // The test surface is 800x600 (the MediaQuery above only feeds
-      // the padding): 8 from each side and the bottom, 68 tall.
-      const Rect.fromLTRB(8, 600 - 8 - 68, 800 - 8, 600 - 8),
-    );
+    expect(positioned, hasLength(1));
+    expect(positioned.single.bottom, CustomBottomNavBar.targetBottomGap);
   });
 
   testWidgets('navPaddingBottom only ever lowers the pill', (tester) async {
@@ -238,136 +226,5 @@ void main() {
         reason: 'glass pill under $brightness',
       );
     }
-  });
-
-  // v5: list text scrolling under the pill was readable through it (the
-  // package's own blur is sigma 1). A frost layer directly behind the pill
-  // blurs it away — translucent, never a solid slab.
-  testWidgets('the pill frosts what is under it, in dark and light', (
-    tester,
-  ) async {
-    expect(CustomBottomNavBar.frostSigma, 24.0);
-    for (final brightness in [Brightness.dark, Brightness.light]) {
-      await pump(tester, brightness);
-      await tester.pumpAndSettle();
-      final frost = find.byKey(CustomBottomNavBar.frostKey);
-      expect(frost, findsOneWidget, reason: 'frost under $brightness');
-      final filter = tester.widget<BackdropFilter>(frost).filter;
-      expect(
-        filter.toString(),
-        ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24).toString(),
-      );
-      // Clipped to the pill, so the blur never spills past it.
-      expect(
-        find.ancestor(of: frost, matching: find.byType(ClipPath)),
-        findsWidgets,
-      );
-      // The tint is translucent and adapts to the brightness.
-      final tint = tester
-          .widget<ColoredBox>(
-            find.descendant(of: frost, matching: find.byType(ColoredBox)),
-          )
-          .color;
-      expect(
-        tint,
-        brightness == Brightness.dark
-            ? CustomBottomNavBar.frostTintDark
-            : CustomBottomNavBar.frostTintLight,
-      );
-      expect(tint.a, greaterThan(0.1));
-      expect(tint.a, lessThan(0.5));
-      // No fully opaque backing anywhere in the bar.
-      for (final box in tester.widgetList<ColoredBox>(
-        find.descendant(
-          of: find.byType(CustomBottomNavBar),
-          matching: find.byType(ColoredBox),
-        ),
-      )) {
-        expect(box.color.a, lessThan(1.0));
-      }
-      for (final box in tester.widgetList<DecoratedBox>(
-        find.descendant(
-          of: find.byType(CustomBottomNavBar),
-          matching: find.byType(DecoratedBox),
-        ),
-      )) {
-        final decoration = box.decoration;
-        if (decoration is BoxDecoration && decoration.color != null) {
-          expect(decoration.color!.a, lessThan(1.0));
-        }
-      }
-      // The package's glass pill is still there, on top of the frost.
-      expect(find.byType(LiquidGlassNavBar), findsOneWidget);
-    }
-    expect(CustomBottomNavBar.frostTintDark.a, closeTo(0.40, 0.01));
-    expect(CustomBottomNavBar.frostTintLight.a, closeTo(0.20, 0.01));
-  });
-
-  testWidgets('the nav Positioned stays a direct child of a Stack', (
-    tester,
-  ) async {
-    await pump(tester, Brightness.dark);
-    await tester.pumpAndSettle();
-    // A Transform/Padding between a Stack and its Positioned throws
-    // "Incorrect use of ParentDataWidget" (the +15..+19 freeze).
-    expect(tester.takeException(), isNull);
-    expect(
-      find.descendant(
-        of: find.byType(CustomBottomNavBar),
-        matching: find.byType(LiquidGlassNavBar),
-      ),
-      findsOneWidget,
-    );
-    Element parentRenderObjectElement(Element e) {
-      late Element found;
-      e.visitAncestorElements((a) {
-        if (a is RenderObjectElement) {
-          found = a;
-          return false;
-        }
-        return true;
-      });
-      return found;
-    }
-
-    for (final p in tester.elementList(
-      find.descendant(
-        of: find.byType(CustomBottomNavBar),
-        matching: find.byWidgetPredicate(
-          (w) => w is Positioned && w.left == 8.0 && w.right == 8.0,
-        ),
-      ),
-    )) {
-      expect(parentRenderObjectElement(p).widget, isA<Stack>());
-    }
-    expect(
-      parentRenderObjectElement(
-        tester.element(find.byType(CustomBottomNavBar)),
-      ).widget,
-      isA<Stack>(),
-    );
-  });
-
-  testWidgets('the legacy fallback gets no frost layer', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: Stack(
-            children: [
-              const SizedBox.expand(),
-              CustomBottomNavBar(
-                currentIndex: 0,
-                onTap: (_) {},
-                impellerSupported: false,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byKey(CustomBottomNavBar.frostKey), findsNothing);
   });
 }

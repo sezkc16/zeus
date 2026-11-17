@@ -1,4 +1,5 @@
-/// Choosing a plugin on Home (v5): the header chip opens the Select
+/// Choosing a plugin on Home (v5; v6 moved it under the logo as a plain
+/// text line): the header line opens the Select
 /// Provider dialog; picking a provider there switches the whole Home feed
 /// to that plugin's home page. The v4 pill row and its "For You" pill are
 /// gone.
@@ -169,15 +170,15 @@ class _ChipHost extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => Scaffold(
     appBar: AppBar(
-      actions: [
-        HomeProviderChip(
-          onTap: () => showProviderSelectorDialog(
-            context,
-            providers: ref.read(extensionManagerProvider),
-            activeProvider: ref.read(activeProviderProvider),
-          ),
-        ),
-      ],
+      bottom: homeProviderChipVisible(ref)
+          ? HomeProviderChipBar(
+              onTap: () => showProviderSelectorDialog(
+                context,
+                providers: ref.read(extensionManagerProvider),
+                activeProvider: ref.read(activeProviderProvider),
+              ),
+            )
+          : null,
     ),
     body: Consumer(
       builder: (context, ref, _) {
@@ -187,6 +188,65 @@ class _ChipHost extends ConsumerWidget {
       },
     ),
   );
+}
+
+/// Home's v6 header, wired the way Home wires it: logo + name on the
+/// toolbar row, search + settings on the right, the provider line as the
+/// AppBar's `bottom` (a second line under the logo).
+class _HeaderHost extends ConsumerWidget {
+  const _HeaderHost();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    appBar: AppBar(
+      centerTitle: false,
+      bottom: homeProviderChipVisible(ref)
+          ? HomeProviderChipBar(onTap: () {})
+          : null,
+      title: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(key: Key('logo'), width: 28, height: 28),
+          SizedBox(width: 8),
+          Text('Zeus'),
+        ],
+      ),
+      actions: const [
+        Padding(
+          padding: EdgeInsets.only(right: 12),
+          child: CircleAvatar(key: Key('search'), radius: 18),
+        ),
+        Padding(
+          padding: EdgeInsets.only(right: 16),
+          child: CircleAvatar(key: Key('gear'), radius: 18),
+        ),
+      ],
+    ),
+    body: const SizedBox.shrink(),
+  );
+}
+
+Future<void> _pumpHeader(
+  WidgetTester tester,
+  ProviderContainer container, {
+  Brightness brightness = Brightness.dark,
+}) async {
+  tester.view.physicalSize = const Size(393, 852);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        theme: ThemeData(brightness: brightness),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const _HeaderHost(),
+      ),
+    ),
+  );
+  await tester.pump();
 }
 
 Future<void> _pump(WidgetTester tester, ProviderContainer container) async {
@@ -271,14 +331,14 @@ void main() {
     testWidgets('no plugin installed: no chip', (tester) async {
       await _pump(tester, _container(installed: const []));
       expect(find.byIcon(Icons.extension), findsNothing);
-      expect(find.text('Select'), findsNothing);
+      expect(find.text('Select source'), findsNothing);
     });
 
     testWidgets('plugins installed, none active: chip reads Select', (
       tester,
     ) async {
       await _pump(tester, _container(installed: [anikoto, fourK]));
-      expect(find.text('Select'), findsOneWidget);
+      expect(find.text('Select source'), findsOneWidget);
       expect(find.text('For You'), findsNothing);
     });
 
@@ -289,14 +349,14 @@ void main() {
       );
       expect(find.text('Anikoto'), findsOneWidget);
       expect(find.text('AnikotoProvider'), findsNothing);
-      expect(find.text('Select'), findsNothing);
+      expect(find.text('Select source'), findsNothing);
     });
 
     testWidgets('the dialog lists None and clean provider names', (
       tester,
     ) async {
       await _pump(tester, _container(installed: [anikoto, fourK]));
-      await tester.tap(find.text('Select'));
+      await tester.tap(find.text('Select source'));
       await tester.pumpAndSettle();
 
       expect(find.text('Select Provider'), findsOneWidget);
@@ -326,7 +386,7 @@ void main() {
       final container = _container(installed: [anikoto, fourK]);
       await _pump(tester, container);
       final before = _FakeHomeData.builds;
-      await tester.tap(find.text('Select'));
+      await tester.tap(find.text('Select source'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Anikoto'));
       await tester.pumpAndSettle();
@@ -340,7 +400,7 @@ void main() {
       );
       // The chip now names the provider.
       expect(find.text('Anikoto'), findsOneWidget);
-      expect(find.text('Select'), findsNothing);
+      expect(find.text('Select source'), findsNothing);
     });
 
     testWidgets('picking None clears the provider (key-free feed)', (
@@ -358,7 +418,7 @@ void main() {
 
       expect(find.text('Select Provider'), findsNothing);
       expect(container.read(activeProviderProvider), isNull);
-      expect(find.text('Select'), findsOneWidget);
+      expect(find.text('Select source'), findsOneWidget);
     });
 
     testWidgets('Close leaves the selection alone', (tester) async {
@@ -374,6 +434,159 @@ void main() {
 
       expect(find.text('Select Provider'), findsNothing);
       expect(container.read(activeProviderProvider), same(anikoto));
+    });
+  });
+
+  group('Home header v6: provider line under the logo (design B)', () {
+    final longName = _csProvider(
+      pluginName: 'LongProvider',
+      pluginKey: 'long',
+      providerName: 'A Very Long Provider Name That Cannot Possibly Fit Here',
+    );
+
+    for (final brightness in Brightness.values) {
+      testWidgets('"from <name> v" sits on its own line under the logo, '
+          'left-aligned, plain text (${brightness.name})', (tester) async {
+        await _pumpHeader(
+          tester,
+          _container(installed: [anikoto, fourK], active: anikoto),
+          brightness: brightness,
+        );
+        final logo = tester.getRect(find.byKey(const Key('logo')));
+        final search = tester.getRect(find.byKey(const Key('search')));
+        final gear = tester.getRect(find.byKey(const Key('gear')));
+        final from = tester.getRect(find.text('from'));
+        final name = tester.getRect(find.text('Anikoto'));
+        final chevron = tester.getRect(
+          find.byIcon(Icons.keyboard_arrow_down_rounded),
+        );
+        // Below the whole toolbar row, with a small gap under the logo.
+        expect(from.top, greaterThanOrEqualTo(logo.bottom + 5));
+        expect(from.top, lessThanOrEqualTo(logo.bottom + 22));
+        expect(from.top, greaterThanOrEqualTo(search.bottom));
+        expect(from.top, greaterThanOrEqualTo(gear.bottom));
+        // Left edge under the logo's left edge; order: from, name, chevron.
+        expect(from.left, moreOrLessEquals(logo.left, epsilon: 0.5));
+        expect(name.left, greaterThan(from.right));
+        expect(chevron.left, greaterThanOrEqualTo(name.right));
+        // Inside the AppBar, not clipped.
+        final bar = tester.getRect(find.byType(AppBar));
+        expect(chevron.bottom, lessThanOrEqualTo(bar.bottom));
+        // Search + settings stay on the right of the toolbar row.
+        expect(search.left, greaterThan(393 / 2));
+        expect(gear.left, greaterThan(search.right));
+
+        // Plain text: the name in the accent colour and bold, "from" and
+        // the chevron in the on-surface colour, each with a soft shadow.
+        final context = tester.element(find.byType(HomeProviderChipBar));
+        final scheme = Theme.of(context).colorScheme;
+        final nameStyle = tester.widget<Text>(find.text('Anikoto')).style!;
+        final fromStyle = tester.widget<Text>(find.text('from')).style!;
+        expect(nameStyle.color, scheme.primary);
+        expect(nameStyle.fontWeight, FontWeight.w700);
+        expect(fromStyle.color, scheme.onSurface.withValues(alpha: 0.95));
+        expect(fromStyle.fontSize, 13);
+        expect(fromStyle.shadows, isNotEmpty);
+        expect(nameStyle.shadows, isNotEmpty);
+        // No pill: no puzzle icon, and nothing in the line paints a fill
+        // or a border (the tap wrapper's own box is undecorated at rest).
+        expect(find.byIcon(Icons.extension), findsNothing);
+        for (final box in tester.widgetList<DecoratedBox>(
+          find.descendant(
+            of: find.byType(HomeProviderChipBar),
+            matching: find.byType(DecoratedBox),
+          ),
+        )) {
+          final decoration = box.decoration as BoxDecoration;
+          expect(decoration.color, isNull);
+          expect(decoration.border, isNull);
+          expect(decoration.gradient, isNull);
+          expect(decoration.boxShadow, anyOf(isNull, isEmpty));
+        }
+        expect(
+          find.descendant(
+            of: find.byType(HomeProviderChipBar),
+            matching: find.byType(ColoredBox),
+          ),
+          findsNothing,
+        );
+      });
+    }
+
+    testWidgets('the whole line is a 44 px tall tap target', (tester) async {
+      var taps = 0;
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: _container(installed: [anikoto], active: anikoto),
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              appBar: AppBar(
+                bottom: HomeProviderChipBar(onTap: () => taps++),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final target = tester.getRect(find.byKey(HomeProviderChipBar.tapKey));
+      expect(target.height, 44);
+      await tester.tap(find.text('from'));
+      await tester.tap(find.text('Anikoto'));
+      await tester.tap(find.byIcon(Icons.keyboard_arrow_down_rounded));
+      // Well below the text, still inside the target.
+      await tester.tapAt(Offset(target.left + 30, target.bottom - 3));
+      expect(taps, 4);
+    });
+
+    testWidgets('a long provider name ellipsizes within 55% of the width', (
+      tester,
+    ) async {
+      await _pumpHeader(
+        tester,
+        _container(installed: [longName], active: longName),
+      );
+      final target = tester.getRect(find.byKey(HomeProviderChipBar.tapKey));
+      final chevron = tester.getRect(
+        find.byIcon(Icons.keyboard_arrow_down_rounded),
+      );
+      expect(target.width, lessThanOrEqualTo(393 * 0.55 + 0.01));
+      expect(chevron.right, lessThanOrEqualTo(393 * 0.55 + 0.01));
+      expect(find.text('from'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('no plugin installed: one-line header, no provider line', (
+      tester,
+    ) async {
+      await _pumpHeader(tester, _container(installed: const []));
+      expect(find.byType(HomeProviderChipBar), findsNothing);
+      expect(find.text('from'), findsNothing);
+      expect(find.text('Select source'), findsNothing);
+      expect(tester.getSize(find.byType(AppBar)).height, kToolbarHeight);
+    });
+
+    testWidgets('plugins installed, none active: "Select source" in accent, '
+        'no "from"', (tester) async {
+      await _pumpHeader(tester, _container(installed: [anikoto]));
+      expect(find.byType(HomeProviderChipBar), findsOneWidget);
+      expect(find.text('from'), findsNothing);
+      final context = tester.element(find.byType(HomeProviderChipBar));
+      expect(
+        tester.widget<Text>(find.text('Select source')).style!.color,
+        Theme.of(context).colorScheme.primary,
+      );
+      expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
+      final logo = tester.getRect(find.byKey(const Key('logo')));
+      expect(
+        tester.getRect(find.text('Select source')).left,
+        moreOrLessEquals(logo.left, epsilon: 0.5),
+      );
     });
   });
 }

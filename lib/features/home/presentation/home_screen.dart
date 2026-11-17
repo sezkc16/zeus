@@ -200,6 +200,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 .withValues(alpha: opacity),
           ),
         ),
+        // Provider line (v6, design B): a second header line directly
+        // under the logo + app name, left-aligned with the logo — plain
+        // text "from <Provider> ▾" (or "Select source ▾" when none is
+        // active, the key-free feed). It is the one way to choose which
+        // plugin's home page Home shows. With no plugin installed there is
+        // no second line; the "Add a plugin" banner below the rows covers
+        // that case.
+        bottom: homeProviderChipVisible(ref)
+            ? HomeProviderChipBar(
+                onTap: () => _showProviderSelector(context, ref),
+              )
+            : null,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -234,18 +246,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ),
 
-          // 2. Provider chip (v5): the one way to choose which plugin's
-          // home page Home shows. Visible whenever a plugin is installed —
-          // the active provider's name, or "Select" when none is active
-          // (the key-free feed). Hidden with no plugin installed; the
-          // "Add a plugin" banner below the rows covers that case.
-          HomeProviderChip(
-            onTap: () => _showProviderSelector(context, ref),
-          ),
-
-          // 3. Settings gear — Settings is no longer a bottom-nav tab
-          // (the nav is Home / Search / Plugins / Library / Detail),
-          // so this is the way into Settings (repo, theme, player…).
+          // 2. Settings gear — Settings is not a bottom-nav tab, so this is
+          // the way in. The provider chip that sat between these two
+          // buttons moved under the logo in v6 (the AppBar's `bottom`), as a
+          // plain text line.
           Padding(
             padding: const EdgeInsets.only(right: LayoutConstants.spacingMd),
             child: CardsWrapper(

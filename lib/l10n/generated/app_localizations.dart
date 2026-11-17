@@ -1233,6 +1233,18 @@ abstract class AppLocalizations {
   /// **'Select'**
   String get homeProviderSelect;
 
+  /// Lower-case lead-in of the Home header's provider line, followed by the active plugin's name: 'from Anikoto'. Tapping the line opens the Select Provider dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'from'**
+  String get homeProviderFrom;
+
+  /// The Home header's provider line when plugins are installed but none is active. Tapping it opens the Select Provider dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Select source'**
+  String get homeProviderSelectSource;
+
   /// Empty state of the sources list for a title opened from Browse, when no installed plugin, Nuvio provider or Stremio add-on returned a link.
   ///
   /// In en, this message translates to:
