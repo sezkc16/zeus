@@ -176,7 +176,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                           const SizedBox(height: 6),
                           Text(
                             playerSettings.pipMode == PipMode.mpv
-                                ? 'mpv bridge · PiP on the mpv engine (software renderer)'
+                                ? 'mpv bridge · opens smooth, switches to the PiP renderer when you tap PiP (short reload; heavy 4K may stutter in the small window)'
                                 : 'System PiP · libVLC engine; mpv keeps hardware rendering',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(

@@ -59,7 +59,7 @@ void main() {
     expect(segment.selected, PipMode.mpv);
     expect(find.text('Enable PiP'), findsOneWidget);
     expect(
-      find.text('mpv bridge · PiP on the mpv engine (software renderer)'),
+      find.text('mpv bridge · opens smooth, switches to the PiP renderer when you tap PiP (short reload; heavy 4K may stutter in the small window)'),
       findsOneWidget,
     );
   });

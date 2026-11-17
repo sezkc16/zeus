@@ -138,7 +138,9 @@ const List<double> kSubtitleTextOpacities = <double>[1, 0.75, 0.5, 0.25];
 /// running video.
 enum PlayerEngine {
   /// libmpv via media_kit — the Golden player. PiP on Android, and on
-  /// iOS when the +28 setting is on (software renderer).
+  /// iOS when the +28 setting is on. Build 72: the player opens on the
+  /// hardware renderer and moves to the software renderer only when
+  /// the PiP button is tapped (see `mpv_pip_renderer.dart`).
   mpv,
 
   /// libVLC — the v16/v17 engine. PiP on Android and iOS.

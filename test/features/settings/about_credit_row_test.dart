@@ -61,7 +61,7 @@ void main() {
     if (dir.existsSync()) dir.deleteSync(recursive: true);
   });
 
-  Future<void> pumpAbout(WidgetTester tester, {String version = '1.0.1 +71'}) async {
+  Future<void> pumpAbout(WidgetTester tester, {String version = '1.0.1 +72'}) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -146,15 +146,15 @@ void main() {
   });
 
   test('aboutVersionLabel drops the build suffix and nothing else', () {
-    expect(aboutVersionLabel('1.0.1 +71'), '1.0.1');
+    expect(aboutVersionLabel('1.0.1 +72'), '1.0.1');
     expect(aboutVersionLabel('1.0.1'), '1.0.1');
     expect(aboutVersionLabel('1.2.3 +1.2.3'), '1.2.3');
   });
 
-  test('the app is 1.0.1 build 71', () {
+  test('the app is 1.0.1 build 72', () {
     expect(
       File('pubspec.yaml').readAsStringSync(),
-      contains('\nversion: 1.0.1+71\n'),
+      contains('\nversion: 1.0.1+72\n'),
     );
   });
 }

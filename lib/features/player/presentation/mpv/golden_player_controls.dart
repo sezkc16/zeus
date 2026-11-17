@@ -59,6 +59,7 @@ import 'golden_drawer.dart';
 import 'golden_episodes_drawer.dart';
 import 'golden_options_drawer.dart';
 import 'golden_video_drawer.dart';
+import 'seek_band.dart';
 import 'golden_player_theme.dart';
 import 'golden_sleep_timer.dart';
 import 'golden_subtitle_style_drawer.dart';
@@ -2340,28 +2341,45 @@ class _GoldenSeekBar extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[
-          // Buffered band, under the slider's track. White at 0.5, a
-          // touch taller than the 4 px track, so how far ahead the video
-          // has buffered reads at a glance against the 0.18 track — the
-          // old 0.25 was nearly the same grey as the track itself.
+          // Buffered band, under the slider's track. Build 72: drawn
+          // inside the track's own inset (it used to span the full box,
+          // so it ended up to 14 px short and a small buffer hid under
+          // the thumb), a little brighter and taller than the 4 px
+          // track, with a minimum visible length past the thumb.
           if (buffered != null)
-            ValueListenableBuilder<double>(
-              valueListenable: buffered,
-              builder: (context, fraction, _) {
-                return Align(
-                  alignment: Alignment.centerLeft,
-                  child: FractionallySizedBox(
-                    widthFactor: fraction.clamp(0.0, 1.0),
-                    child: Container(
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(2.5),
-                      ),
-                    ),
-                  ),
-                );
-              },
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: kSeekBandTrackInset,
+                ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return ValueListenableBuilder<double>(
+                      valueListenable: buffered,
+                      builder: (context, fraction, _) {
+                        final width = seekBandWidth(
+                          trackWidth: constraints.maxWidth,
+                          bandFraction: fraction,
+                          positionFraction: totalMs > 0
+                              ? valueMs / totalMs
+                              : 0,
+                        );
+                        return Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            width: width,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.62),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
             ),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(

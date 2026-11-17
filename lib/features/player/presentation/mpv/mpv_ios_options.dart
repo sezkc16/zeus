@@ -102,6 +102,10 @@ import '../../../settings/presentation/player_settings_provider.dart';
 const Map<String, String> kMpvIosOptions = <String, String>{
   'hwdec-software-fallback': '3',
   'framedrop': 'vo',
+  // Build 72: the read-ahead cache is on whatever mpv's own guess
+  // about the stream is (`auto` enables it only for what it detects
+  // as a network stream); the limits below then always apply.
+  'cache': 'yes',
   'demuxer-max-bytes': '768MiB',
   'cache-secs': '3600',
   'scale': 'bilinear',

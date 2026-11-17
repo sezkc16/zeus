@@ -386,8 +386,40 @@ class MpvVlcController implements VlcPlayerController {
        _externalSubtitles = externalSubtitles,
        _mediaTitle = mediaTitle;
 
-  final Player _player;
+  Player _player;
   final List<SubtitleFile> Function() _externalSubtitles;
+
+  /// Build 72: the engine was replaced (the on-demand PiP renderer
+  /// moves between the hardware and the software renderer by creating
+  /// a new [Player]). The adapter — and every listener the chrome has
+  /// on it — stays; only the engine it reads changes.
+  void attachPlayer(Player player) {
+    _player = player;
+    _realAudioAid = null;
+    _pendingSeekTarget.value = null;
+  }
+
+  /// Build 72: while a renderer move is in flight the new engine reads
+  /// 00:00 / no duration until its open lands, which the chrome draws
+  /// as "00:00 • LIVE". The timeline is held at the real position and
+  /// length instead, as a buffering film, until [releaseTimeline].
+  Duration? _heldPosition;
+  Duration? _heldDuration;
+
+  bool get timelineHeld => _heldPosition != null;
+
+  void holdTimeline({required Duration position, required Duration duration}) {
+    _heldPosition = position;
+    _heldDuration = duration;
+    publish();
+  }
+
+  void releaseTimeline() {
+    if (_heldPosition == null) return;
+    _heldPosition = null;
+    _heldDuration = null;
+    publish();
+  }
   final String Function() _mediaTitle;
 
   /// The published value, and the notifier that carries listeners for it.
@@ -475,8 +507,11 @@ class MpvVlcController implements VlcPlayerController {
   void publish() {
     if (_disposed) return;
     final state = _player.state;
-    final position = state.position;
-    final duration = _durationCap != null && state.duration > _durationCap!
+    final held = _heldPosition != null;
+    final position = held ? _heldPosition! : state.position;
+    final duration = held
+        ? (_heldDuration ?? Duration.zero)
+        : _durationCap != null && state.duration > _durationCap!
         ? _durationCap!
         : state.duration;
 
@@ -491,7 +526,7 @@ class MpvVlcController implements VlcPlayerController {
       if (landed) _pendingSeekTarget.value = null;
     }
 
-    final isLive = duration <= Duration.zero && state.playing;
+    final isLive = !held && duration <= Duration.zero && state.playing;
     final videoParams = state.videoParams;
     final videoSize =
         videoParams.w != null && videoParams.h != null
@@ -502,7 +537,9 @@ class MpvVlcController implements VlcPlayerController {
             : null;
 
     final VlcPlaybackState playbackState;
-    if (_errorDescription != null && !state.playing) {
+    if (held) {
+      playbackState = VlcPlaybackState.buffering;
+    } else if (_errorDescription != null && !state.playing) {
       playbackState = VlcPlaybackState.error;
     } else if (state.completed) {
       playbackState = VlcPlaybackState.ended;
@@ -516,7 +553,7 @@ class MpvVlcController implements VlcPlayerController {
       playbackState = VlcPlaybackState.idle;
     }
 
-    _clock.update(position, state.rate, state.playing);
+    _clock.update(position, state.rate, !held && state.playing);
 
     _value = VlcPlayerValue(
       state: playbackState,
@@ -532,7 +569,7 @@ class MpvVlcController implements VlcPlayerController {
       isReady: duration > Duration.zero,
       isSeekable: duration > Duration.zero && !isLive,
       isLive: isLive,
-      isStalled: state.buffering && state.playing,
+      isStalled: held || (state.buffering && state.playing),
       videoSize: videoSize,
       bufferingProgress: duration > Duration.zero
           ? (state.buffer.inMilliseconds / duration.inMilliseconds)
@@ -839,11 +876,15 @@ class MpvVlcController implements VlcPlayerController {
 
   @override
   Future<void> play() async {
+    // Build 72: no engine to command while a renderer move is in flight.
+    if (timelineHeld) return;
     await _player.play();
   }
 
   @override
   Future<void> pause() async {
+    // Build 72: no engine to command while a renderer move is in flight.
+    if (timelineHeld) return;
     _pauseRequests++;
     await _player.pause();
   }
@@ -856,6 +897,8 @@ class MpvVlcController implements VlcPlayerController {
 
   @override
   Future<void> seekTo(Duration position) async {
+    // Build 72: no engine to command while a renderer move is in flight.
+    if (timelineHeld) return;
     _seekRequests++;
     final target = position < Duration.zero ? Duration.zero : position;
     _pendingSeekTarget.value = target;
@@ -870,12 +913,16 @@ class MpvVlcController implements VlcPlayerController {
 
   @override
   Future<void> setVolume(int volume) async {
+    // Build 72: no engine to command while a renderer move is in flight.
+    if (timelineHeld) return;
     await _player.setVolume(volume.clamp(0, 200).toDouble());
     publish();
   }
 
   @override
   Future<void> setPlaybackSpeed(double speed) async {
+    // Build 72: no engine to command while a renderer move is in flight.
+    if (timelineHeld) return;
     await _player.setRate(speed);
     publish();
   }
@@ -1022,6 +1069,8 @@ class MpvVlcController implements VlcPlayerController {
 
   @override
   Future<void> setAudioTrack(int id) async {
+    // Build 72: no engine to command while a renderer move is in flight.
+    if (timelineHeld) return;
     // By mpv aid, not by list position: the position of a track in the
     // list moves while an HLS master settles, the aid does not. The id
     // compared here is the same one [getAudioTracks] publishes for the
@@ -1055,6 +1104,8 @@ class MpvVlcController implements VlcPlayerController {
 
   @override
   Future<void> setSubtitleTrack(int id) async {
+    // Build 72: no engine to command while a renderer move is in flight.
+    if (timelineHeld) return;
     // By row id, not by list position: the position of a track in the
     // list moves while an HLS master settles, the id does not. A merged
     // row plays its side-car file; an embedded-only row plays its mpv
@@ -1103,6 +1154,8 @@ class MpvVlcController implements VlcPlayerController {
 
   @override
   Future<void> disableSubtitle() async {
+    // Build 72: no engine to command while a renderer move is in flight.
+    if (timelineHeld) return;
     _pickedSubtitleKey = null;
     await _player.setSubtitleTrack(SubtitleTrack.no());
     publish();
@@ -1110,6 +1163,8 @@ class MpvVlcController implements VlcPlayerController {
 
   @override
   Future<void> addSubtitle(Uri uri) async {
+    // Build 72: no engine to command while a renderer move is in flight.
+    if (timelineHeld) return;
     await _player.setSubtitleTrack(SubtitleTrack.uri(uri.toString()));
     _trackRevision++;
     publish();
