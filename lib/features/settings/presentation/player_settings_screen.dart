@@ -14,6 +14,7 @@ import 'widgets/source_language_dialog.dart';
 import 'widgets/settings_dialogs.dart';
 import 'widgets/settings_widgets.dart';
 import 'widgets/subtitle_appearance_settings.dart';
+import 'widgets/zeus_segmented_control.dart';
 
 /// Sub-screen for configuring all video playback, gestures, display, and quality preferences.
 ///
@@ -63,7 +64,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
             // Vertical only; SettingsGroup owns the horizontal inset.
             padding: const EdgeInsets.symmetric(
               vertical: LayoutConstants.spacingSm,
-            ).copyWith(bottom: LayoutConstants.shellBottomContentPadding(context)),
+            ).copyWith(bottom: LayoutConstants.pillFreeBottomContentPadding(context)),
             children: [
               SettingsGroup(
                 title: l10n.playback,
@@ -100,28 +101,24 @@ class PlayerSettingsScreen extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        SegmentedButton<PlayerEngine>(
+                        ZeusSegmentedControl<PlayerEngine>(
+                          maxWidth: _kPlayerSegmentedMaxWidth,
                           segments: [
-                            ButtonSegment<PlayerEngine>(
+                            ZeusSegment<PlayerEngine>(
                               value: PlayerEngine.mpv,
-                              label: Text(l10n.playerEngineMpv),
+                              label: l10n.playerEngineMpv,
                             ),
-                            ButtonSegment<PlayerEngine>(
+                            ZeusSegment<PlayerEngine>(
                               value: PlayerEngine.vlc,
-                              label: Text(l10n.playerEngineVlc),
+                              label: l10n.playerEngineVlc,
                             ),
                           ],
-                          selected: {playerSettings.playerEngine},
-                          onSelectionChanged: (selection) {
-                            final engine = selection.firstOrNull;
-                            if (engine == null) return;
-                            ref
-                                .read(playerSettingsProvider.notifier)
-                                .setPlayerEngine(engine);
-                          },
-                          style: _segmentedStyle(context),
+                          selected: playerSettings.playerEngine,
+                          onChanged: (engine) => ref
+                              .read(playerSettingsProvider.notifier)
+                              .setPlayerEngine(engine),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Text(
                           playerSettings.playerEngine == PlayerEngine.mpv
                               ? 'libmpv · ${l10n.playerEngineMpvDetail}'
@@ -159,28 +156,24 @@ class PlayerSettingsScreen extends ConsumerWidget {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          SegmentedButton<PipMode>(
+                          ZeusSegmentedControl<PipMode>(
+                            maxWidth: _kPlayerSegmentedMaxWidth,
                             segments: [
-                              ButtonSegment<PipMode>(
+                              ZeusSegment<PipMode>(
                                 value: PipMode.mpv,
-                                label: Text(l10n.pipModeMpv),
+                                label: l10n.pipModeMpv,
                               ),
-                              ButtonSegment<PipMode>(
+                              ZeusSegment<PipMode>(
                                 value: PipMode.ios,
-                                label: Text(l10n.pipModeIos),
+                                label: l10n.pipModeIos,
                               ),
                             ],
-                            selected: {playerSettings.pipMode},
-                            onSelectionChanged: (selection) {
-                              final mode = selection.firstOrNull;
-                              if (mode == null) return;
-                              ref
-                                  .read(playerSettingsProvider.notifier)
-                                  .setPipMode(mode);
-                            },
-                            style: _segmentedStyle(context),
+                            selected: playerSettings.pipMode,
+                            onChanged: (mode) => ref
+                                .read(playerSettingsProvider.notifier)
+                                .setPipMode(mode),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
                           Text(
                             playerSettings.pipMode == PipMode.mpv
                                 ? 'mpv bridge · PiP on the mpv engine (software renderer)'
@@ -553,25 +546,9 @@ class PlayerSettingsScreen extends ConsumerWidget {
   }
 }
 
-/// The segmented-control style shared by the engine and PiP pickers: the
-/// selected segment is solid gold with dark text, the rest are dark.
-ButtonStyle _segmentedStyle(BuildContext context) {
-  return ButtonStyle(
-    textStyle: WidgetStateProperty.all(const TextStyle(fontSize: 12)),
-    backgroundColor: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.selected)) {
-        return Theme.of(context).colorScheme.primary;
-      }
-      return null;
-    }),
-    foregroundColor: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.selected)) {
-        return Theme.of(context).colorScheme.onPrimary;
-      }
-      return null;
-    }),
-  );
-}
+/// Widest the two-option selectors on this screen get: both the same, both
+/// starting under their own heading.
+const double _kPlayerSegmentedMaxWidth = 300;
 
 /// Whether the hardware-decoding switch reaches a decoder on this platform.
 ///

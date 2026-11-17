@@ -52,6 +52,20 @@ Future<T> searchWithin<T>(
   },
 );
 
+/// Whether the app still offers the "Search in plugins" switches. Off since
+/// 1.0.1: the owner had the row removed from Settings and it has no other
+/// entry point, so nobody could turn a switched-off source back on.
+const bool kSearchInPluginsOffered = false;
+
+/// What Search actually leaves out. While the switches are not offered
+/// that is nothing — every installed plugin and add-on is asked, whatever
+/// an older build (or a synced backup) stored. The stored value is only
+/// ignored when read; nothing is rewritten.
+Set<String> effectiveSearchDisabledSources(
+  Set<String> stored, {
+  bool offered = kSearchInPluginsOffered,
+}) => offered ? stored : const <String>{};
+
 /// The sources "Search in plugins" has switched off, by id.
 class SearchDisabledSources extends Notifier<Set<String>> {
   @override

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zorox/core/providers/device_info_provider.dart';
 import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
 import 'package:zorox/features/settings/presentation/player_settings_screen.dart';
+import 'package:zorox/features/settings/presentation/widgets/zeus_segmented_control.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
 
 /// The Picture-in-Picture section on the Player settings screen (iOS only):
@@ -48,14 +49,14 @@ void main() {
     await pumpPlayerSettings(tester, platform: TargetPlatform.iOS);
 
     expect(find.text('Picture-in-Picture'), findsOneWidget);
-    final segment = tester.widget<SegmentedButton<PipMode>>(
-      find.byType(SegmentedButton<PipMode>),
+    final segment = tester.widget<ZeusSegmentedControl<PipMode>>(
+      find.byType(ZeusSegmentedControl<PipMode>),
     );
     expect(segment.segments.map((s) => s.value).toList(), [
       PipMode.mpv,
       PipMode.ios,
     ]);
-    expect(segment.selected, {PipMode.mpv});
+    expect(segment.selected, PipMode.mpv);
     expect(find.text('Enable PiP'), findsOneWidget);
     expect(
       find.text('mpv bridge · PiP on the mpv engine (software renderer)'),

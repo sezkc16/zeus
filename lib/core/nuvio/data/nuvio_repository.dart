@@ -21,6 +21,10 @@ class NuvioState {
 
   /// Check every repository's manifest on launch, the way Nuvio does — this is
   /// how a plugin the developer bumped to a new version reaches the user.
+  ///
+  /// Always true since 1.0.1: the switch for it left the Nuvio Plugins screen,
+  /// so nothing can turn it off, and an OFF stored by an older build is not
+  /// read (see [NuvioRepository.load]).
   final bool autoUpdate;
 
   const NuvioState({
@@ -70,7 +74,6 @@ class NuvioState {
 class NuvioRepository extends _$NuvioRepository {
   static const String _reposKey = 'nuvio_repos_v1';
   static const String _enabledKey = 'nuvio_enabled_v1';
-  static const String _autoUpdateKey = 'nuvio_auto_update_v1';
   static const String _codePrefix = 'nuvio_code_';
   static const String _settingsPrefix = 'nuvio_scraper_settings_';
 
@@ -129,7 +132,10 @@ class NuvioRepository extends _$NuvioRepository {
         repos: repos,
         enabled: prefs.getBool(_enabledKey) ?? true,
         isLoading: false,
-        autoUpdate: prefs.getBool(_autoUpdateKey) ?? true,
+        // 'nuvio_auto_update_v1' is deliberately not read. Its switch is
+        // gone, so an OFF saved by an older build (or restored by a backup)
+        // would leave scrapers stale with no way to turn updates back on.
+        autoUpdate: true,
       );
       // No update from here: the launch runs [autoUpdate] once for every
       // extension system, and a second pass would fetch everything twice.
@@ -314,17 +320,6 @@ class NuvioRepository extends _$NuvioRepository {
     }
   }
 
-  Future<void> setAutoUpdate(bool value) async {
-    state = state.copyWith(autoUpdate: value);
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_autoUpdateKey, value);
-    } catch (_) {
-      // Session-only fallback.
-    }
-    if (value) unawaited(autoUpdate());
-  }
-
   /// Launch-time update, matching Nuvio's `initialize()`: every stored
   /// repository is re-fetched so a version the developer published upstream
   /// lands in the app without the user doing anything. Reports the scrapers
@@ -333,11 +328,11 @@ class NuvioRepository extends _$NuvioRepository {
   ///
   /// Every launch, on any connection. It used to wait six hours between
   /// checks, but scrapers break when the sites they read change, and the
-  /// developer's fix only helps once it is here. The user's auto-update
-  /// switch still decides.
+  /// developer's fix only helps once it is here. There is no switch for it
+  /// any more: it always runs.
   Future<ExtensionUpdateReport> autoUpdate() async {
     await _loaded;
-    if (!state.autoUpdate || state.repos.isEmpty) {
+    if (state.repos.isEmpty) {
       return const ExtensionUpdateReport();
     }
     final updated = <String>[];

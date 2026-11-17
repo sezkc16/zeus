@@ -54,7 +54,7 @@ class HomeRowsSettingsScreen extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.symmetric(
               vertical: LayoutConstants.spacingSm,
-            ).copyWith(bottom: LayoutConstants.shellBottomContentPadding(context)),
+            ).copyWith(bottom: LayoutConstants.pillFreeBottomContentPadding(context)),
             children: [
               SettingsGroup(
                 title: l10n.homeRowsHeader(sourceName),

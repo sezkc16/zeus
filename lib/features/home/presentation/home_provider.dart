@@ -16,15 +16,12 @@ import './home_state.dart';
 
 part 'home_provider.g.dart';
 
-/// The key-free first-launch Home feed: the preview's Home, with no
-/// provider, no TMDB key and no Stremio add-ons.
-///
-/// AniList's GraphQL API needs no key, so a fresh install still gets a
-/// populated Home — the trending anime hero plus two rows — instead of the
-/// fork's "Current provider: None" empty state. Each section fails soft
-/// (empty), so one dead section never takes the whole Home down. When a
-/// provider becomes active, [HomeData] switches to the provider's own
-/// home and this feed is not read.
+/// The key-free feed (AniList's GraphQL API, no key): the trending anime
+/// hero plus two rows. Home reads it only as the fallback when a selected
+/// plugin's own home page fails or has no main page. With no provider
+/// selected Home does NOT read it — it shows the "Add a plugin" card
+/// only. Each section fails soft (empty), so one dead section never takes
+/// the whole feed down.
 final keyFreeHomeFeedProvider =
     FutureProvider<Map<String, List<MultimediaItem>>>((ref) async {
       Future<List<MultimediaItem>> section(
@@ -73,11 +70,11 @@ class HomeData extends _$HomeData {
     _fetchToken++;
     final activeProvider = ref.watch(activeProviderProvider);
     if (activeProvider == null) {
-      // No provider yet: the key-free feed, not the empty state — a fresh
-      // install opens on the preview's populated Home.
+      // No provider selected: Home has no feed of its own. It shows the
+      // "Add a plugin" card (and the user's Continue Watching) only — no
+      // AniList rows, and no network call.
       fetchStartedAt = _now();
-      Future.microtask(() => fetch());
-      return const HomeLoading();
+      return const HomeSuccess({});
     }
     _watchChecks(activeProvider);
 
@@ -95,24 +92,8 @@ class HomeData extends _$HomeData {
 
     final activeProvider = ref.read(activeProviderProvider);
     if (activeProvider == null) {
-      // Key-free first-launch feed (AniList, no key). Invalidate first so a
-      // pull-to-refresh actually refetches instead of returning the cached
-      // feed.
-      try {
-        ref.invalidate(keyFreeHomeFeedProvider);
-        final feed = await ref.read(keyFreeHomeFeedProvider.future);
-        if (!_isCurrent(token)) return;
-        if (feed.isEmpty) {
-          state = const HomeError('Could not load trending');
-          return;
-        }
-        state = HomeSuccess(feed);
-      } catch (e) {
-        if (!_isCurrent(token)) return;
-        state = _looksOffline(e)
-            ? const HomeOffline()
-            : HomeError(e.toString());
-      }
+      // No provider selected: nothing to fetch (see [build]).
+      state = const HomeSuccess({});
       return;
     }
 

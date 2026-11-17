@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zorox/core/nuvio/data/nuvio_repository.dart';
 import 'package:zorox/core/nuvio/models/nuvio_models.dart';
 import 'package:zorox/core/theme/app_theme.dart';
+import 'package:zorox/core/utils/layout_constants.dart';
 import 'package:zorox/features/nuvio/presentation/nuvio_plugins_view.dart';
 import 'package:zorox/shared/widgets/custom_widgets.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
@@ -31,9 +32,10 @@ class _Repo extends NuvioRepository {
 /// Two alignments on the Nuvio plugins screen that are easy to break and hard
 /// to notice.
 ///
-/// The repository actions belong at the END of their row, primary furthest
-/// right - a Wrap defaults to `start`, so this is one property away from
-/// regressing.
+/// "Add Repository" belongs at the END of its row - a Wrap defaults to
+/// `start`, so this is one property away from regressing. It is the card's
+/// only action: "Check Updates" and the "Auto-update scrapers on launch"
+/// switch were removed in 1.0.1 (scrapers always update on launch).
 ///
 /// The version badge and the expansion chevron share a centre. They did not:
 /// an ExpansionTile centres its trailing chevron on the WHOLE title block -
@@ -41,76 +43,99 @@ class _Repo extends NuvioRepository {
 /// title's own line, so a badge placed there missed the chevron by about half
 /// the subtitle's height.
 void main() {
-  testWidgets('actions are flush right and the badge meets the chevron', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1400, 1000);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+  testWidgets(
+    'Add Repository is flush right, alone, and the badge meets the chevron',
+    (tester) async {
+      tester.view.physicalSize = const Size(1400, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [nuvioRepositoryProvider.overrideWith(_Repo.new)],
-        child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          theme: AppTheme.createDarkTheme(null),
-          home: const Scaffold(body: NuvioPluginsView()),
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [nuvioRepositoryProvider.overrideWith(_Repo.new)],
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            theme: AppTheme.createDarkTheme(null),
+            home: const Scaffold(body: NuvioPluginsView()),
+          ),
         ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
-    final add = tester.getRect(find.text('Add Repository'));
-    final check = tester.getRect(find.text('Check Updates'));
-    final badge = tester.getRect(find.text('v1.0.0'));
-    final chevron = tester.getRect(find.byIcon(Icons.expand_more_rounded));
-    debugPrint(
-      'L add=[${add.left.toStringAsFixed(0)},${add.right.toStringAsFixed(0)}] '
-      'check=[${check.left.toStringAsFixed(0)},${check.right.toStringAsFixed(0)}]',
-    );
-    debugPrint(
-      'L badgeCy=${badge.center.dy.toStringAsFixed(1)} '
-      'chevronCy=${chevron.center.dy.toStringAsFixed(1)}',
-    );
-    // The row they sit in, so "right-aligned" can be measured rather than
-    // eyeballed.
-    // Measured against the CARD's content width, not the Wrap's. A Wrap
-    // shrink-wraps to its children, so "flush with the Wrap" is true even
-    // when the whole group is sitting at the far left - which is exactly how
-    // a first attempt at this passed while the buttons were 817 dp short of
-    // the edge. The divider spans the content, so it is the honest reference.
-    final content = tester.getRect(find.byType(Divider).first);
-    final addBtn = tester.getRect(
-      find
-          .ancestor(
-            of: find.text('Add Repository'),
-            matching: find.byType(CustomButton),
-          )
-          .first,
-    );
-    debugPrint(
-      'L content=[${content.left.toStringAsFixed(0)},'
-      '${content.right.toStringAsFixed(0)}] '
-      'addBtnRight=${addBtn.right.toStringAsFixed(1)}',
-    );
-    expect(
-      content.right - addBtn.right,
-      moreOrLessEquals(0, epsilon: 0.5),
-      reason: 'the primary action must be flush with the card, not the Wrap',
-    );
-    expect(
-      check.right,
-      lessThan(add.left),
-      reason: 'Check Updates sits left of Add Repository',
-    );
-    expect(
-      badge.center.dy,
-      moreOrLessEquals(chevron.center.dy, epsilon: 0.6),
-      reason: 'the version badge and the chevron share a centre',
-    );
-  });
+      final add = tester.getRect(find.text('Add Repository'));
+      final badge = tester.getRect(find.text('v1.0.0'));
+      final chevron = tester.getRect(find.byIcon(Icons.expand_more_rounded));
+      debugPrint(
+        'L add=[${add.left.toStringAsFixed(0)},${add.right.toStringAsFixed(0)}]',
+      );
+      debugPrint(
+        'L badgeCy=${badge.center.dy.toStringAsFixed(1)} '
+        'chevronCy=${chevron.center.dy.toStringAsFixed(1)}',
+      );
+      // The row they sit in, so "right-aligned" can be measured rather than
+      // eyeballed.
+      // Measured against the CARD's content width, not the Wrap's. A Wrap
+      // shrink-wraps to its children, so "flush with the Wrap" is true even
+      // when the whole group is sitting at the far left - which is exactly how
+      // a first attempt at this passed while the buttons were 817 dp short of
+      // the edge. The master switch ends the card's first row, which spans the
+      // content, so its right edge is the honest reference. (The card's divider
+      // used to be; it went with the auto-update row.)
+      final content = tester.getRect(find.byType(CustomSwitch).first);
+      final addBtn = tester.getRect(
+        find
+            .ancestor(
+              of: find.text('Add Repository'),
+              matching: find.byType(CustomButton),
+            )
+            .first,
+      );
+      debugPrint(
+        'L content=[${content.left.toStringAsFixed(0)},'
+        '${content.right.toStringAsFixed(0)}] '
+        'addBtnRight=${addBtn.right.toStringAsFixed(1)}',
+      );
+      expect(
+        content.right - addBtn.right,
+        moreOrLessEquals(0, epsilon: 0.5),
+        reason: 'the primary action must be flush with the card, not the Wrap',
+      );
+      expect(find.text('Check Updates'), findsNothing);
+      expect(find.text('Auto-update scrapers on launch'), findsNothing);
+      expect(
+        find.text('Checks every repository each time the app opens.'),
+        findsNothing,
+      );
+      // Nothing hangs under the button: the card ends its content padding
+      // (16) plus its own outer margin and border (9) below it. The
+      // auto-update row that used to sit here was about 60 dp of divider,
+      // text and switch.
+      final card = tester.getRect(
+        find
+            .ancestor(
+              of: find.text('Nuvio Scrapers'),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first,
+      );
+      debugPrint(
+        'L cardBottom=${card.bottom.toStringAsFixed(1)} '
+        'addBtnBottom=${addBtn.bottom.toStringAsFixed(1)}',
+      );
+      expect(
+        card.bottom - addBtn.bottom,
+        lessThan(LayoutConstants.spacingMd + 12),
+        reason: 'the card ends right after Add Repository',
+      );
+      expect(
+        badge.center.dy,
+        moreOrLessEquals(chevron.center.dy, epsilon: 0.6),
+        reason: 'the version badge and the chevron share a centre',
+      );
+    },
+  );
 
   // A repository's address is not a word - see CustomTextField.
   testWidgets('the add repository field takes an address', (tester) async {

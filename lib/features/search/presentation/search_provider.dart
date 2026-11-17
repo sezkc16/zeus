@@ -762,7 +762,11 @@ Stream<SearchAggregateState> searchResults(Ref ref) {
   final query = ref.watch(searchQueryProvider);
   final filter = ref.watch(searchFilterProvider);
   final manager = ref.read(extensionManagerProvider.notifier);
-  final disabled = ref.watch(searchDisabledSourcesProvider);
+  // 1.0.1: the "Search in plugins" switches are no longer offered, so the
+  // stored list is ignored and every installed source is asked.
+  final disabled = effectiveSearchDisabledSources(
+    ref.watch(searchDisabledSourcesProvider),
+  );
 
   debugPrint('[SEARCH DBG] searchResults PROVIDER BUILT — query="$query"');
 

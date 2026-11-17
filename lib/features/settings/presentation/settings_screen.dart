@@ -14,6 +14,7 @@ import 'widgets/settings_widgets.dart';
 import 'widgets/general_extra_tiles.dart';
 import 'widgets/settings_dialogs.dart';
 import 'widgets/accent_color_picker.dart';
+import 'widgets/zeus_segmented_control.dart';
 import 'full_screen_mode_provider.dart';
 import 'general_settings_provider.dart';
 import 'app_version_provider.dart';
@@ -24,8 +25,6 @@ import 'package:zorox/l10n/generated/app_localizations.dart';
 import '../../../core/providers/locale_provider.dart';
 import '../../../core/router/app_router.dart';
 import 'cache_provider.dart';
-import 'search_plugins_screen.dart';
-import '../../search/domain/search_plugin_filter.dart';
 
 class SettingsScreen extends ConsumerWidget {
   final String? initialCategory;
@@ -62,7 +61,7 @@ class SettingsScreen extends ConsumerWidget {
               // Accounts screen, which never added one.
               padding: const EdgeInsets.symmetric(
                 vertical: LayoutConstants.spacingSm,
-              ).copyWith(bottom: LayoutConstants.shellBottomContentPadding(context)),
+              ).copyWith(bottom: LayoutConstants.pillFreeBottomContentPadding(context)),
               children: [
                 _buildGeneralSettingsGroup(
                   context,
@@ -71,49 +70,13 @@ class SettingsScreen extends ConsumerWidget {
                   themeVariant,
                   generalSettings,
                 ),
-                const SizedBox(height: LayoutConstants.spacingLg),
-                SettingsGroup(
-                  title: l10n.extensions,
-                  children: [
-                    // The design preview's Extensions card: CloudStream
-                    // Repos (.cs3) first, then Nuvio and Stremio. No
-                    // SkyStream Repos row — the user said nothing
-                    // SkyStream-related, and the preview's Extensions card
-                    // has no SkyStream row either.
-                    SettingsTile(
-                      reicon: Reicon.puzzlePiece,
-                      title: 'CloudStream Repos (.cs3)',
-                      subtitle: 'Zeus repo & official CloudStream repo',
-                      onTap: () => const ExtensionsRoute().go(context),
-                    ),
-                    SettingsTile(
-                      reicon: Reicon.plug,
-                      title: 'Nuvio Plugins',
-                      subtitle: 'Manage installed Nuvio plugins',
-                      onTap: () => const NuvioPluginsRoute().go(context),
-                    ),
-                    SettingsTile(
-                      reicon: Reicon.magnet,
-                      title: 'Stremio Add-ons',
-                      subtitle: 'Manage installed Stremio add-ons',
-                      onTap: () => const AddonsRoute().go(context),
-                    ),
-                    // v7: which plugins and add-ons Search asks.
-                    SettingsTile(
-                      key: const ValueKey('settings-search-in-plugins'),
-                      reicon: Reicon.search,
-                      title: l10n.searchInPlugins,
-                      subtitle: l10n.searchInPluginsSubtitle,
-                      value: ref.watch(searchDisabledSourcesProvider).isEmpty
-                          ? l10n.searchInPluginsAll
-                          : l10n.searchInPluginsOff(
-                              ref.watch(searchDisabledSourcesProvider).length,
-                            ),
-                      isLast: true,
-                      onTap: () => SearchPluginsScreen.open(context),
-                    ),
-                  ],
-                ),
+                // 1.0.1: no Extensions group here any more. The owner asked
+                // for all four rows to go ("hum toh plugin section se sab
+                // manage karsakte") — .cs3 repos, Nuvio plugins and Stremio
+                // add-ons are added and removed on the Plugins tab. "Search
+                // in plugins" went with them and has no other entry point,
+                // so Search asks every installed source again (see
+                // effectiveSearchDisabledSources).
                 const SizedBox(height: LayoutConstants.spacingLg),
                 _buildAppDataSettingsGroup(context, ref, l10n),
                 const SizedBox(height: LayoutConstants.spacingLg),
@@ -155,39 +118,18 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              SegmentedButton<ZoroxThemeVariant>(
+              ZeusSegmentedControl<ZoroxThemeVariant>(
                 segments: [
                   for (final variant in ZoroxThemeVariant.values)
-                    ButtonSegment<ZoroxThemeVariant>(
+                    ZeusSegment<ZoroxThemeVariant>(
                       value: variant,
-                      label: Text(variant.label),
+                      label: variant.label,
                     ),
                 ],
-                selected: {themeVariant},
-                onSelectionChanged: (selection) {
-                  final variant = selection.firstOrNull;
-                  if (variant == null) return;
-                  ref
-                      .read(themeVariantProvider.notifier)
-                      .setVariant(variant);
-                },
-                style: ButtonStyle(
-                  textStyle: WidgetStateProperty.all(
-                    const TextStyle(fontSize: 12),
-                  ),
-                  backgroundColor: WidgetStateProperty.resolveWith((states) {
-                    if (states.contains(WidgetState.selected)) {
-                      return Theme.of(context).colorScheme.primary;
-                    }
-                    return null;
-                  }),
-                  foregroundColor: WidgetStateProperty.resolveWith((states) {
-                    if (states.contains(WidgetState.selected)) {
-                      return Theme.of(context).colorScheme.onPrimary;
-                    }
-                    return null;
-                  }),
-                ),
+                selected: themeVariant,
+                onChanged: (variant) => ref
+                    .read(themeVariantProvider.notifier)
+                    .setVariant(variant),
               ),
             ],
           ),

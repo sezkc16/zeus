@@ -51,4 +51,29 @@ class LayoutConstants {
     return bottom > minimum ? bottom : minimum;
   }
 
+  /// What the shell adds to the media padding while the floating nav pill is
+  /// on screen. Mirrors `CustomBottomNavBar.contentClearance` (a test keeps
+  /// the two equal); kept here so this file stays free of widget imports.
+  static const double navPillClearance = 88;
+
+  /// Space left under the last row of a screen that has no nav pill over it.
+  static const double pillFreeEndPadding = spacingMd;
+
+  /// Bottom padding for screens the shell shows WITHOUT the nav pill: the
+  /// Settings branch (Settings and everything under it) on a phone.
+  ///
+  /// With no pill there is nothing to clear, so the list ends with the real
+  /// safe-area inset plus [pillFreeEndPadding] instead of the 100 px floor of
+  /// [shellBottomContentPadding], which left a blank block under the last row.
+  ///
+  /// If the pill IS on screen (the shell has inflated the media padding to at
+  /// least [navPillClearance]) this returns exactly what
+  /// [shellBottomContentPadding] returns, so the same screen stays safe if it
+  /// is ever hosted on a tab branch.
+  static double pillFreeBottomContentPadding(BuildContext context) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    if (bottom >= navPillClearance) return shellBottomContentPadding(context);
+    return bottom + pillFreeEndPadding;
+  }
+
 }

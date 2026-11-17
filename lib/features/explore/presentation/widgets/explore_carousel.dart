@@ -54,6 +54,12 @@ class ExploreCarousel extends ConsumerStatefulWidget {
   /// Falls back to [onTap] / details when null.
   final void Function(MultimediaItem)? onPlay;
 
+  /// Phone layout only: the hero runs edge to edge across the screen, with
+  /// no side margin and square corners (user request 2026-11-17, Home).
+  /// The text and buttons keep their own 24 px inset inside the slide. The
+  /// wide (desktop / TV) layout ignores this and stays a padded card.
+  final bool fullBleed;
+
   const ExploreCarousel({
     super.key,
     required this.movies,
@@ -63,6 +69,7 @@ class ExploreCarousel extends ConsumerStatefulWidget {
     this.onControllerReady,
     this.showPreviewActions = false,
     this.onPlay,
+    this.fullBleed = false,
   });
 
   @override
@@ -321,9 +328,10 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
               _goToPreviousSlide();
             }
           },
-          // The preview hero is a CARD, not full-bleed: rounded corners
-          // on every screen (v3; the border went in v8). The dots sit BELOW
-          // the card, not overlaid on the backdrop the way v2 had them.
+          // The hero is a rounded CARD (v3; the border went in v8), except
+          // with [ExploreCarousel.fullBleed] on a phone, where it runs edge
+          // to edge. The dots sit BELOW it, not overlaid on the backdrop
+          // the way v2 had them.
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -351,15 +359,17 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
     final border = _isFocusHighlighted
         ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2.5)
         : null;
+    // Edge to edge on a phone: square corners, so no dark corner shows
+    // against the screen edge. The clip stays either way — the slide
+    // transition scales the outgoing backdrop past the card's bounds.
+    final edgeToEdge = widget.fullBleed && !isDesktop;
+    final radius = edgeToEdge ? BorderRadius.zero : BorderRadius.circular(20);
     final card = AnimatedContainer(
       key: const ValueKey('hero-card'),
       duration: const Duration(milliseconds: 200),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: border,
-      ),
+      decoration: BoxDecoration(borderRadius: radius, border: border),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: radius,
         child: SizedBox(
           height: heroHeight,
           child: _buildCarouselStack(heroHeight, isDesktop: isDesktop),
@@ -379,6 +389,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
         ),
       );
     }
+    if (edgeToEdge) return card;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: card,

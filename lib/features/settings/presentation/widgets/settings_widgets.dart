@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../../../../core/icons/reicon_icon.dart';
 import '../../../../core/utils/layout_constants.dart';
@@ -9,9 +10,18 @@ import '../../../../shared/focus/app_focus.dart';
 export '../../../../core/icons/reicon_icon.dart' show Reicon;
 
 /// Settings rows are open rows (design B, public 1.0.0): no card around a
-/// group, no divider between rows, and this much clear space above and
-/// below each row's text. One line to retune every Settings screen.
+/// group, and this much clear space above and below each row's text. One
+/// line to retune every Settings screen.
 const double kSettingsRowVerticalPadding = 19;
+
+/// The hairline between two consecutive rows of a group (1.0.1, design A):
+/// full row width, painted over the boundary so it adds no height.
+const double kSettingsRowDividerThickness = 1;
+
+/// How strongly the hairline shows: the theme's text colour at this
+/// opacity, so it is a faint light line on the dark themes and a faint
+/// dark line on Frost.
+const double kSettingsRowDividerOpacity = 0.10;
 
 /// The gap between a row's icon tile and its text.
 const double kSettingsRowIconGap = 14;
@@ -135,10 +145,7 @@ class SettingsTile extends StatefulWidget {
     this.isBeta = false,
     this.danger = false,
     this.focusNode,
-  }) : assert(
-         icon != null || reicon != null,
-         'SettingsTile needs an icon',
-       );
+  }) : assert(icon != null || reicon != null, 'SettingsTile needs an icon');
 
   @override
   State<SettingsTile> createState() => _SettingsTileState();
@@ -151,6 +158,14 @@ class _SettingsTileState extends State<SettingsTile> {
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
     final showFocus = showFocusIndicator(context, _isFocused);
+    return SettingsRowLine(
+      color: Theme.of(context).colorScheme.onSurface
+          .withValues(alpha: kSettingsRowDividerOpacity),
+      child: _buildRow(context, primary, showFocus),
+    );
+  }
+
+  Widget _buildRow(BuildContext context, Color primary, bool showFocus) {
     return Column(
       children: [
         Focus(
@@ -229,9 +244,7 @@ class _SettingsTileState extends State<SettingsTile> {
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 14.5,
-                          color: widget.danger
-                              ? const Color(0xFFFF7A6B)
-                              : null,
+                          color: widget.danger ? const Color(0xFFFF7A6B) : null,
                         ),
                       ),
                     ),
@@ -264,9 +277,7 @@ class _SettingsTileState extends State<SettingsTile> {
                         widget.subtitle!,
                         style: TextStyle(
                           fontSize: 12,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       )
                     : null,
@@ -343,9 +354,9 @@ class _SettingsTileState extends State<SettingsTile> {
                             Icon(
                               Icons.chevron_right_rounded,
                               size: 20,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
                           ],
                         ],
@@ -362,6 +373,97 @@ class _SettingsTileState extends State<SettingsTile> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Marks a Settings row and paints the hairline above it when the row
+/// directly above it, in the same vertical column, is a Settings row too.
+///
+/// The row decides at paint time by looking at its neighbours, so callers
+/// pass nothing: a hidden row (not built, or built with no height) leaves
+/// neither a doubled nor an orphan line, the first row of a group and the
+/// row after a non-row block (the theme picker, the accent swatches, a
+/// preview) get none, and no line ever follows the last row. The line is
+/// painted over the row's top edge and takes no space.
+class SettingsRowLine extends SingleChildRenderObjectWidget {
+  const SettingsRowLine({required this.color, super.child, super.key});
+
+  final Color color;
+
+  @override
+  RenderSettingsRowLine createRenderObject(BuildContext context) =>
+      RenderSettingsRowLine(color: color);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    RenderSettingsRowLine renderObject,
+  ) {
+    renderObject.color = color;
+  }
+}
+
+class RenderSettingsRowLine extends RenderProxyBox {
+  RenderSettingsRowLine({required Color color}) : _color = color;
+
+  Color _color;
+  Color get color => _color;
+  set color(Color value) {
+    if (value == _color) return;
+    _color = value;
+    markNeedsPaint();
+  }
+
+  /// Whether this row currently draws the hairline on its top edge.
+  bool get hasLineAbove {
+    if (!hasSize || size.height <= 0) return false;
+    final above = _visibleBoxAbove(this);
+    return above != null && _endsWithRow(above);
+  }
+
+  static bool _isColumn(Object? box) =>
+      box is RenderFlex && box.direction == Axis.vertical;
+
+  /// The nearest box with height that sits above [box] in its column,
+  /// stepping out of a nested column when [box] is the first thing in it.
+  static RenderBox? _visibleBoxAbove(RenderBox box) {
+    final parent = box.parent;
+    if (!_isColumn(parent)) return null;
+    var data = box.parentData;
+    while (data is FlexParentData && data.previousSibling != null) {
+      final sibling = data.previousSibling!;
+      if (sibling.hasSize && sibling.size.height > 0) return sibling;
+      data = sibling.parentData;
+    }
+    return _visibleBoxAbove(parent! as RenderBox);
+  }
+
+  /// Whether the bottom of [box] is a Settings row: the box itself, or the
+  /// last visible thing in a nested column.
+  static bool _endsWithRow(RenderBox box) {
+    if (box is RenderSettingsRowLine) return true;
+    if (!_isColumn(box)) return false;
+    var child = (box as RenderFlex).lastChild;
+    while (child != null) {
+      if (child.hasSize && child.size.height > 0) return _endsWithRow(child);
+      child = (child.parentData! as FlexParentData).previousSibling;
+    }
+    return false;
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    super.paint(context, offset);
+    if (!hasLineAbove) return;
+    context.canvas.drawRect(
+      Rect.fromLTWH(
+        offset.dx,
+        offset.dy - kSettingsRowDividerThickness / 2,
+        size.width,
+        kSettingsRowDividerThickness,
+      ),
+      Paint()..color = _color,
     );
   }
 }

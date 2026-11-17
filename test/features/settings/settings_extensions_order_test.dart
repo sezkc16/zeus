@@ -1,8 +1,6 @@
-/// Settings' Extensions group, in the owner's order: CloudStream (.cs3),
-/// Nuvio, Stremio. The Zeus repo lives on the Plugins screen's own Zeus
-/// section (not in the CloudStream section), and there is no BETA marker
-/// any more — the v3 restyle dropped the old ZoroX Providers row and the
-/// CloudStream BETA flag with it.
+/// Settings has no Extensions group since 1.0.1. The owner asked for all
+/// four rows to go: .cs3 repos, Nuvio plugins and Stremio add-ons are
+/// managed on the Plugins tab, and "Search in plugins" went with them.
 library;
 
 import 'package:flutter/material.dart';
@@ -81,7 +79,7 @@ class _SignedOutTrackers extends TrackingAuth {
 }
 
 void main() {
-  testWidgets('the extensions come in the owner\'s order', (tester) async {
+  testWidgets('Settings has no Extensions group', (tester) async {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -112,29 +110,27 @@ void main() {
     );
     await tester.pump();
 
-    final group = find.byWidgetPredicate(
-      (w) => w is SettingsGroup && w.title == 'Extensions',
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is SettingsGroup && w.title == 'Extensions',
+      ),
+      findsNothing,
     );
-    final tiles = tester
-        .widgetList<SettingsTile>(
-          find.descendant(of: group, matching: find.byType(SettingsTile)),
-        )
-        .toList();
-    expect(tiles.map((t) => t.title), [
+    for (final title in [
       'CloudStream Repos (.cs3)',
       'Nuvio Plugins',
       'Stremio Add-ons',
       'Search in plugins',
-    ]);
-    // The first tile leads to the Plugins screen, where the owner's repo
-    // is the Zeus Repo (same TojiX repo.json) in its own Zeus section.
-    expect(tiles.first.subtitle, 'Zeus repo & official CloudStream repo');
-    expect(
-      tiles.where((t) => t.isBeta),
-      isEmpty,
-      reason: 'no extension row is marked BETA any more',
-    );
-    expect(tiles.last.isLast, isTrue, reason: 'the card closes on Stremio');
+    ]) {
+      expect(find.text(title), findsNothing, reason: '$title is gone');
+    }
+    // The groups around it are still there, in order.
+    final titles = tester
+        .widgetList<SettingsGroup>(find.byType(SettingsGroup))
+        .map((g) => g.title)
+        .toList();
+    expect(titles, isNot(contains('Extensions')));
+    expect(titles.length, greaterThanOrEqualTo(3));
     expect(find.text('BETA'), findsNothing);
   });
 }

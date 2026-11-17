@@ -58,4 +58,26 @@ void main() {
       expect(kSearchSourceTimeout, const Duration(seconds: 20));
     });
   });
+
+  group('the switches are no longer offered (1.0.1)', () {
+    test('a stored switched-off source is searched again', () {
+      expect(kSearchInPluginsOffered, isFalse);
+      expect(effectiveSearchDisabledSources({'old.plugin'}), isEmpty);
+      expect(
+        enabledSearchSources(
+          ['old.plugin', 'other'],
+          effectiveSearchDisabledSources({'old.plugin'}),
+          (id) => id,
+        ),
+        ['old.plugin', 'other'],
+      );
+    });
+
+    test('the stored list would count again if the switches came back', () {
+      expect(
+        effectiveSearchDisabledSources({'old.plugin'}, offered: true),
+        {'old.plugin'},
+      );
+    });
+  });
 }

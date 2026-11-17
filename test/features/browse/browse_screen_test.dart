@@ -1,6 +1,7 @@
-/// The Browse tab, without the shell behind it: the six category tiles are
-/// gone, and under the title sit poster rows from the built-in Cinemeta
-/// add-on, then the APP card. No network: the add-on client is a fake.
+/// The Browse tab, without the shell behind it. It has no content of its
+/// own: blank with a hint and a button until a catalog add-on is installed,
+/// then that add-on's catalogs as rows. No network: the add-on client is a
+/// fake.
 library;
 
 import 'package:dio/dio.dart';
@@ -16,15 +17,72 @@ import 'package:zorox/core/addons/models/addon_meta.dart';
 import 'package:zorox/core/theme/app_theme.dart';
 import 'package:zorox/features/addons/presentation/addon_catalog_screen.dart';
 import 'package:zorox/features/addons/presentation/addon_providers.dart';
-import 'package:zorox/features/browse/presentation/browse_category_grid.dart';
 import 'package:zorox/features/browse/presentation/browse_screen.dart';
 import 'package:zorox/features/settings/presentation/general_settings_provider.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
 
-/// Nothing installed: every row has to come from the built-in Cinemeta.
+/// A fresh install: nothing installed.
 class _Repo extends AddonRepository {
   @override
   AddonsState build() => const AddonsState(isLoading: false, addons: []);
+}
+
+const String _kitsuUrl = 'https://kitsu.test/manifest.json';
+
+/// One installed catalog add-on. Its first catalog answers empty, so there
+/// is no banner carousel and its timers stay out of the test.
+class _KitsuRepo extends AddonRepository {
+  @override
+  AddonsState build() => AddonsState(
+    isLoading: false,
+    addons: [
+      ManagedAddon(
+        manifestUrl: _kitsuUrl,
+        addedAt: DateTime(2026),
+        manifest: const AddonManifest(
+          id: 'kitsu',
+          name: 'Anime Kitsu',
+          version: '1',
+          resources: [AddonResource(name: 'catalog')],
+          types: ['anime'],
+          catalogs: [
+            AddonCatalog(type: 'anime', id: 'blank', name: 'Blank'),
+            AddonCatalog(
+              type: 'anime',
+              id: 'trending',
+              name: 'Trending anime',
+              extra: [AddonExtraProperty(name: 'search')],
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+/// One installed catalog add-on whose catalogs cannot be searched.
+class _ListsRepo extends AddonRepository {
+  @override
+  AddonsState build() => AddonsState(
+    isLoading: false,
+    addons: [
+      ManagedAddon(
+        manifestUrl: _kitsuUrl,
+        addedAt: DateTime(2026),
+        manifest: const AddonManifest(
+          id: 'lists',
+          name: 'Lists',
+          version: '1',
+          resources: [AddonResource(name: 'catalog')],
+          types: ['anime'],
+          catalogs: [
+            AddonCatalog(type: 'anime', id: 'blank', name: 'Blank'),
+            AddonCatalog(type: 'anime', id: 'trending', name: 'Trending anime'),
+          ],
+        ),
+      ),
+    ],
+  );
 }
 
 String _key(String type, String id, String? genre) =>
@@ -39,15 +97,12 @@ class _Call {
 }
 
 /// Answers each catalog with ten titles named after it, unless the test
-/// says that catalog is empty or failing.
+/// says that catalog is empty.
 class _Client extends AddonClient {
   _Client() : super(Dio());
 
   final List<_Call> calls = [];
-  final Set<String> empty = {};
-  final Set<String> failing = {};
-
-  int count(String key) => calls.where((c) => c.key == key).length;
+  final Set<String> empty = {'anime/blank/none'};
 
   @override
   Future<List<AddonMetaPreview>> catalog(
@@ -60,12 +115,11 @@ class _Client extends AddonClient {
   }) async {
     final key = _key(type, id, extra?['genre']);
     calls.add(_Call(addon.manifestUrl, key, extra, forceRefresh));
-    if (failing.contains(key)) throw Exception('cinemeta answered 500');
     if (empty.contains(key)) return const <AddonMetaPreview>[];
     return [
       for (var i = 0; i < 10; i++)
         AddonMetaPreview(
-          id: 'tt-$type-$id-${extra?['genre'] ?? 'none'}-$i',
+          id: 'kitsu:$id$i',
           type: type,
           name: 'Title $key $i',
           poster: 'https://img.test/$key/$i.jpg',
@@ -75,23 +129,6 @@ class _Client extends AddonClient {
 }
 
 final String _year = '${DateTime.now().year}';
-
-/// Title → the catalog it must come from, top to bottom.
-final List<(String, String, String, String?)> _rows = [
-  ('Popular Movies', 'movie', 'top', null),
-  ('Popular Series', 'series', 'top', null),
-  ('Featured Movies', 'movie', 'imdbRating', null),
-  ('Featured Series', 'series', 'imdbRating', null),
-  ('New Movies', 'movie', 'year', _year),
-  ('New Series', 'series', 'year', _year),
-  ('Action Movies', 'movie', 'top', 'Action'),
-  ('Comedy Movies', 'movie', 'top', 'Comedy'),
-  ('Drama Series', 'series', 'top', 'Drama'),
-  ('Animation', 'movie', 'top', 'Animation'),
-];
-
-Finder _row(String type, String id, String? genre) =>
-    find.byKey(ValueKey('browse-row-$type-$id-${genre ?? 'none'}'));
 
 void main() {
   late _Client client;
@@ -103,23 +140,15 @@ void main() {
       initialLocation: '/browse',
       routes: [
         GoRoute(path: '/browse', builder: (_, _) => const BrowseScreen()),
-        GoRoute(
-          path: '/settings',
-          builder: (_, _) => const Scaffold(body: Text('settings page')),
-        ),
         // The stubs echo the pushed route's query params: a push is an
         // imperative match, which the router's reported URI does not show.
         GoRoute(
-          path: '/addon-catalog',
-          builder: (_, state) {
-            final q = state.uri.queryParameters;
-            return Scaffold(
-              body: Text(
-                'catalog page ${q['addon-url']} ${q['type']} '
-                '${q['catalog-id']} ${q['genre']} ${q['title']}',
-              ),
-            );
-          },
+          path: '/settings/stremio',
+          builder: (_, state) => Scaffold(
+            body: Text(
+              'addons page tab ${state.uri.queryParameters['initial-tab']}',
+            ),
+          ),
         ),
         GoRoute(
           path: '/addon-detail',
@@ -127,7 +156,8 @@ void main() {
             final q = state.uri.queryParameters;
             return Scaffold(
               body: Text(
-                'detail page ${q['addon-url']} ${q['type']} ${q['id']}',
+                'detail page ${q['addon-url']} ${q['type']} ${q['id']} '
+                'merged ${q['merged']}',
               ),
             );
           },
@@ -137,17 +167,18 @@ void main() {
     addTearDown(router.dispose);
   });
 
-  /// [height] 6000 lays every row out at once; a phone's 844 leaves the
-  /// lower rows unbuilt.
-  Future<void> pumpBrowse(WidgetTester tester, {double height = 6000}) async {
+  Future<void> pumpBrowse(
+    WidgetTester tester, {
+    required AddonRepository Function() repo,
+  }) async {
     tester.view.devicePixelRatio = 1.0;
-    tester.view.physicalSize = Size(390, height);
+    tester.view.physicalSize = const Size(390, 844);
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          addonRepositoryProvider.overrideWith(_Repo.new),
+          addonRepositoryProvider.overrideWith(repo),
           addonClientProvider.overrideWithValue(client),
           generalSettingsProvider.overrideWithValue(const GeneralSettings()),
         ],
@@ -175,275 +206,90 @@ void main() {
     await tester.pump(const Duration(minutes: 1));
   }
 
-  testWidgets('the tiles and their subtitle are gone, the title stays', (
-    tester,
-  ) async {
-    await pumpBrowse(tester);
+  testWidgets('with nothing installed Browse is blank: a hint, a button, '
+      'no posters and no request', (tester) async {
+    await pumpBrowse(tester, repo: _Repo.new);
+    await settle(tester);
 
     expect(find.text('Browse'), findsOneWidget);
-    expect(find.text('Explore by category'), findsNothing);
-    expect(find.byType(BrowseCategoryGrid), findsNothing);
-    for (final tile in ['TV Shows', 'Anime', 'K-Drama', '4K & HDR', 'Top Rated']) {
-      expect(find.textContaining(tile), findsNothing, reason: tile);
-    }
-    expect(find.text('Movies'), findsNothing);
-    expect(find.text('🎬 Movies'), findsNothing);
+    expect(find.byKey(const ValueKey('browse-empty-hint')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('browse-empty-addons-button')),
+      findsOneWidget,
+    );
+    // Nothing built in: no Cinemeta rows, nothing fetched, nothing to search.
+    expect(find.text('Popular Movies'), findsNothing);
+    expect(find.byKey(const ValueKey('browse-search-button')), findsNothing);
+    expect(client.calls, isEmpty);
 
     await tearDownTree(tester);
   });
 
-  testWidgets('the ten Cinemeta rows show in order, each from its catalog', (
+  testWidgets('the blank page button opens Stremio add-ons on Discover', (
     tester,
   ) async {
-    await pumpBrowse(tester);
+    await pumpBrowse(tester, repo: _Repo.new);
 
-    double? previous;
-    for (final (title, type, id, genre) in _rows) {
-      final row = _row(type, id, genre);
-      expect(row, findsOneWidget, reason: title);
-      expect(
-        find.descendant(of: row, matching: find.text(title)),
-        findsOneWidget,
-        reason: title,
-      );
-      // Its posters are that catalog's answer, not another row's.
-      expect(
-        find.descendant(
-          of: row,
-          matching: find.text('Title ${_key(type, id, genre)} 0'),
-        ),
-        findsWidgets,
-        reason: title,
-      );
-      final top = tester.getTopLeft(row).dy;
-      if (previous != null) expect(top, greaterThan(previous), reason: title);
-      previous = top;
-    }
-
-    // One request per row, all to the built-in Cinemeta, nothing else.
-    expect(client.calls, hasLength(10));
-    expect(
-      client.calls.map((c) => c.addonUrl).toSet(),
-      {BuiltInAddons.cinemetaUrl},
-    );
-    expect(
-      client.calls.map((c) => c.key).toSet(),
-      {for (final (_, type, id, genre) in _rows) _key(type, id, genre)},
-    );
-    // The year rows ask for this year as their genre extra.
-    expect(
-      client.calls.firstWhere((c) => c.key == 'movie/year/$_year').extra,
-      {'genre': _year},
-    );
+    await tester.tap(find.byKey(const ValueKey('browse-empty-addons-button')));
+    await settle(tester);
+    expect(find.text('addons page tab 1'), findsOneWidget);
 
     await tearDownTree(tester);
   });
 
-  testWidgets('rows below the fold are not asked for until scrolled to', (
+  testWidgets('the header button opens Stremio add-ons', (tester) async {
+    await pumpBrowse(tester, repo: _Repo.new);
+
+    await tester.tap(find.byKey(const ValueKey('browse-addons-button')));
+    await settle(tester);
+    expect(find.text('addons page tab 0'), findsOneWidget);
+
+    await tearDownTree(tester);
+  });
+
+  testWidgets('an installed catalog add-on fills Browse with its own rows '
+      'only', (tester) async {
+    await pumpBrowse(tester, repo: _KitsuRepo.new);
+    await settle(tester);
+
+    expect(find.byKey(const ValueKey('browse-empty-hint')), findsNothing);
+    expect(find.text('Trending anime'), findsOneWidget);
+    expect(find.text('Title anime/trending/none 0'), findsOneWidget);
+    // No built-in Cinemeta row beside it, and every request went to the
+    // installed add-on.
+    expect(find.text('Popular Movies'), findsNothing);
+    expect(client.calls, isNotEmpty);
+    expect(client.calls.map((c) => c.addonUrl).toSet(), {_kitsuUrl});
+    // Both header buttons are there now.
+    expect(find.byKey(const ValueKey('browse-addons-button')), findsOneWidget);
+    expect(find.byKey(const ValueKey('browse-search-button')), findsOneWidget);
+
+    await tearDownTree(tester);
+  });
+
+  testWidgets('no search button when no installed add-on can be searched: '
+      'search never falls back to the built-in Cinemeta', (tester) async {
+    await pumpBrowse(tester, repo: _ListsRepo.new);
+    await settle(tester);
+
+    expect(find.text('Trending anime'), findsOneWidget);
+    expect(find.byKey(const ValueKey('browse-addons-button')), findsOneWidget);
+    expect(find.byKey(const ValueKey('browse-search-button')), findsNothing);
+
+    await tearDownTree(tester);
+  });
+
+  testWidgets('a poster opens the title with the merged sources page', (
     tester,
   ) async {
-    await pumpBrowse(tester, height: 844);
-
-    expect(client.calls.length, lessThan(10));
-    expect(client.count('movie/top/Animation'), 0);
-    expect(_row('movie', 'top', 'Animation'), findsNothing);
-
-    await tearDownTree(tester);
-  });
-
-  testWidgets('a failed row says so, and Retry asks again', (tester) async {
-    client.failing.add('series/top/none');
-    await pumpBrowse(tester);
-
-    final row = _row('series', 'top', null);
-    expect(row, findsOneWidget);
-    expect(
-      find.descendant(of: row, matching: find.text('Popular Series')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: row,
-        matching: find.textContaining("Couldn't load this row"),
-      ),
-      findsOneWidget,
-    );
-    // No posters stand in for the ones that did not load.
-    expect(find.textContaining('Title series/top/none'), findsNothing);
-    // The rows around it are unaffected.
-    expect(find.text('Popular Movies'), findsOneWidget);
-    expect(find.text('Featured Movies'), findsOneWidget);
-    expect(client.count('series/top/none'), 1);
-
-    client.failing.clear();
-    await tester.tap(
-      find.byKey(const ValueKey('browse-row-retry-series-top-none')),
-    );
+    await pumpBrowse(tester, repo: _KitsuRepo.new);
     await settle(tester);
 
-    expect(client.count('series/top/none'), 2);
-    expect(find.textContaining("Couldn't load this row"), findsNothing);
-    expect(
-      find.descendant(
-        of: _row('series', 'top', null),
-        matching: find.text('Title series/top/none 0'),
-      ),
-      findsWidgets,
-    );
-
-    await tearDownTree(tester);
-  });
-
-  testWidgets('an empty row is hidden', (tester) async {
-    client.empty.add('movie/imdbRating/none');
-    await pumpBrowse(tester);
+    await tester.tap(find.text('Title anime/trending/none 0'));
     await settle(tester);
-
-    expect(client.count('movie/imdbRating/none'), 1);
-    expect(find.text('Featured Movies'), findsNothing);
-    expect(_row('movie', 'imdbRating', null), findsNothing);
-    expect(find.text('Featured Series'), findsOneWidget);
-    expect(find.text('Popular Movies'), findsOneWidget);
-
-    await tearDownTree(tester);
-  });
-
-  testWidgets('View All opens that catalog, with its genre', (tester) async {
-    Future<void> viewAll(String type, String id, String? genre) async {
-      final button = find.descendant(
-        of: _row(type, id, genre),
-        matching: find.text('View All'),
-      );
-      await tester.ensureVisible(button);
-      await tester.tap(button);
-      await tester.pumpAndSettle();
-    }
-
-    await pumpBrowse(tester);
-    const url = BuiltInAddons.cinemetaUrl;
-
-    await viewAll('movie', 'top', null);
     expect(
-      find.text('catalog page $url movie top null Popular Movies'),
+      find.text('detail page $_kitsuUrl anime kitsu:trending0 merged true'),
       findsOneWidget,
-    );
-    router.pop();
-    await settle(tester);
-
-    await viewAll('series', 'imdbRating', null);
-    expect(
-      find.text('catalog page $url series imdbRating null Featured Series'),
-      findsOneWidget,
-    );
-    router.pop();
-    await settle(tester);
-
-    await viewAll('series', 'year', _year);
-    expect(
-      find.text('catalog page $url series year $_year New Series'),
-      findsOneWidget,
-    );
-    router.pop();
-    await settle(tester);
-
-    // A genre row opens the Popular grid on that genre's chip.
-    await viewAll('movie', 'top', 'Action');
-    expect(
-      find.text('catalog page $url movie top Action Popular Movies'),
-      findsOneWidget,
-    );
-
-    await tearDownTree(tester);
-  });
-
-  testWidgets('a poster opens the title as a built-in Cinemeta title', (
-    tester,
-  ) async {
-    await pumpBrowse(tester);
-
-    await tester.tap(
-      find
-          .descendant(
-            of: _row('series', 'top', 'Drama'),
-            matching: find.text('Title series/top/Drama 0'),
-          )
-          .first,
-    );
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text(
-        'detail page ${BuiltInAddons.cinemetaUrl} series '
-        'tt-series-top-Drama-0',
-      ),
-      findsOneWidget,
-    );
-
-    await tearDownTree(tester);
-  });
-
-  testWidgets('the APP card with Settings is still at the bottom', (
-    tester,
-  ) async {
-    await pumpBrowse(tester);
-
-    expect(find.text('APP'), findsOneWidget);
-    final settings = find.widgetWithText(ListTile, 'Settings');
-    expect(settings, findsOneWidget);
-    expect(
-      tester.getTopLeft(settings).dy,
-      greaterThan(tester.getBottomLeft(_row('movie', 'top', 'Animation')).dy),
-    );
-    // Clear of the floating nav pill.
-    expect(tester.getBottomLeft(find.byType(Card).last).dy, lessThan(6000 - 99));
-
-    await tester.tap(settings);
-    await tester.pumpAndSettle();
-    expect(find.text('settings page'), findsOneWidget);
-
-    await tearDownTree(tester);
-  });
-
-  testWidgets('pulling down fetches the shown rows again past the cache', (
-    tester,
-  ) async {
-    // A phone's height: the pull has to cover a quarter of the viewport.
-    client.empty.add('series/top/none');
-    await pumpBrowse(tester, height: 844);
-    await settle(tester);
-    expect(find.text('Popular Movies'), findsOneWidget);
-    expect(find.text('Popular Series'), findsNothing);
-    final before = client.calls.length;
-    final shown = client.calls.map((c) => c.key).toSet();
-    expect(client.calls.where((c) => c.forceRefresh), isEmpty);
-
-    client.empty.clear();
-    await tester.fling(
-      find.byKey(const ValueKey('browse-scroll')),
-      const Offset(0, 400),
-      1000,
-    );
-    await tester.pump();
-    for (var i = 0; i < 4; i++) {
-      await tester.pump(const Duration(seconds: 1));
-    }
-    await settle(tester);
-
-    final refetched = client.calls.skip(before).toList();
-    // Every row that had been asked for is fetched again past the cache...
-    expect(
-      refetched.where((c) => c.forceRefresh).map((c) => c.key).toSet(),
-      shown,
-    );
-    expect(shown, contains('movie/top/none'));
-    // ...and a row that was empty before comes back once it has titles.
-    expect(find.text('Popular Series'), findsOneWidget);
-    expect(
-      find.descendant(
-        of: _row('series', 'top', null),
-        matching: find.text('Title series/top/none 0'),
-      ),
-      findsWidgets,
     );
 
     await tearDownTree(tester);

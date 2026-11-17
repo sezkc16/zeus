@@ -187,7 +187,7 @@ class _AddonManageViewState extends ConsumerState<AddonManageView> {
         16,
         12,
         16,
-        LayoutConstants.shellBottomContentPadding(context),
+        LayoutConstants.pillFreeBottomContentPadding(context),
       ),
       children: [
         // Top Management Card

@@ -81,6 +81,13 @@ class AppLocalizationsMk extends AppLocalizations {
   String get browseRowLoadFailed => 'Couldn\'t load this row';
 
   @override
+  String get browseEmptyHint =>
+      'Nothing here yet. Install a catalog add-on and its rows show up on this page.';
+
+  @override
+  String get browseOpenAddons => 'Stremio add-ons';
+
+  @override
   String get browseSettingsSubtitle =>
       'Theme, player, accounts, extensions & more';
 

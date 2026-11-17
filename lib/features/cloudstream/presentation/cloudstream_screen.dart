@@ -341,7 +341,7 @@ class _InstalledTabState extends ConsumerState<_InstalledTab> {
     }
     return ListView.separated(
       padding: EdgeInsets.only(
-        bottom: LayoutConstants.shellBottomContentPadding(context),
+        bottom: LayoutConstants.pillFreeBottomContentPadding(context),
       ),
       itemCount: state.installed.length,
       separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
@@ -370,7 +370,7 @@ class _RepositoriesTab extends ConsumerWidget {
     }
     return ListView(
       padding: EdgeInsets.only(
-        bottom: LayoutConstants.shellBottomContentPadding(context),
+        bottom: LayoutConstants.pillFreeBottomContentPadding(context),
       ),
       children: [
         for (final repo in state.repositories) _RepositoryCard(repo: repo),

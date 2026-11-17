@@ -55,11 +55,11 @@ class _DeveloperOptionsScreenState
         child: FocusTraversalGroup(
           policy: ReadingOrderTraversalPolicy(),
           child: ListView(
-            // Vertical only; SettingsGroup owns the horizontal inset. The
-            // bottom must clear the shell's floating bottom bar, which
-            // overlays this pushed route just like the tab screens.
+            // Vertical only; SettingsGroup owns the horizontal inset. No
+            // nav pill on the Settings branch, so the bottom is the safe
+            // area plus a small gap (the helper clears a pill if one shows).
             padding: const EdgeInsets.symmetric(vertical: 8).copyWith(
-              bottom: LayoutConstants.shellBottomContentPadding(context),
+              bottom: LayoutConstants.pillFreeBottomContentPadding(context),
             ),
             children: [
               SettingsGroup(

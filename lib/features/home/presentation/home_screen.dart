@@ -333,10 +333,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       );
     }
 
-    // No early no-provider return: with no provider HomeData serves the
-    // key-free feed, so Home renders the populated preview Home (hero +
-    // rows) and the "Add a plugin" banner below them — never the fork's
-    // full-screen "Current provider: None" empty state.
+    // With no provider HomeData serves an empty success: Home renders the
+    // "Add a plugin" card and Continue Watching only — no feed.
     final hasNoProvider = ref.watch(activeProviderProvider) == null;
 
     // Home rows customise (v7): the saved order and hidden rows of the
@@ -397,6 +395,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     onControllerReady: (c) =>
                         setState(() => _carouselController = c),
                     showPreviewActions: true,
+                    fullBleed: true,
                     onPlay: (item) {
                       // Play opens details and starts playback once the
                       // item's streams resolve (DetailsRoute autoPlay).
@@ -422,6 +421,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     onControllerReady: (c) =>
                         setState(() => _carouselController = c),
                     showPreviewActions: true,
+                    fullBleed: true,
                     onPlay: (item) {
                       DetailsRoute(
                         $extra: DetailsRouteExtra(
@@ -439,75 +439,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               else if (!isWidescreen)
                 // No carousel — add top padding so content below doesn't
                 // overlap with the transparent app bar (mobile only).
+                // The provider line under the logo makes the app bar
+                // taller when it shows.
                 SliverPadding(
                   padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top + kToolbarHeight,
+                    top:
+                        MediaQuery.of(context).padding.top +
+                        kToolbarHeight +
+                        (homeProviderChipVisible(ref)
+                            ? HomeProviderChipBar.tapHeight
+                            : 0),
                   ),
                 ),
 
-              // Home rows customise (v7): Continue Watching and the
-              // source's rows in the saved order, hidden ones left out
-              // (see home_row_prefs.dart). The hero above is not a row and
-              // always stays first; with every row hidden this list is
-              // empty and Home shows the hero alone. Trakt's synced
-              // progress belongs to the Continue Watching row.
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    if (index >= homeRows.length) return null;
-                    final rowId = homeRows[index];
-                    if (rowId == kHomeRowContinueWatching) {
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (watchHistoryEnabled && history.isNotEmpty)
-                            ContinueWatchingSection(
-                              title: l10n.continueWatching,
-                              items: history.cast<HistoryItem>(),
-                            ),
-                          if (syncedProgressAsync.asData?.value.isNotEmpty ==
-                              true)
-                            SyncedProgressSection(
-                              title: 'Synced from Trakt',
-                              items: syncedProgressAsync.asData!.value,
-                              onItemTap: (item) {
-                                // Pre-fill search query and navigate to
-                                // Search tab
-                                ref
-                                    .read(searchQueryProvider.notifier)
-                                    .set(item.title);
-                                const SearchRoute().go(context);
-                              },
-                            ),
-                        ],
-                      );
-                    }
-                    return MediaHorizontalList(
-                      title: rowId,
-                      mediaList: data[rowId] ?? const [],
-                      category: ViewAllCategory.providerContent,
-                      showViewAll: true,
-                      onTap: (item) {
-                        DetailsRoute($extra: DetailsRouteExtra(item: item))
-                            .push<void>(context);
-                      },
-                      heroTagPrefix: 'home',
-                    );
-                  },
-                  childCount: homeRows.length,
-                ),
-              ),
-
-              // No provider yet: the "Add a plugin" CTA stays, but as a
-              // compact banner below the rows — the feed above is the
-              // preview's populated Home, not an empty state.
+              // No provider selected: Home has no rows of its own, so the
+              // "Add a plugin" card sits at the top, right under the
+              // header, with Continue Watching (the user's own history)
+              // below it.
               if (hasNoProvider)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(
                       LayoutConstants.spacingMd,
-                      LayoutConstants.spacingLg,
+                      LayoutConstants.spacingSm,
                       LayoutConstants.spacingMd,
                       0,
                     ),
@@ -584,6 +538,60 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     ),
                   ),
                 ),
+
+              // Home rows customise (v7): Continue Watching and the
+              // source's rows in the saved order, hidden ones left out
+              // (see home_row_prefs.dart). The hero above is not a row and
+              // always stays first; with every row hidden this list is
+              // empty and Home shows the hero alone. Trakt's synced
+              // progress belongs to the Continue Watching row.
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    if (index >= homeRows.length) return null;
+                    final rowId = homeRows[index];
+                    if (rowId == kHomeRowContinueWatching) {
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (watchHistoryEnabled && history.isNotEmpty)
+                            ContinueWatchingSection(
+                              title: l10n.continueWatching,
+                              items: history.cast<HistoryItem>(),
+                            ),
+                          if (syncedProgressAsync.asData?.value.isNotEmpty ==
+                              true)
+                            SyncedProgressSection(
+                              title: 'Synced from Trakt',
+                              items: syncedProgressAsync.asData!.value,
+                              onItemTap: (item) {
+                                // Pre-fill search query and navigate to
+                                // Search tab
+                                ref
+                                    .read(searchQueryProvider.notifier)
+                                    .set(item.title);
+                                const SearchRoute().go(context);
+                              },
+                            ),
+                        ],
+                      );
+                    }
+                    return MediaHorizontalList(
+                      title: rowId,
+                      mediaList: data[rowId] ?? const [],
+                      category: ViewAllCategory.providerContent,
+                      showViewAll: true,
+                      onTap: (item) {
+                        DetailsRoute($extra: DetailsRouteExtra(item: item))
+                            .push<void>(context);
+                      },
+                      heroTagPrefix: 'home',
+                    );
+                  },
+                  childCount: homeRows.length,
+                ),
+              ),
 
               SliverPadding(
                 padding: EdgeInsets.only(

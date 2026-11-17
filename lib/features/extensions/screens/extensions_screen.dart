@@ -63,6 +63,35 @@ class ExtensionsScreen extends ConsumerStatefulWidget {
 class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
   bool _didEnsureInit = false;
 
+  /// The two segments side by side (1.0.1): the page follows the finger
+  /// left/right, and a tap on a segment slides to it. Opens on whichever
+  /// segment the provider remembers.
+  late final PageController _pageController = PageController(
+    initialPage: ref.read(pluginsSegmentProvider).index,
+  );
+
+  /// True while the segment change comes from the swipe itself, so the
+  /// provider listener does not start a second animation over the drag.
+  bool _segmentFromSwipe = false;
+
+  static const Duration _segmentSlide = Duration(milliseconds: 280);
+
+  /// Slides (or, with reduced motion, jumps) to [segment]'s page.
+  void _showSegment(PluginsSegment segment) {
+    if (!_pageController.hasClients) return;
+    final current = _pageController.page ?? _pageController.initialPage;
+    if ((current - segment.index).abs() < 0.001) return;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _pageController.jumpToPage(segment.index);
+    } else {
+      _pageController.animateToPage(
+        segment.index,
+        duration: _segmentSlide,
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
   /// When the installed plugins' repositories were last asked for newer
   /// versions by this screen (v7): opening the Plugins tab asks again, at
   /// most once every [_updateCheckEvery], so tabbing back and forth is not
@@ -121,6 +150,7 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
 
   @override
   void dispose() {
+    _pageController.dispose();
     _addRepoController.dispose();
     super.dispose();
   }
@@ -219,6 +249,13 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
     final state = ref.watch(extensionsControllerProvider);
 
     final segment = ref.watch(pluginsSegmentProvider);
+    // A segment chosen anywhere (a tap on the row, the empty state's
+    // button) slides the pages there; a swipe already is there.
+    ref.listen<PluginsSegment>(pluginsSegmentProvider, (previous, next) {
+      if (_segmentFromSwipe) return;
+      _showSegment(next);
+    });
+    final bottomClearance = LayoutConstants.shellBottomContentPadding(context);
 
     // v5: two segments under the title — "Installed" (left) and
     // "Add Plugins" (right). Everything the single scroll used to show is
@@ -257,6 +294,7 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
               ),
               child: _PluginsSegmentRow(
                 selected: segment,
+                pageController: _pageController,
                 installedLabel: l10n.pluginsSegmentInstalled,
                 addLabel: l10n.pluginsSegmentAdd,
                 onSelected: (s) =>
@@ -264,30 +302,67 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
               ),
             ),
             Expanded(
-              child: RefreshIndicator(
-                // v7: pulling the Installed list down checks the plugins'
-                // repositories for newer versions. Add Plugins has its own
-                // per-repository refresh buttons.
-                notificationPredicate: (notification) =>
-                    segment == PluginsSegment.installed &&
-                    notification.depth == 0,
-                onRefresh: _refreshInstalled,
-                child: ListView(
-                  // One list per segment, so each starts at its own top.
-                  key: ValueKey('plugins-list-${segment.name}'),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: EdgeInsets.only(
-                    bottom: LayoutConstants.shellBottomContentPadding(context),
-                    top: LayoutConstants.spacingSm,
+              // 1.0.1: the two segments are pages side by side — swipe
+              // left/right to move between them. Each page keeps its own
+              // scroll position while the other one shows.
+              child: PageView(
+                key: const ValueKey('plugins-pages'),
+                controller: _pageController,
+                onPageChanged: (index) {
+                  _segmentFromSwipe = true;
+                  try {
+                    ref
+                        .read(pluginsSegmentProvider.notifier)
+                        .select(PluginsSegment.values[index]);
+                  } finally {
+                    _segmentFromSwipe = false;
+                  }
+                },
+                children: [
+                  _KeepAlivePage(
+                    // The page that is not showing stays out of remote /
+                    // keyboard focus traversal.
+                    child: ExcludeFocus(
+                      excluding: segment != PluginsSegment.installed,
+                      child: RefreshIndicator(
+                        // v7: pulling the Installed list down checks the
+                        // plugins' repositories for newer versions. Add
+                        // Plugins has its own per-repository refresh
+                        // buttons.
+                        notificationPredicate: (notification) =>
+                            notification.depth == 0,
+                        onRefresh: _refreshInstalled,
+                        child: ListView(
+                          key: const ValueKey('plugins-list-installed'),
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.only(
+                            bottom: bottomClearance,
+                            top: LayoutConstants.spacingSm,
+                          ),
+                          children: _installedWidgets(context, ref, state),
+                        ),
+                      ),
+                    ),
                   ),
-                  children: segment == PluginsSegment.installed
-                      ? _installedWidgets(context, ref, state)
-                      : [
+                  _KeepAlivePage(
+                    child: ExcludeFocus(
+                      excluding: segment != PluginsSegment.add,
+                      child: ListView(
+                        key: const ValueKey('plugins-list-add'),
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: EdgeInsets.only(
+                          bottom: bottomClearance,
+                          top: LayoutConstants.spacingSm,
+                        ),
+                        children: [
                           _buildAddRepositoryCard(context, ref),
                           ..._repositoryWidgets(context, ref, state),
                           _buildMoreSourcesCard(context),
                         ],
-                ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1607,21 +1682,59 @@ class _FocusableCardState extends State<_FocusableCard> {
   }
 }
 
+/// Keeps a Plugins page (its scroll position and state) alive while the
+/// other page is the one showing.
+class _KeepAlivePage extends StatefulWidget {
+  const _KeepAlivePage({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+
 /// The Plugins tab's two-segment row: "Installed" on the left, "Add
-/// Plugins" on the right. The selected segment is filled with the accent
-/// (text onPrimary); the other sits on a subtle surface tint.
+/// Plugins" on the right. One accent-filled highlight sits under the
+/// selected segment and slides between the two in step with the pages
+/// ([pageController]); the label over it turns onPrimary as it arrives.
 class _PluginsSegmentRow extends StatelessWidget {
   const _PluginsSegmentRow({
     required this.selected,
+    required this.pageController,
     required this.installedLabel,
     required this.addLabel,
     required this.onSelected,
   });
 
   final PluginsSegment selected;
+  final PageController pageController;
   final String installedLabel;
   final String addLabel;
   final ValueChanged<PluginsSegment> onSelected;
+
+  static const double _gap = 4;
+
+  /// 0 = fully on Installed, 1 = fully on Add Plugins. Follows the pages
+  /// while they move; before they are laid out, the selected segment.
+  double _position() {
+    if (pageController.hasClients &&
+        pageController.position.hasContentDimensions) {
+      return (pageController.page ?? selected.index.toDouble()).clamp(0.0, 1.0);
+    }
+    return selected.index.toDouble();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1633,28 +1746,65 @@ class _PluginsSegmentRow extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.all(4),
-        child: Row(
-          children: [
-            Expanded(
-              child: _PluginsSegmentButton(
-                key: const ValueKey('plugins-segment-installed'),
-                label: installedLabel,
-                icon: Icons.check_circle_outline_rounded,
-                selected: selected == PluginsSegment.installed,
-                onTap: () => onSelected(PluginsSegment.installed),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: _PluginsSegmentButton(
-                key: const ValueKey('plugins-segment-add'),
-                label: addLabel,
-                icon: Icons.add_circle_outline_rounded,
-                selected: selected == PluginsSegment.add,
-                onTap: () => onSelected(PluginsSegment.add),
-              ),
-            ),
-          ],
+        child: SizedBox(
+          height: 40,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final segmentWidth = (constraints.maxWidth - _gap) / 2;
+              return AnimatedBuilder(
+                animation: pageController,
+                builder: (context, _) {
+                  final t = _position();
+                  final rtl = Directionality.of(context) == TextDirection.rtl;
+                  final offset = t * (segmentWidth + _gap);
+                  return Stack(
+                    children: [
+                      Positioned(
+                        key: const ValueKey('plugins-segment-indicator'),
+                        left: rtl ? null : offset,
+                        right: rtl ? offset : null,
+                        top: 0,
+                        bottom: 0,
+                        width: segmentWidth,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: scheme.primary,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _PluginsSegmentButton(
+                              key: const ValueKey('plugins-segment-installed'),
+                              label: installedLabel,
+                              icon: Icons.check_circle_outline_rounded,
+                              selected: selected == PluginsSegment.installed,
+                              emphasis: 1 - t,
+                              onTap: () =>
+                                  onSelected(PluginsSegment.installed),
+                            ),
+                          ),
+                          const SizedBox(width: _gap),
+                          Expanded(
+                            child: _PluginsSegmentButton(
+                              key: const ValueKey('plugins-segment-add'),
+                              label: addLabel,
+                              icon: Icons.add_circle_outline_rounded,
+                              selected: selected == PluginsSegment.add,
+                              emphasis: t,
+                              onTap: () => onSelected(PluginsSegment.add),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
         ),
       ),
     );
@@ -1667,23 +1817,32 @@ class _PluginsSegmentButton extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.selected,
+    required this.emphasis,
     required this.onTap,
   });
 
   final String label;
   final IconData icon;
   final bool selected;
+
+  /// How far the sliding highlight is under this segment, 0..1.
+  final double emphasis;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final foreground = selected ? scheme.onPrimary : scheme.onSurfaceVariant;
+    final foreground = Color.lerp(
+      scheme.onSurfaceVariant,
+      scheme.onPrimary,
+      emphasis.clamp(0.0, 1.0),
+    )!;
     return Semantics(
       button: true,
       selected: selected,
       child: Material(
-        color: selected ? scheme.primary : Colors.transparent,
+        // The fill is the row's sliding highlight, drawn underneath.
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(10),
         clipBehavior: Clip.antiAlias,
         child: InkWell(

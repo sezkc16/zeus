@@ -45,11 +45,16 @@ class AddonDetailScreen extends ConsumerStatefulWidget {
   final String id;
   final String? addonUrl;
 
+  /// Set for a title opened from the Browse tab, whichever add-on listed
+  /// it: see [_AddonDetailScreenState._mergedSources].
+  final bool mergedSources;
+
   const AddonDetailScreen({
     super.key,
     required this.type,
     required this.id,
     this.addonUrl,
+    this.mergedSources = false,
   });
 
   @override
@@ -57,11 +62,13 @@ class AddonDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
-  /// A Cinemeta title (what Browse lists) belongs to no plugin, so its
-  /// sources come from everything installed: plugins, Nuvio providers and
-  /// Stremio add-ons together. Any other add-on's title keeps the add-on
-  /// list it always had.
-  bool get _mergedSources => widget.addonUrl == BuiltInAddons.cinemetaUrl;
+  /// A title opened from Browse - a row of an installed catalog add-on, or
+  /// a Cinemeta title - belongs to no plugin, so its sources come from
+  /// everything installed: plugins, Nuvio providers and Stremio add-ons
+  /// together. An add-on's title opened anywhere else keeps the add-on list
+  /// it always had.
+  bool get _mergedSources =>
+      widget.mergedSources || widget.addonUrl == BuiltInAddons.cinemetaUrl;
 
   int? _selectedSeason;
   int _selectedRangeIndex = 0;

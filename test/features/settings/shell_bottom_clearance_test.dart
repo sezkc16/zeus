@@ -23,6 +23,7 @@ import 'package:zorox/core/storage/secure_token_storage.dart';
 import 'package:zorox/core/storage/settings_repository.dart';
 import 'package:zorox/core/storage/storage_service.dart';
 import 'package:zorox/core/theme/theme_provider.dart';
+import 'package:zorox/core/utils/layout_constants.dart';
 import 'package:zorox/features/library/presentation/library_provider.dart';
 import 'package:zorox/features/library/presentation/library_state.dart';
 import 'package:zorox/features/library/presentation/widgets/bookmarks_tab.dart';
@@ -36,6 +37,7 @@ import 'package:zorox/features/settings/presentation/player_settings_screen.dart
 import 'package:zorox/features/settings/presentation/settings_screen.dart';
 import 'package:zorox/features/tracking/presentation/tracking_auth_provider.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
+import 'package:zorox/shared/widgets/custom_bottom_nav.dart';
 
 /// The bottom edge of the shell's bottom bar, expressed the way the shell
 /// expresses it: added to the media padding. The helper floors at 100, so
@@ -165,7 +167,11 @@ void main() {
 
   /// Pumps [screen] the way the mobile shell hosts it: full screen, with the
   /// bar's height riding on the media padding.
-  Future<void> pump(WidgetTester tester, Widget screen) async {
+  Future<void> pump(
+    WidgetTester tester,
+    Widget screen, {
+    double mediaBottom = kShellBar,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -187,7 +193,7 @@ void main() {
           libraryProvider.overrideWith(() => _FakeLibrary()),
         ],
         child: MediaQuery(
-          data: const MediaQueryData(padding: EdgeInsets.only(bottom: kShellBar)),
+          data: MediaQueryData(padding: EdgeInsets.only(bottom: mediaBottom)),
           child: MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
@@ -245,6 +251,37 @@ void main() {
             'padding',
       );
     });
+  });
+
+  // On a phone the shell hides the nav pill on the Settings branch and
+  // leaves only the real safe area in the media padding. With nothing to
+  // clear, the list must end with that safe area plus a small gap — not the
+  // 100 px floor the tab screens use, which left a blank block under the
+  // last row.
+  for (final safeArea in <double>[34, 0]) {
+    screens.forEach((name, screen) {
+      testWidgets(
+        '$name leaves no blank block when the pill is hidden '
+        '(safe area $safeArea)',
+        (tester) async {
+          await pump(tester, screen, mediaBottom: safeArea);
+          expect(
+            bottomPadding(tester),
+            safeArea + LayoutConstants.pillFreeEndPadding,
+            reason:
+                '$name still reserves room for a nav pill that is not on '
+                'screen',
+          );
+        },
+      );
+    });
+  }
+
+  test('the pill clearance the helper tests against is the shell\'s', () {
+    expect(
+      LayoutConstants.navPillClearance,
+      CustomBottomNavBar.contentClearance,
+    );
   });
 
   testWidgets('the bookmarks grid clears the shell bottom bar',

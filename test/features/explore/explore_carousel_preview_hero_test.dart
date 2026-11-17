@@ -89,10 +89,12 @@ void main() {
     WidgetTester tester, {
     required List<MultimediaItem> movies,
     bool showPreviewActions = false,
+    bool fullBleed = false,
+    Size physicalSize = const Size(1233, 2745),
     void Function(MultimediaItem)? onTap,
     void Function(MultimediaItem)? onPlay,
   }) async {
-    tester.view.physicalSize = const Size(1233, 2745);
+    tester.view.physicalSize = physicalSize;
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.reset);
 
@@ -110,6 +112,7 @@ void main() {
             body: ExploreCarousel(
               movies: movies,
               showPreviewActions: showPreviewActions,
+              fullBleed: fullBleed,
               onTap: onTap,
               onPlay: onPlay,
             ),
@@ -138,6 +141,51 @@ void main() {
       final decoration = card.decoration! as BoxDecoration;
       expect(decoration.border, isNull);
       expect(decoration.borderRadius, BorderRadius.circular(20));
+      // Without fullBleed the card keeps its 16 px side margin.
+      final rect = tester.getRect(find.byKey(const ValueKey('hero-card')));
+      expect(rect.left, 16);
+      expect(rect.right, 411 - 16);
+    });
+
+    testWidgets('fullBleed on a phone: edge to edge, square corners, text '
+        'still inset', (tester) async {
+      await pumpCarousel(
+        tester,
+        movies: [_movie(0), _movie(1)],
+        showPreviewActions: true,
+        fullBleed: true,
+      );
+      final finder = find.byKey(const ValueKey('hero-card'));
+      final rect = tester.getRect(finder);
+      expect(rect.left, 0);
+      expect(rect.right, 411);
+      final decoration =
+          tester.widget<AnimatedContainer>(finder).decoration! as BoxDecoration;
+      expect(decoration.border, isNull);
+      expect(decoration.borderRadius, BorderRadius.zero);
+      // Title and buttons never touch the screen edge.
+      for (final label in ['TITLE 0', 'Play', 'My List', 'Info']) {
+        final r = tester.getRect(find.text(label));
+        expect(r.left, greaterThanOrEqualTo(24), reason: label);
+        expect(r.right, lessThanOrEqualTo(411 - 24), reason: label);
+      }
+    });
+
+    testWidgets('fullBleed is ignored on the wide layout: padded rounded card', (
+      tester,
+    ) async {
+      await pumpCarousel(
+        tester,
+        movies: [_movie(0)],
+        showPreviewActions: true,
+        fullBleed: true,
+        physicalSize: const Size(3600, 2400),
+      );
+      final finder = find.byKey(const ValueKey('hero-card'));
+      final decoration =
+          tester.widget<AnimatedContainer>(finder).decoration! as BoxDecoration;
+      expect(decoration.borderRadius, BorderRadius.circular(20));
+      expect(tester.getRect(finder).left, greaterThan(0));
     });
 
     testWidgets('big title, badge pill and all three actions render', (

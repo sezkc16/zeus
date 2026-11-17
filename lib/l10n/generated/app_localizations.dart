@@ -315,6 +315,18 @@ abstract class AppLocalizations {
   /// **'Couldn\'t load this row'**
   String get browseRowLoadFailed;
 
+  /// Shown on the Browse tab when no Stremio add-on with catalogs is installed.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing here yet. Install a catalog add-on and its rows show up on this page.'**
+  String get browseEmptyHint;
+
+  /// Button and tooltip on the Browse tab that opens the Stremio add-ons screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Stremio add-ons'**
+  String get browseOpenAddons;
+
   /// Subtitle of the Settings row on the Browse screen's APP card.
   ///
   /// In en, this message translates to:

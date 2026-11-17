@@ -161,13 +161,28 @@ void main() {
   const installedKey = ValueKey('plugins-segment-installed');
   const addKey = ValueKey('plugins-segment-add');
 
-  Color? segmentFill(WidgetTester tester, Key key) => tester
-      .widget<Material>(
-        find
-            .descendant(of: find.byKey(key), matching: find.byType(Material))
-            .first,
-      )
-      .color;
+  const indicatorKey = ValueKey('plugins-segment-indicator');
+
+  // 1.0.1: the accent fill is one highlight that slides between the two
+  // segments. A segment is "filled" when that highlight sits under it.
+  Color? segmentFill(WidgetTester tester, Key key) {
+    final indicator = find.byKey(indicatorKey);
+    final fill =
+        (tester
+                    .widget<DecoratedBox>(
+                      find.descendant(
+                        of: indicator,
+                        matching: find.byType(DecoratedBox),
+                      ),
+                    )
+                    .decoration
+                as BoxDecoration)
+            .color;
+    final under = tester
+        .getRect(find.byKey(key))
+        .contains(tester.getCenter(indicator));
+    return under ? fill : Colors.transparent;
+  }
 
   testWidgets('the default segment is Installed, filled with the accent', (
     tester,
@@ -336,6 +351,79 @@ void main() {
     expect(find.text('Installed Plugin'), findsNothing);
     final scheme = Theme.of(tester.element(find.byKey(addKey))).colorScheme;
     expect(segmentFill(tester, addKey), scheme.primary);
+  });
+
+  testWidgets('swiping left/right moves between the segments, the highlight '
+      'slides with the page, and each page keeps its place', (tester) async {
+    _tallViewport(tester);
+    final container = containerFor(oneInstalled());
+    await tester.pumpWidget(hosted(container));
+    await tester.pumpAndSettle();
+    final scheme = Theme.of(tester.element(find.byKey(addKey))).colorScheme;
+    const pages = ValueKey('plugins-pages');
+    final installedLeft = tester.getTopLeft(find.byKey(indicatorKey)).dx;
+
+    // Half a drag: the page follows the finger and the highlight is on its
+    // way, between the two segments.
+    final width = tester.getSize(find.byKey(pages)).width;
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(pages)),
+    );
+    await gesture.moveBy(const Offset(-30, 0));
+    await gesture.moveBy(Offset(-width * 0.3, 0));
+    await tester.pump();
+    final midLeft = tester.getTopLeft(find.byKey(indicatorKey)).dx;
+    expect(midLeft, greaterThan(installedLeft));
+    expect(find.text('Installed Plugin'), findsOneWidget);
+    expect(find.text('ADD REPOSITORY'), findsOneWidget);
+    await gesture.moveBy(Offset(-width * 0.4, 0));
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(container.read(pluginsSegmentProvider), PluginsSegment.add);
+    expect(segmentFill(tester, addKey), scheme.primary);
+    expect(segmentFill(tester, installedKey), isNot(scheme.primary));
+    expect(find.text('ADD REPOSITORY'), findsOneWidget);
+    expect(find.text('Installed Plugin'), findsNothing);
+    expect(
+      tester.getTopLeft(find.byKey(indicatorKey)).dx,
+      greaterThan(midLeft),
+    );
+
+    // Swipe back the other way.
+    await tester.fling(find.byKey(pages), const Offset(400, 0), 1200);
+    await tester.pumpAndSettle();
+    expect(container.read(pluginsSegmentProvider), PluginsSegment.installed);
+    expect(segmentFill(tester, installedKey), scheme.primary);
+    expect(find.text('Installed Plugin'), findsOneWidget);
+    expect(find.text('ADD REPOSITORY'), findsNothing);
+    expect(tester.getTopLeft(find.byKey(indicatorKey)).dx, installedLeft);
+
+    // A tap slides too: part-way through, the highlight is in between.
+    await tester.tap(find.byKey(addKey));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    final tapMid = tester.getTopLeft(find.byKey(indicatorKey)).dx;
+    expect(tapMid, greaterThan(installedLeft));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.byKey(indicatorKey)).dx, greaterThan(tapMid));
+    expect(find.text('ADD REPOSITORY'), findsOneWidget);
+  });
+
+  testWidgets('with reduced motion a tap switches without the slide', (
+    tester,
+  ) async {
+    _tallViewport(tester);
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await tester.pumpWidget(hosted(containerFor(oneInstalled())));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(addKey));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('ADD REPOSITORY'), findsOneWidget);
+    expect(find.text('Installed Plugin'), findsNothing);
   });
 
   testWidgets('both segments keep the bottom clearance for the nav pill', (

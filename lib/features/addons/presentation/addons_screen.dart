@@ -402,7 +402,7 @@ class _AddonCatalogsTabViewState extends ConsumerState<AddonCatalogsTabView>
 
             SliverPadding(
               padding: EdgeInsets.only(
-                bottom: LayoutConstants.shellBottomContentPadding(context),
+                bottom: LayoutConstants.pillFreeBottomContentPadding(context),
               ),
             ),
           ],
@@ -471,6 +471,7 @@ class _CatalogCarouselSection extends ConsumerWidget {
               type: type,
               id: item.url,
               addonUrl: catalog.addon.manifestUrl,
+              merged: true,
             ).push<void>(context);
           },
         );
@@ -644,6 +645,7 @@ class _CatalogRow extends ConsumerWidget {
               type: type,
               id: mediaItem.url,
               addonUrl: entry.addon.manifestUrl,
+              merged: true,
             ).push<void>(context);
           },
         );
@@ -678,6 +680,7 @@ class AddonPosterCard extends StatelessWidget {
           type: item.type,
           id: item.id,
           addonUrl: addonUrl,
+          merged: true,
         ).push<void>(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -74,6 +74,14 @@
   "@browseRowLoadFailed": {
     "description": "Browse tab: shown under a row's title when its Cinemeta catalog request failed, next to a Retry button."
   },
+  "browseEmptyHint": "Nothing here yet. Install a catalog add-on and its rows show up on this page.",
+  "@browseEmptyHint": {
+    "description": "Shown on the Browse tab when no Stremio add-on with catalogs is installed."
+  },
+  "browseOpenAddons": "Stremio add-ons",
+  "@browseOpenAddons": {
+    "description": "Button and tooltip on the Browse tab that opens the Stremio add-ons screen."
+  },
   "browseSettingsSubtitle": "Theme, player, accounts, extensions & more",
   "@browseSettingsSubtitle": {
     "description": "Subtitle of the Settings row on the Browse screen's APP card."

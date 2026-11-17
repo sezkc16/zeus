@@ -1,22 +1,27 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
-import '../../../../core/addons/data/addon_client.dart';
-import '../../../../core/addons/data/builtin_addons.dart';
+import '../../../../core/addons/data/addon_repository.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/utils/layout_constants.dart';
-import 'browse_rows.dart';
+import '../../../../shared/widgets/cards_wrapper.dart';
+import '../../addons/presentation/addon_providers.dart';
+import '../../addons/presentation/addons_screen.dart';
+import '../../explore/presentation/delegates/explore_search_delegate.dart';
 
-/// The Browse tab: the title, poster rows straight from the built-in
-/// Cinemeta add-on (popular, featured, this year's, a few genres), then the
-/// APP card whose Settings row opens Settings.
+/// The Browse tab. It has no content of its own: it lists the catalogs of
+/// the Stremio add-ons the person installed (Cinemeta, Anime Kitsu, a
+/// streaming-catalogs add-on, ...), one row per catalog, through
+/// [AddonCatalogsTabView].
 ///
-/// Each row asks for its own catalog when it scrolls into view and shows its
-/// own skeleton, failure or posters; a catalog that comes back empty leaves
-/// the list. Pulling down asks Cinemeta again for every row.
+/// With no catalog add-on installed the page is empty but for one line and
+/// a button to the Stremio add-ons screen; nothing is fetched. The header
+/// holds a button to that screen and, once an installed add-on has a
+/// searchable catalog, a search over the installed add-ons' catalogs.
 class BrowseScreen extends ConsumerStatefulWidget {
   const BrowseScreen({super.key});
 
@@ -25,132 +30,187 @@ class BrowseScreen extends ConsumerStatefulWidget {
 }
 
 class _BrowseScreenState extends ConsumerState<BrowseScreen> {
-  late final List<BrowseRowSpec> _specs = browseRowSpecs(
-    year: DateTime.now().year,
-  );
+  final ScrollController _scrollController = ScrollController();
+  final ValueNotifier<double> _barOpacity = ValueNotifier<double>(0);
+  final FocusNode _firstActionFocusNode = FocusNode();
 
-  /// Rows whose catalog came back empty. They are taken out of the list
-  /// rather than left as zero-height rows, which a lazily built sliver list
-  /// cannot scroll back up through (see catalog_rows_scroll_test.dart).
-  final Set<String> _empty = {};
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
 
-  /// Rows that have been built, and so have asked Cinemeta for a catalog.
-  final Set<String> _asked = {};
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final opacity = (_scrollController.offset * 0.8 / 300).clamp(0.0, 1.0);
+    if (opacity != _barOpacity.value) _barOpacity.value = opacity;
+  }
 
-  Future<void> _refresh() async {
-    final client = ref.read(addonClientProvider);
-    // The client keeps a catalog for 15 minutes, so invalidating a row's
-    // provider alone would hand back the same answer. Rows that have been
-    // asked for - on screen, scrolled past or hidden as empty - are fetched
-    // again past that cache; the rest have nothing cached to go stale.
-    final asked = [
-      for (final spec in _specs)
-        if (_asked.contains(spec.slug)) spec,
-    ];
-    await Future.wait([
-      for (final spec in asked)
-        client
-            .catalog(
-              BuiltInAddons.cinemeta,
-              type: spec.type,
-              id: spec.id,
-              extra: spec.genre == null ? null : {'genre': spec.genre!},
-              forceRefresh: true,
-            )
-            .timeout(const Duration(seconds: 20))
-            .then<void>((_) {}, onError: (Object _) {}),
-    ]);
-    if (!mounted) return;
-    setState(_empty.clear);
-    for (final spec in _specs) {
-      ref.invalidate(spec.provider);
-    }
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    _barOpacity.dispose();
+    _firstActionFocusNode.dispose();
+    super.dispose();
+  }
+
+  /// The Stremio add-ons screen lives in the Settings branch, so it is gone
+  /// to rather than pushed - the same way the Plugins tab opens it.
+  void _openAddons({bool discover = false}) {
+    AddonsRoute(initialTab: discover ? 1 : 0).go(context);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final rows = [
-      for (final spec in _specs)
-        if (!_empty.contains(spec.slug)) spec,
-    ];
+    final loading = ref.watch(addonRepositoryProvider).isLoading;
+    final hasCatalogs = ref.watch(browsableCatalogsProvider).isNotEmpty;
+    // Search asks the installed add-ons' own catalogs. With none of them
+    // searchable the search provider would fall back to the built-in
+    // Cinemeta, which is content the person never installed - so the
+    // button is only offered when an installed add-on can answer.
+    final canSearch = ref
+        .watch(addonRepositoryProvider)
+        .enabled
+        .any(
+          (addon) =>
+              (addon.manifest?.hasResource('catalog') ?? false) &&
+              addon.manifest!.catalogs.any((c) => c.supportsSearch),
+        );
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        edgeOffset: MediaQuery.paddingOf(context).top,
-        child: CustomScrollView(
-          key: const ValueKey('browse-scroll'),
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverPadding(
-              padding: EdgeInsets.only(
-                top: MediaQuery.paddingOf(context).top + 8,
-                left: LayoutConstants.spacingMd,
-                right: LayoutConstants.spacingMd,
-              ),
-              sliver: SliverToBoxAdapter(
-                child: Text(
-                  l10n.browse,
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+      backgroundColor: theme.scaffoldBackgroundColor,
+      // The first catalog's banner runs up behind the header, which fades
+      // in a background of its own as the page scrolls.
+      extendBodyBehindAppBar: hasCatalogs,
+      appBar: AppBar(
+        systemOverlayStyle: isDark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
+        forceMaterialTransparency: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        flexibleSpace: ValueListenableBuilder<double>(
+          valueListenable: _barOpacity,
+          builder: (context, opacity, _) => ColoredBox(
+            color: theme.scaffoldBackgroundColor.withValues(
+              alpha: hasCatalogs ? opacity : 1,
+            ),
+            child: const SizedBox.expand(),
+          ),
+        ),
+        title: Text(
+          l10n.browse,
+          style: TextStyle(
+            color: theme.colorScheme.onSurface,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: false,
+        actions: [
+          _HeaderButton(
+            key: const ValueKey('browse-addons-button'),
+            icon: Icons.dashboard_customize_rounded,
+            tooltip: l10n.browseOpenAddons,
+            focusNode: _firstActionFocusNode,
+            onTap: _openAddons,
+          ),
+          if (hasCatalogs && canSearch)
+            _HeaderButton(
+              key: const ValueKey('browse-search-button'),
+              icon: Icons.search,
+              tooltip: l10n.search,
+              onTap: () => unawaited(showExploreSearch(context)),
+            ),
+        ],
+      ),
+      body: hasCatalogs
+          ? AddonCatalogsTabView(
+              scrollController: _scrollController,
+              firstActionFocusNode: _firstActionFocusNode,
+            )
+          : loading
+          ? const SizedBox.shrink()
+          : _EmptyBrowse(onOpenAddons: () => _openAddons(discover: true)),
+    );
+  }
+}
+
+/// A round header button, the size and tint the app's other headers use.
+class _HeaderButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final FocusNode? focusNode;
+
+  const _HeaderButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.focusNode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(right: LayoutConstants.spacingMd),
+      child: CardsWrapper(
+        focusNode: focusNode,
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(50),
+        child: Tooltip(
+          message: tooltip,
+          child: CircleAvatar(
+            backgroundColor: scheme.onSurface.withValues(alpha: 0.1),
+            radius: 18,
+            child: Icon(icon, color: scheme.onSurface, size: 18),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Browse with no catalog add-on installed: one line and the way to them.
+class _EmptyBrowse extends StatelessWidget {
+  final VoidCallback onOpenAddons;
+
+  const _EmptyBrowse({required this.onOpenAddons});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 28,
+          right: 28,
+          bottom: LayoutConstants.shellBottomContentPadding(context),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              l10n.browseEmptyHint,
+              key: const ValueKey('browse-empty-hint'),
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            SliverList.builder(
-              itemCount: rows.length,
-              itemBuilder: (context, index) {
-                final spec = rows[index];
-                _asked.add(spec.slug);
-                return BrowseCatalogRow(
-                  spec: spec,
-                  onEmpty: () {
-                    if (!mounted || _empty.contains(spec.slug)) return;
-                    setState(() => _empty.add(spec.slug));
-                  },
-                );
-              },
-            ),
-            SliverPadding(
-              padding: EdgeInsets.only(
-                top: LayoutConstants.spacingLg,
-                left: LayoutConstants.spacingMd,
-                right: LayoutConstants.spacingMd,
-                bottom: LayoutConstants.shellBottomContentPadding(context),
-              ),
-              sliver: SliverToBoxAdapter(
-                child: Card(
-                  margin: EdgeInsets.zero,
-                  child: Padding(
-                    padding: const EdgeInsets.all(LayoutConstants.spacingMd),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.appSection.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.8,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
-                        const SizedBox(height: LayoutConstants.spacingSm),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.settings_rounded),
-                          title: Text(l10n.settings),
-                          subtitle: Text(l10n.browseSettingsSubtitle),
-                          trailing: const Icon(Icons.chevron_right_rounded),
-                          onTap: () => const SettingsRoute().go(context),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+            const SizedBox(height: LayoutConstants.spacingMd),
+            FilledButton.icon(
+              key: const ValueKey('browse-empty-addons-button'),
+              onPressed: onOpenAddons,
+              icon: const Icon(Icons.dashboard_customize_rounded),
+              label: Text(l10n.browseOpenAddons),
             ),
           ],
         ),

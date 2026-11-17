@@ -162,7 +162,7 @@ void main() {
     expect(find.byType(ReiconIcon), findsNWidgets(Reicon.values.length * 2));
   });
 
-  test('Settings rows are open rows: no card, no divider, one padding '
+  test('Settings rows are open rows: no card, no Divider widget, one padding '
       'constant', () {
     final source = File(
       'lib/features/settings/presentation/widgets/settings_widgets.dart',

@@ -15,7 +15,7 @@ import 'package:zorox/features/settings/presentation/settings_screen.dart';
 import 'package:zorox/features/settings/presentation/widgets/settings_widgets.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
 
-/// Settings → About (public 1.0.0): Developer, the "Based on SkyStream"
+/// Settings → About (public 1.0.1): Developer, the "Based on SkyStream"
 /// credit, Telegram, Version — in that order — and the version shown
 /// alone. The credit row is the one place the app names the project it is
 /// based on.
@@ -61,7 +61,7 @@ void main() {
     if (dir.existsSync()) dir.deleteSync(recursive: true);
   });
 
-  Future<void> pumpAbout(WidgetTester tester, {String version = '1.0.0 +65'}) async {
+  Future<void> pumpAbout(WidgetTester tester, {String version = '1.0.1 +66'}) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -140,22 +140,22 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('Version shows 1.0.0 alone, no build suffix', (tester) async {
+  testWidgets('Version shows 1.0.1 alone, no build suffix', (tester) async {
     await pumpAbout(tester);
-    expect(find.text('1.0.0'), findsOneWidget);
-    expect(find.textContaining('+65'), findsNothing);
+    expect(find.text('1.0.1'), findsOneWidget);
+    expect(find.textContaining('+66'), findsNothing);
   });
 
   test('aboutVersionLabel drops the build suffix and nothing else', () {
-    expect(aboutVersionLabel('1.0.0 +65'), '1.0.0');
-    expect(aboutVersionLabel('1.0.0'), '1.0.0');
+    expect(aboutVersionLabel('1.0.1 +66'), '1.0.1');
+    expect(aboutVersionLabel('1.0.1'), '1.0.1');
     expect(aboutVersionLabel('1.2.3 +1.2.3'), '1.2.3');
   });
 
-  test('the app is 1.0.0 build 65', () {
+  test('the app is 1.0.1 build 66', () {
     expect(
       File('pubspec.yaml').readAsStringSync(),
-      contains('\nversion: 1.0.0+65\n'),
+      contains('\nversion: 1.0.1+66\n'),
     );
   });
 }

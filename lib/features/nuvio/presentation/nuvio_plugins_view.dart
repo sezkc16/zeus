@@ -28,7 +28,6 @@ class NuvioPluginsView extends ConsumerStatefulWidget {
 
 class _NuvioPluginsViewState extends ConsumerState<NuvioPluginsView> {
   bool _busy = false;
-  bool _checking = false;
 
   Future<void> _addRepository() async {
     final messenger = ScaffoldMessenger.of(context);
@@ -63,28 +62,6 @@ class _NuvioPluginsViewState extends ConsumerState<NuvioPluginsView> {
     }
   }
 
-  Future<void> _checkForUpdates() async {
-    final messenger = ScaffoldMessenger.of(context);
-    setState(() => _checking = true);
-    try {
-      final changes = await ref
-          .read(nuvioRepositoryProvider.notifier)
-          .refreshAll();
-      ref.read(nuvioStreamServiceProvider).clearCache();
-      messenger.showSnackBar(
-        appSnackBar(
-          content: Text(
-            changes == 0
-                ? 'All Nuvio plugins are up to date'
-                : '$changes plugin${changes == 1 ? '' : 's'} updated',
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _checking = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(nuvioRepositoryProvider);
@@ -97,7 +74,7 @@ class _NuvioPluginsViewState extends ConsumerState<NuvioPluginsView> {
       child: ListView(
         padding: EdgeInsets.only(
           top: LayoutConstants.spacingMd,
-          bottom: LayoutConstants.shellBottomContentPadding(context),
+          bottom: LayoutConstants.pillFreeBottomContentPadding(context),
         ),
         addAutomaticKeepAlives: false,
         children: [
@@ -161,50 +138,19 @@ class _NuvioPluginsViewState extends ConsumerState<NuvioPluginsView> {
                     ],
                   ),
                   const SizedBox(height: LayoutConstants.spacingMd),
-                  // Full width, or the Wrap shrink-wraps to its two buttons
-                  // and `alignment: end` has nothing to align them within -
-                  // the group stays at the left and only its internal order
-                  // changes.
+                  // Full width, or the Wrap shrink-wraps to its button and
+                  // `alignment: end` has nothing to align it within - the
+                  // button stays at the left.
                   SizedBox(
                     width: double.infinity,
                     child: Wrap(
-                      // Right-aligned, with the primary action furthest right.
-                      // Every run of the Wrap is aligned, so this still reads
-                      // correctly when the two buttons drop onto separate lines on
-                      // a narrow window.
+                      // Right-aligned. "Add Repository" is the only action
+                      // here: scrapers update themselves on every launch and
+                      // each repository below has its own refresh button.
                       alignment: WrapAlignment.end,
                       spacing: LayoutConstants.spacingSm,
                       runSpacing: LayoutConstants.spacingXs,
                       children: [
-                        if (state.repos.isNotEmpty)
-                          CustomButton(
-                            isOutlined: true,
-                            onPressed: _checking
-                                ? null
-                                : () => unawaited(_checkForUpdates()),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (_checking) ...[
-                                  const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: AppLoadingIndicator(
-                                      constraints: BoxConstraints(
-                                        maxWidth: 16,
-                                        maxHeight: 16,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                ] else ...[
-                                  const Icon(Icons.refresh_rounded, size: 18),
-                                  const SizedBox(width: 8),
-                                ],
-                                Text(_checking ? 'Checking…' : 'Check Updates'),
-                              ],
-                            ),
-                          ),
                         CustomButton(
                           isPrimary: true,
                           onPressed: _busy
@@ -236,45 +182,6 @@ class _NuvioPluginsViewState extends ConsumerState<NuvioPluginsView> {
                       ],
                     ),
                   ),
-                  if (state.repos.isNotEmpty) ...[
-                    const SizedBox(height: LayoutConstants.spacingSm),
-                    Divider(
-                      height: 1,
-                      color: theme.dividerColor.withValues(alpha: 0.5),
-                    ),
-                    const SizedBox(height: LayoutConstants.spacingXs),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Auto-update scrapers on launch',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Text(
-                                'Checks every repository each time the app opens.',
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: cs.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        CustomSwitch(
-                          value: state.autoUpdate,
-                          onChanged: (value) => unawaited(
-                            ref
-                                .read(nuvioRepositoryProvider.notifier)
-                                .setAutoUpdate(value),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                 ],
               ),
             ),

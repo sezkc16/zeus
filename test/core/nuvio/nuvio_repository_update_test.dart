@@ -5,8 +5,9 @@
 ///
 /// A repository used to be skipped for six hours after its last check.
 /// Scrapers break when the sites they read change, and the developer's fix
-/// only helps once it is here, so every launch checks now. The user's
-/// auto-update switch still decides whether it happens at all.
+/// only helps once it is here, so every launch checks now. There used to be
+/// an auto-update switch on the Nuvio Plugins screen; it is gone, so an OFF
+/// an older build stored must not stop the check.
 library;
 
 import 'dart:convert';
@@ -142,16 +143,24 @@ void main() {
     );
   });
 
-  test('the auto-update switch still decides', () async {
+  // The switch left the screen in 1.0.1. A stored OFF has no way back to ON,
+  // so it is not read: scrapers keep updating by themselves.
+  test('an OFF stored by an older build no longer stops the update', () async {
     final nuvio = _FakeNuvio('1.1.0');
     final container = boot(nuvio, autoUpdate: false);
 
     final report = await container
         .read(nuvioRepositoryProvider.notifier)
         .autoUpdate();
+    await pumpEventQueue();
 
-    expect(report.isEmpty, isTrue);
-    expect(nuvio.requested, isEmpty);
+    expect(container.read(nuvioRepositoryProvider).autoUpdate, isTrue);
+    expect(report.updated, <String>['Scraper One']);
+    expect(nuvio.requested, contains(_manifestUrl));
+    expect(
+      container.read(nuvioRepositoryProvider).repos.single.manifest?.version,
+      '1.1.0',
+    );
   });
 
   test(

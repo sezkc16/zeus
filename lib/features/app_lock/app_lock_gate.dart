@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/router/app_router.dart';
 import '../../l10n/generated/app_localizations.dart';
 import 'app_lock_controller.dart';
+import 'app_lock_passcode_flow.dart';
 import 'app_lock_provider.dart';
 
 /// Puts the app lock over the whole app: the lock screen while locked, and a
@@ -94,6 +95,15 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   Future<void> _unlock() async {
     final reason =
         AppLocalizations.of(context)?.appLockUnlockReason ?? 'Unlock Zeus';
+    if (_controller.usesPasscode) {
+      // The app's own passcode is set: only the biometric prompt comes up
+      // by itself (when switched on); the number pad is the other way in.
+      if (_controller.biometricEnabled) {
+        await _controller.unlockWithBiometric(reason);
+      }
+      return;
+    }
+    // Lock switched on before custom passcodes: the device's own prompt.
     await _controller.unlock(reason);
   }
 
@@ -107,13 +117,28 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
         widget.child,
         if (locked || covered)
           Positioned.fill(
-            child: _LockCover(
-              key: const ValueKey('app-lock-cover'),
-              showUnlock: locked,
-              busy: _controller.authenticating,
-              failed: _controller.lastAttemptFailed,
-              onUnlock: () => unawaited(_unlock()),
-            ),
+            child: locked && _controller.usesPasscode
+                ? Material(
+                    key: const ValueKey('app-lock-cover'),
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    child: SafeArea(
+                      child: AppLockPasscodeFlow(
+                        key: ValueKey(
+                          'app-lock-pad-${_controller.lockGeneration}',
+                        ),
+                        controller: _controller,
+                        kind: AppLockPasscodeFlowKind.unlock,
+                        showLogo: true,
+                      ),
+                    ),
+                  )
+                : _LockCover(
+                    key: const ValueKey('app-lock-cover'),
+                    showUnlock: locked,
+                    busy: _controller.authenticating,
+                    failed: _controller.lastAttemptFailed,
+                    onUnlock: () => unawaited(_unlock()),
+                  ),
           ),
       ],
     );

@@ -118,11 +118,11 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
         child: FocusTraversalGroup(
           policy: ReadingOrderTraversalPolicy(),
           child: ListView(
-            // This route is pushed under the shell, so the floating bottom
-            // bar still overlays it; the list must clear it the same way the
-            // tab screens do, or the last row hides behind the pill.
+            // The shell hides the nav pill on the Settings branch, so the
+            // list ends with the safe area plus a small gap; if the pill is
+            // ever shown over this route the helper clears it instead.
             padding: EdgeInsets.only(
-              bottom: LayoutConstants.shellBottomContentPadding(context),
+              bottom: LayoutConstants.pillFreeBottomContentPadding(context),
             ),
             children: [
               const SizedBox(height: LayoutConstants.spacingXs),

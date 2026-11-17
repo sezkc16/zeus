@@ -82,7 +82,7 @@ class SearchPluginsScreen extends ConsumerWidget {
             // Vertical only; SettingsGroup owns the horizontal inset.
             padding: const EdgeInsets.symmetric(
               vertical: LayoutConstants.spacingSm,
-            ).copyWith(bottom: LayoutConstants.shellBottomContentPadding(context)),
+            ).copyWith(bottom: LayoutConstants.pillFreeBottomContentPadding(context)),
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(

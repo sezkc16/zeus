@@ -365,57 +365,60 @@ void main() {
       await _settle();
       expect(slow.callCount, 1);
 
-      // Provider uninstalled / deselected: Home falls back to the key-free
-      // feed (pinned empty here, so the state becomes its error), and only
-      // the token bumped in build() can retire the in-flight provider
-      // fetch — the empty state is gone.
+      // Provider uninstalled / deselected: Home has no feed of its own (an
+      // empty success — the screen shows the "Add a plugin" card), and
+      // only the token bumped in build() can retire the in-flight provider
+      // fetch.
       unawaited(container.read(activeProviderProvider.notifier).set(null));
-      await _waitForHome(container, (state) => state is HomeError);
+      await _waitForHome(
+        container,
+        (state) => state is HomeSuccess && state.data.isEmpty,
+      );
 
       slow.resolve(0, 'Slow');
       await _settle();
 
       expect(
-        container.read(homeDataProvider),
-        isA<HomeError>(),
+        _sectionsOf(container.read(homeDataProvider)),
+        isEmpty,
         reason: 'a fetch from the removed provider must not resurrect a grid',
       );
     });
 
-    test('no provider serves the key-free feed, not the empty state', () async {
-      final feed = <String, List<MultimediaItem>>{
-        'Trending': [
-          MultimediaItem(
-            title: 'A',
-            url: 'anilist:1',
-            posterUrl: '',
-            contentType: MultimediaContentType.anime,
-          ),
-        ],
-        'Popular Anime': [
-          MultimediaItem(
-            title: 'B',
-            url: 'anilist:2',
-            posterUrl: '',
-            contentType: MultimediaContentType.anime,
-          ),
-        ],
-      };
+    test('no provider shows no feed and never reads the key-free feed', () async {
+      var feedReads = 0;
       final container = ProviderContainer(
         overrides: [
           activeProviderProvider.overrideWith(
             () => _FakeActiveProvider(null),
           ),
-          keyFreeHomeFeedProvider.overrideWith((ref) async => feed),
+          keyFreeHomeFeedProvider.overrideWith((ref) async {
+            feedReads++;
+            return <String, List<MultimediaItem>>{
+              'Popular Anime': [
+                MultimediaItem(
+                  title: 'B',
+                  url: 'anilist:2',
+                  posterUrl: '',
+                  contentType: MultimediaContentType.anime,
+                ),
+              ],
+            };
+          }),
         ],
       );
       addTearDown(container.dispose);
       container.listen(homeDataProvider, (_, _) {});
       await _settle();
 
-      final state = container.read(homeDataProvider);
-      expect(state, isA<HomeSuccess>());
-      expect(_sectionsOf(state), {'Trending', 'Popular Anime'});
+      expect(_sectionsOf(container.read(homeDataProvider)), isEmpty);
+
+      // Pull to refresh: still nothing, still no AniList read.
+      await container.read(homeDataProvider.notifier).fetch();
+      await _settle();
+
+      expect(_sectionsOf(container.read(homeDataProvider)), isEmpty);
+      expect(feedReads, 0);
     });
 
     test('a result arriving after dispose does not throw', () async {

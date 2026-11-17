@@ -413,6 +413,9 @@ void _navigateToItem(
               : 'movie'),
       id: listed?.id ?? item.url,
       addonUrl: listed?.addonUrl,
+      // This search opens from the Browse tab, so its titles get Browse's
+      // Play button and merged sources list.
+      merged: true,
     ).push<void>(context);
     return;
   }

@@ -588,14 +588,29 @@ class _PlayerEngineScreenState extends ConsumerState<_PlayerEngineScreen> {
 
 @TypedGoRoute<AddonDetailRoute>(path: '/addon-detail')
 class AddonDetailRoute extends GoRouteData with $AddonDetailRoute {
-  const AddonDetailRoute({required this.type, required this.id, this.addonUrl});
+  const AddonDetailRoute({
+    required this.type,
+    required this.id,
+    this.addonUrl,
+    this.merged = false,
+  });
   final String type;
   final String id;
   final String? addonUrl;
 
+  /// True for a title opened from the Browse tab: its Play button and
+  /// sources list ask plugins, Nuvio providers and Stremio add-ons together,
+  /// whichever add-on listed it.
+  final bool merged;
+
   @override
   Widget build(BuildContext context, GoRouterState state) {
-    return AddonDetailScreen(type: type, id: id, addonUrl: addonUrl);
+    return AddonDetailScreen(
+      type: type,
+      id: id,
+      addonUrl: addonUrl,
+      mergedSources: merged,
+    );
   }
 
   // Same smooth slide + fade as every other pushed page (see
