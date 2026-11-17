@@ -1,6 +1,6 @@
-# ZoroX
+# Zeus
 
-ZoroX is the user's own media streaming app for Android and iOS: browse and
+Zeus is the user's own media streaming app for Android and iOS: browse and
 play movies and TV, run CloudStream (`.cs3`) plugins through the bundled
 `packages/cs3_engine`, and keep everything under the `com.toji.zorox`
 identity. It was built from scratch as its own project; the streaming and
@@ -35,7 +35,7 @@ iOS builds need Xcode on a Mac; they cannot run on this Linux VM.
 
 ## Identity
 
-- App name: ZoroX
+- App name: Zeus
 - Android applicationId / namespace: `com.toji.zorox`
 - iOS bundle id: `com.toji.zorox`
 - In-app update checks point at `github.com/sezkc16/zorox` releases
