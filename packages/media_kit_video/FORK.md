@@ -49,3 +49,13 @@ To rebase onto a newer media_kit_video: copy the new version over this
 directory, re-apply the two files above (the hook is 8 lines at the end of
 `TextureSW.render(_:)` plus the `MediaKitFrameTap.swift` file), and keep
 this note current.
+
+## Zeus v9 — PICTURE sliders on the software path
+
+- `ios/Classes/plugin/common/TextureSW.swift` only: mpv's software
+  renderer ignores its `brightness` / `contrast` / `saturation`
+  properties, so `applySwGammaCorrection` reads the three every frame
+  and applies them to the rendered frame — saturation as one
+  `vImageMatrixMultiply_ARGB8888` pass (only when not 0), brightness and
+  contrast folded into the existing per-channel LUT pass, ahead of the
+  transfer curve. All three at 0 leaves the frame exactly as before.

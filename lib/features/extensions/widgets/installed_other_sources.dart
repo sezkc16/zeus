@@ -38,7 +38,7 @@ class InstalledOtherSources extends ConsumerWidget {
             children: [
               for (var i = 0; i < addons.length; i++)
                 SettingsTile(
-                  emoji: '🧲',
+                  reicon: Reicon.magnet,
                   title: addons[i].displayName,
                   subtitle: [
                     if (addons[i].manifest != null)
@@ -63,7 +63,7 @@ class InstalledOtherSources extends ConsumerWidget {
             children: [
               for (var i = 0; i < repos.length; i++)
                 SettingsTile(
-                  emoji: '🔌',
+                  reicon: Reicon.plug,
                   title:
                       repos[i].manifest?.name ??
                       Uri.tryParse(repos[i].manifestUrl)?.host ??

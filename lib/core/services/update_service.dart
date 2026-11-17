@@ -35,7 +35,7 @@ class UpdateService {
   Future<GithubRelease?> checkForUpdate() async {
     try {
       final currentPackageInfo = await PackageInfo.fromPlatform();
-      final currentVersion = Version.parse(currentPackageInfo.version);
+      final currentVersion = parseReleaseVersion(currentPackageInfo.version);
 
       final response = await _dio.get<Map<String, dynamic>>(
         'https://api.github.com/repos/$_owner/$_repo/releases/latest',
@@ -45,7 +45,7 @@ class UpdateService {
         final release = GithubRelease.fromJson(response.data!);
         // Clean tag name (remove 'v' prefix if present)
         final tagName = release.tagName.replaceAll(RegExp(r'^v'), '');
-        final latestVersion = Version.parse(tagName);
+        final latestVersion = parseReleaseVersion(tagName);
 
         if (kDebugMode) {
           debugPrint(
@@ -302,4 +302,19 @@ enum LinuxInstall {
 
   /// The release asset's file extension, lower-cased.
   final String extension;
+}
+
+/// A release tag or app version as a [Version], forgiving short tags:
+/// `v1` and `1` are 1.0.0, `v1.1` is 1.1.0, `v2.0.3` is 2.0.3 (a leading
+/// `v` is optional). So the first public release, tagged `v1`, compares
+/// equal to the app's own 1.0.0 — no update prompt — and a later `v1.1`
+/// or `v2` is seen as newer. Throws [FormatException] for anything that
+/// is not a version at all, which the caller treats as "no update".
+Version parseReleaseVersion(String raw) {
+  var text = raw.trim().replaceFirst(RegExp(r'^[vV]'), '');
+  final short = RegExp(r'^(\d+)(?:\.(\d+))?$').firstMatch(text);
+  if (short != null) {
+    text = '${short.group(1)}.${short.group(2) ?? '0'}.0';
+  }
+  return Version.parse(text);
 }

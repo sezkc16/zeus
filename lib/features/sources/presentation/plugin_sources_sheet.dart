@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../../../core/utils/source_language.dart';
+
 import 'package:dpad/dpad.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -119,11 +121,29 @@ class PluginSourcesSheet extends ConsumerStatefulWidget {
   ConsumerState<PluginSourcesSheet> createState() => _PluginSourcesSheetState();
 }
 
+/// Whether [stream] says it carries [language] (v9).
+bool nuvioStreamStatesLanguage(
+  NuvioStreamResult stream,
+  SourceLanguage language,
+) =>
+    language != SourceLanguage.off &&
+    textStatesLanguage(
+      '${stream.language ?? ''} ${stream.name ?? ''} ${stream.title}',
+      language,
+    );
+
 /// One row wrapping a resolved Nuvio scraper link.
 class _Row {
   final NuvioStreamResult nuvio;
 
   const _Row(this.nuvio);
+
+  /// Whether this link says it carries [language] (v9): its language
+  /// field, name or title spells it out. Never a guess.
+  bool states(SourceLanguage language) => nuvioStreamStatesLanguage(
+    nuvio,
+    language,
+  );
 
   String get url => nuvio.url;
 
@@ -299,9 +319,24 @@ class _PluginSourcesSheetState extends ConsumerState<PluginSourcesSheet> {
   @override
   void initState() {
     super.initState();
+    unawaited(_readLanguage());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startNuvio();
     });
+  }
+
+  /// The "Preferred source language" (v9); Off until the settings load.
+  SourceLanguage _language = SourceLanguage.off;
+
+  Future<void> _readLanguage() async {
+    try {
+      final settings = await ref.read(playerSettingsProvider.future);
+      if (_disposed || !mounted) return;
+      if (settings.preferredSourceLanguage == _language) return;
+      setState(() => _language = settings.preferredSourceLanguage);
+    } catch (_) {
+      // No settings, no preference: the list keeps its own order.
+    }
   }
 
   @override
@@ -497,7 +532,8 @@ class _PluginSourcesSheetState extends ConsumerState<PluginSourcesSheet> {
       for (final stream in _nuvioResult.streams) _Row(stream),
     ];
     rows.sort((a, b) => comparePluginStreams(a.nuvio, b.nuvio));
-    return rows;
+    // v9: the rows that name the preferred source language lead.
+    return preferMatching<_Row>(rows, (row) => row.states(_language));
   }
 
   List<_Row> get _visible => _allRows.where((row) {
@@ -1173,6 +1209,7 @@ class _PluginSourcesSheetState extends ConsumerState<PluginSourcesSheet> {
       case _RowEntry(:final row):
         final Widget sourceRow = _SourceRow(
           row: row,
+          languageTag: row.states(_language) ? _language.label : null,
           probe: _probes[row.url],
           probing: _probing.contains(row.url),
           isBest: entry.isBest,
@@ -1367,7 +1404,11 @@ class _SourceRow extends StatefulWidget {
     required this.onPlay,
     required this.onDownload,
     this.autofocus = false,
+    this.languageTag,
   });
+
+  /// The preferred source language's name when this row names it (v9).
+  final String? languageTag;
 
   @override
   State<_SourceRow> createState() => _SourceRowState();
@@ -1458,6 +1499,13 @@ class _SourceRowState extends State<_SourceRow> {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         QualityBadge(resolution: resolution),
+                        if (widget.languageTag != null)
+                          SourceTag(
+                            key: const ValueKey('source-language-tag'),
+                            text: widget.languageTag!.toUpperCase(),
+                            container: cs.secondaryContainer,
+                            onContainer: cs.onSecondaryContainer,
+                          ),
                         if (row.isHdr)
                           SourceTag(
                             text: 'HDR',

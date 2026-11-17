@@ -187,13 +187,13 @@ class SubtitleAppearanceGroup extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          emoji: '🔠',
+          reicon: Reicon.text,
           title: l10n.textSize,
           value: '${settings.subtitleSize.round()}',
           onTap: () => showSubtitleSizeDialog(context, ref, settings),
         ),
         SettingsTile(
-          emoji: '🎨',
+          reicon: Reicon.palette,
           title: l10n.subtitleTextColour,
           value: subtitleColorLabel(l10n, settings.subtitleColor),
           trailing: _Swatch(color: Color(settings.subtitleColor)),
@@ -204,13 +204,13 @@ class SubtitleAppearanceGroup extends ConsumerWidget {
         // ("Black · 50%", or "Off" at zero opacity). Splitting them
         // would add a D-pad stop for a setting that has one editor.
         SettingsTile(
-          emoji: '⬛',
+          reicon: Reicon.textHighlight,
           title: l10n.background,
           value: subtitleBackgroundLabel(l10n, settings),
           onTap: () => showSubtitleBackgroundDialog(context, ref, settings),
         ),
         SettingsTile(
-          emoji: '✒️',
+          reicon: Reicon.penTool,
           title: l10n.subtitleOutline,
           value: subtitleOutlineLabel(l10n, settings.subtitleOutline),
           onTap: () => _showChoiceDialog<SubtitleOutline>(
@@ -223,7 +223,7 @@ class SubtitleAppearanceGroup extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          emoji: '↕️',
+          reicon: Reicon.sortV,
           title: l10n.subtitlePosition,
           value: subtitlePositionLabel(l10n, settings.subtitleRaise),
           onTap: () => _showChoiceDialog<double>(
@@ -249,7 +249,7 @@ class SubtitleAppearanceGroup extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          emoji: '🅱️',
+          reicon: Reicon.bold,
           title: l10n.subtitleBold,
           value: settings.subtitleBold ? l10n.on : l10n.off,
           onTap: () => _showChoiceDialog<bool>(
@@ -262,7 +262,7 @@ class SubtitleAppearanceGroup extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          emoji: '🅰️',
+          reicon: Reicon.textCircle,
           title: l10n.subtitleFont,
           value: subtitleFontLabel(l10n, settings.subtitleFont),
           onTap: () => _showChoiceDialog<SubtitleFont>(
@@ -275,7 +275,7 @@ class SubtitleAppearanceGroup extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          emoji: '◐',
+          reicon: Reicon.drop,
           title: l10n.subtitleTextOpacity,
           value: subtitleOpacityLabel(l10n, settings.subtitleTextOpacity),
           onTap: () => _showChoiceDialog<double>(
@@ -291,7 +291,7 @@ class SubtitleAppearanceGroup extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          emoji: '🌐',
+          reicon: Reicon.language,
           title: l10n.subtitleEncoding,
           value: subtitleEncodingLabel(l10n, settings.subtitleEncoding),
           onTap: () => _showChoiceDialog<String>(
@@ -304,7 +304,7 @@ class SubtitleAppearanceGroup extends ConsumerWidget {
           ),
         ),
         SettingsTile(
-          emoji: '↺',
+          reicon: Reicon.rotateLeft,
           title: l10n.resetSubtitleAppearance,
           subtitle: l10n.resetSubtitleAppearanceSubtitle,
           isLast: true,

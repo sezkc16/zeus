@@ -1,28 +1,24 @@
-/// The golden "Video" drawer: a right-side sliding panel with the output
-/// presets, Infuse-style (+57).
+/// The golden "Video" drawer: a right-side sliding panel, one scrolling
+/// list (v9, design A):
 ///
-/// Four presets, in the screenshot's order and words: Native EDR, SDR tone
-/// mapped, Compatibility, Custom. A tap applies the preset at once — the
-/// picture changes on the current video, no re-open — and persists it, so
-/// the next open starts on the same preset. Reset tuning goes back to
-/// Native EDR, the default (the behaviour every install already had).
-/// Close dismisses the panel (overlay close, never a Navigator pop).
+/// 1. **Sleep timer** — as in v7, when the screen has one.
+/// 2. **PICTURE** — Brightness, Contrast and Saturation sliders, each
+///    −50…+50, 0 by default, with a Reset button on the header. They are
+///    applied live while dragging ([onPictureChanged] — the screen sets
+///    mpv's `brightness` / `contrast` / `saturation`) and persisted when
+///    the drag ends (global, not per title). They work on every video,
+///    SDR included.
+/// 3. **HDR** — on an SDR video, one info card and no options; on an HDR
+///    video (PQ or HLG, read by the screen from mpv's `video-params/gamma`)
+///    two radio cards: "Bright" (tone-mapping clip — the default, the
+///    behaviour every install already had) and "Balanced" (bt.2390).
 ///
-/// The preset itself is the ONE stock [PlayerSettings.videoOutputPreset]
-/// and its notifier — no second store — and the screen applies it to the
-/// live mpv instance through the drawer's [onPresetPicked] callback (the
-/// drawer only persists + reports; the screen owns the player).
-///
-/// Custom shows its advanced values below the presets: a tone-mapping
-/// selector and a target-peak selector, wired to the stored
-/// [PlayerSettings.videoCustomToneMapping] /
-/// [PlayerSettings.videoCustomTargetPeak] through the settings notifier.
-/// Picking a value persists it and re-applies Custom to the live mpv
-/// instance at once, like picking any other preset — the setter is
-/// awaited first, so the screen reads the fresh stored value when it
-/// applies. With nothing stored, Custom behaves as Native EDR (clip,
-/// target peak auto), and the tiles show those effective values as
-/// selected.
+/// The HDR choice is the stock [PlayerSettings.videoOutputPreset]
+/// (Bright = `nativeEdr`, Balanced = `sdrToneMapped`) — no second store —
+/// and the screen applies it to the live mpv instance through
+/// [onPresetPicked]. The old Native EDR / SDR tone mapped / Compatibility
+/// / Custom names and Custom's selectors are gone; a stored old value is
+/// migrated on read (see `migrateVideoOutputPreset`).
 library;
 
 import 'dart:async';
@@ -37,150 +33,178 @@ import 'golden_drawer.dart';
 import 'golden_player_theme.dart';
 import 'golden_sleep_timer.dart';
 
-class GoldenVideoDrawer extends ConsumerWidget {
+/// The three PICTURE values, as the drawer reports them while dragging.
+typedef PictureValues = ({int brightness, int contrast, int saturation});
+
+class GoldenVideoDrawer extends ConsumerStatefulWidget {
   const GoldenVideoDrawer({
     required this.settings,
     required this.onPresetPicked,
     required this.onClose,
     this.sleepTimer,
     this.showPresets = true,
+    this.isHdr,
+    this.onPictureChanged,
     super.key,
   });
 
   /// The player's sleep timer (v7). Non-null: the drawer opens with a
-  /// "Sleep timer" section above the presets. Null: no section, the
-  /// drawer is exactly the +57 one.
+  /// "Sleep timer" section at the top. Null: no section.
   final SleepTimer? sleepTimer;
 
-  /// Whether the output presets render. False where the live preset
-  /// apply does not exist (Android): the drawer then only carries the
-  /// sleep timer.
+  /// Whether PICTURE and HDR render. False where the live apply does not
+  /// exist (Android): the drawer then only carries the sleep timer.
   final bool showPresets;
 
   /// The saved settings, live. The drawer rebuilds from this, so the
-  /// checkmark follows a pick at once.
+  /// selected card follows a pick at once.
   final ValueListenable<PlayerSettings> settings;
 
-  /// The screen applies the pick to the live mpv instance at once; the
-  /// caller also persists it through the settings notifier before
-  /// calling this.
+  /// The screen applies the HDR pick to the live mpv instance at once;
+  /// the caller also persists it through the settings notifier.
   final ValueChanged<VideoOutputPreset> onPresetPicked;
+
+  /// Whether the playing video is HDR: true shows the two HDR cards,
+  /// false the "This video is SDR" card. Null — the listenable itself or
+  /// its value, when the screen could not tell — shows the two cards: a
+  /// working control is never hidden on a guess.
+  final ValueListenable<bool?>? isHdr;
+
+  /// The screen applies the three PICTURE values to the live mpv
+  /// instance, on every drag tick and on Reset. Persisting is the
+  /// drawer's own job (on drag end), through the settings notifier.
+  final ValueChanged<PictureValues>? onPictureChanged;
 
   /// Closes the drawer (overlay close, never a Navigator pop).
   final VoidCallback onClose;
 
-  /// Persists a Custom tone-mapping pick, then re-applies Custom to the
-  /// live mpv instance: the setter is awaited first, so the screen reads
-  /// the fresh stored value when [onPresetPicked] makes it apply Custom
-  /// (see `_applyVideoOutputPreset` in `mpv_player_screen.dart`).
-  Future<void> _pickToneMapping(WidgetRef ref, String value) async {
-    await ref
-        .read(playerSettingsProvider.notifier)
-        .setVideoCustomToneMapping(value);
-    onPresetPicked(VideoOutputPreset.custom);
+  @override
+  ConsumerState<GoldenVideoDrawer> createState() => _GoldenVideoDrawerState();
+}
+
+class _GoldenVideoDrawerState extends ConsumerState<GoldenVideoDrawer> {
+  late int _brightness;
+  late int _contrast;
+  late int _saturation;
+
+  @override
+  void initState() {
+    super.initState();
+    final current = widget.settings.value;
+    _brightness = current.pictureBrightness;
+    _contrast = current.pictureContrast;
+    _saturation = current.pictureSaturation;
   }
 
-  /// Persists a Custom target-peak pick, then re-applies Custom, as
-  /// [_pickToneMapping] does.
-  Future<void> _pickTargetPeak(WidgetRef ref, String value) async {
-    await ref
-        .read(playerSettingsProvider.notifier)
-        .setVideoCustomTargetPeak(value);
-    onPresetPicked(VideoOutputPreset.custom);
+  void _report() => widget.onPictureChanged?.call((
+    brightness: _brightness,
+    contrast: _contrast,
+    saturation: _saturation,
+  ));
+
+  PlayerSettingsNotifier? get _notifier {
+    try {
+      return ref.read(playerSettingsProvider.notifier);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _reset() {
+    setState(() {
+      _brightness = 0;
+      _contrast = 0;
+      _saturation = 0;
+    });
+    _report();
+    final notifier = _notifier;
+    if (notifier == null) return;
+    unawaited(notifier.setPictureBrightness(0));
+    unawaited(notifier.setPictureContrast(0));
+    unawaited(notifier.setPictureSaturation(0));
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final drawerWidth = width * 0.85 > 400 ? 400.0 : width * 0.85;
     return GoldenDrawer(
       title: 'Video',
       width: drawerWidth,
-      onClose: onClose,
+      onClose: widget.onClose,
       child: ValueListenableBuilder<PlayerSettings>(
-        valueListenable: settings,
+        valueListenable: widget.settings,
         builder: (context, current, _) {
-          final active = current.videoOutputPreset;
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: <Widget>[
-              if (sleepTimer != null)
-                GoldenSleepTimerSection(timer: sleepTimer!),
-              if (showPresets) ...<Widget>[
-              Row(
-                children: <Widget>[
-                  const Expanded(child: GoldenSectionLabel('Output preset')),
-                  TextButton(
-                    onPressed: () =>
-                        onPresetPicked(VideoOutputPreset.nativeEdr),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+              if (widget.sleepTimer != null)
+                GoldenSleepTimerSection(timer: widget.sleepTimer!),
+              if (widget.showPresets) ...<Widget>[
+                Row(
+                  children: <Widget>[
+                    const Expanded(child: GoldenSectionLabel('Picture')),
+                    TextButton(
+                      key: const ValueKey('video-picture-reset'),
+                      onPressed: _reset,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text(
-                      'Reset tuning',
-                      style: TextStyle(
-                        color: GoldenPlayerColors.gold,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                      child: const Text(
+                        'Reset',
+                        style: TextStyle(
+                          color: GoldenPlayerColors.gold,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              for (final row in _kPresetRows)
-                _VideoPresetTile(
-                  label: row.$2,
-                  detail: row.$3,
-                  selected: active == row.$1,
-                  onTap: () => onPresetPicked(row.$1),
+                  ],
                 ),
-              if (active == VideoOutputPreset.custom) ...<Widget>[
-                const GoldenSectionLabel('Tone mapping'),
-                for (final option in _kToneMappingOptions)
-                  _VideoPresetTile(
-                    label: option.$2,
-                    detail: option.$3,
-                    // With nothing stored Custom behaves as Native EDR,
-                    // so clip reads as selected; a value this build does
-                    // not offer (written by a newer one) selects nothing.
-                    selected:
-                        (current.videoCustomToneMapping ?? 'clip') ==
-                        option.$1,
-                    onTap: () =>
-                        unawaited(_pickToneMapping(ref, option.$1)),
-                  ),
-                const GoldenSectionLabel('Target peak'),
-                for (final option in _kTargetPeakOptions)
-                  _VideoPresetTile(
-                    label: option.$2,
-                    detail: option.$3,
-                    // With nothing stored the peak comes from the video,
-                    // so Auto reads as selected.
-                    selected:
-                        (current.videoCustomTargetPeak ?? 'auto') ==
-                        option.$1,
-                    onTap: () =>
-                        unawaited(_pickTargetPeak(ref, option.$1)),
-                  ),
-                if (current.videoCustomToneMapping == null &&
-                    current.videoCustomTargetPeak == null)
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(4, 14, 4, 0),
-                    child: Text(
-                      'Nothing stored yet — Custom behaves as Native EDR '
-                      'until you pick a value.',
-                      style: TextStyle(
-                        color: GoldenPlayerColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-              ],
+                _PictureSlider(
+                  key: const ValueKey('video-picture-brightness'),
+                  label: 'Brightness',
+                  value: _brightness,
+                  onChanged: (v) {
+                    setState(() => _brightness = v);
+                    _report();
+                  },
+                  onChangeEnd: (v) =>
+                      unawaited(_notifier?.setPictureBrightness(v)),
+                ),
+                _PictureSlider(
+                  key: const ValueKey('video-picture-contrast'),
+                  label: 'Contrast',
+                  value: _contrast,
+                  onChanged: (v) {
+                    setState(() => _contrast = v);
+                    _report();
+                  },
+                  onChangeEnd: (v) =>
+                      unawaited(_notifier?.setPictureContrast(v)),
+                ),
+                _PictureSlider(
+                  key: const ValueKey('video-picture-saturation'),
+                  label: 'Saturation',
+                  value: _saturation,
+                  onChanged: (v) {
+                    setState(() => _saturation = v);
+                    _report();
+                  },
+                  onChangeEnd: (v) =>
+                      unawaited(_notifier?.setPictureSaturation(v)),
+                ),
+                const GoldenSectionLabel('HDR'),
+                _HdrSection(
+                  isHdr: widget.isHdr,
+                  active: current.videoOutputPreset,
+                  onPicked: widget.onPresetPicked,
+                ),
               ],
             ],
           );
@@ -190,54 +214,141 @@ class GoldenVideoDrawer extends ConsumerWidget {
   }
 }
 
-/// The four presets, in the screenshot's order and words.
-const List<(VideoOutputPreset, String, String)> _kPresetRows =
-    <(VideoOutputPreset, String, String)>[
-      (
-        VideoOutputPreset.nativeEdr,
-        'Native EDR',
-        'Best for HDR-capable iPhones and iPads.',
-      ),
-      (
-        VideoOutputPreset.sdrToneMapped,
-        'SDR tone mapped',
-        'More predictable whites and blacks on SDR-style output.',
-      ),
-      (
-        VideoOutputPreset.compatibility,
-        'Compatibility',
-        'Closest to the older iOS MPV behavior.',
-      ),
-      (
-        VideoOutputPreset.custom,
-        'Custom',
-        'Your own tone mapping and target peak.',
-      ),
-    ];
+/// How a PICTURE value reads at the slider's right: "0", "+10", "-5".
+String pictureValueLabel(int value) => value > 0 ? '+$value' : '$value';
 
-/// The tone-mapping values Custom offers: the same three the other
-/// presets already use (see `videoOutputPresetToneMapping` in
-/// `mpv_ios_options.dart`) — clip is Native EDR's, bt.2390 is SDR tone
-/// mapped's, auto is Compatibility's. Real mpv `tone-mapping` values;
-/// nothing here is invented.
-const List<(String, String, String)> _kToneMappingOptions =
-    <(String, String, String)>[
-      ('clip', 'Clip', 'Hard clip at peak white — as Native EDR.'),
-      ('bt.2390', 'BT.2390', 'The reference roll-off — as SDR tone mapped.'),
-      ('auto', 'Auto', "mpv's default curve — as Compatibility."),
-    ];
+/// One PICTURE slider: label left, value right, the slider below.
+class _PictureSlider extends StatelessWidget {
+  const _PictureSlider({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    required this.onChangeEnd,
+    super.key,
+  });
 
-/// The target-peak values Custom offers: `auto`, the value every preset
-/// already uses, plus peak brightnesses in nits — real mpv `target-peak`
-/// values (`auto` picks the peak from the video's TRC).
-const List<(String, String, String)> _kTargetPeakOptions =
-    <(String, String, String)>[
-      ('auto', 'Auto', 'Let mpv pick from the video.'),
-      ('100', '100 nits', 'SDR white.'),
-      ('200', '200 nits', 'A dim HDR display.'),
-      ('400', '400 nits', 'A bright HDR display.'),
-      ('1000', '1000 nits', 'A high-peak HDR display.'),
-    ];
+  final String label;
+  final int value;
+  final ValueChanged<int> onChanged;
+  final ValueChanged<int> onChangeEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+      decoration: BoxDecoration(
+        color: GoldenPlayerColors.surface.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(GoldenPlayerRadii.card),
+      ),
+      child: Column(
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: GoldenPlayerColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              Text(
+                pictureValueLabel(value),
+                style: const TextStyle(
+                  color: GoldenPlayerColors.goldHighlight,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 4,
+              activeTrackColor: GoldenPlayerColors.gold,
+              inactiveTrackColor: Colors.white.withValues(alpha: 0.18),
+              thumbColor: GoldenPlayerColors.goldHighlight,
+              overlayColor: GoldenPlayerColors.gold.withValues(alpha: 0.2),
+            ),
+            child: Slider(
+              min: kPictureMin.toDouble(),
+              max: kPictureMax.toDouble(),
+              divisions: kPictureMax - kPictureMin,
+              value: clampPictureValue(value).toDouble(),
+              onChanged: (v) => onChanged(clampPictureValue(v)),
+              onChangeEnd: (v) => onChangeEnd(clampPictureValue(v)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The HDR section's body: the SDR info card, or the two HDR cards.
+class _HdrSection extends StatelessWidget {
+  const _HdrSection({
+    required this.isHdr,
+    required this.active,
+    required this.onPicked,
+  });
+
+  final ValueListenable<bool?>? isHdr;
+  final VideoOutputPreset active;
+  final ValueChanged<VideoOutputPreset> onPicked;
+
+  @override
+  Widget build(BuildContext context) {
+    final listenable = isHdr;
+    if (listenable == null) return _cards();
+    return ValueListenableBuilder<bool?>(
+      valueListenable: listenable,
+      builder: (context, hdr, _) => hdr == false ? _sdrCard() : _cards(),
+    );
+  }
+
+  Widget _sdrCard() => Container(
+    key: const ValueKey('video-hdr-sdr-info'),
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    decoration: BoxDecoration(
+      color: GoldenPlayerColors.surface.withValues(alpha: 0.6),
+      borderRadius: BorderRadius.circular(GoldenPlayerRadii.card),
+    ),
+    child: const Text(
+      'This video is SDR. HDR options appear only on HDR videos.',
+      style: TextStyle(color: GoldenPlayerColors.textSecondary, fontSize: 13),
+    ),
+  );
+
+  Widget _cards() {
+    // Anything that is not Balanced reads as Bright — the default, and
+    // what a legacy value the load did not see would behave as.
+    final balanced = active == VideoOutputPreset.sdrToneMapped;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        _VideoPresetTile(
+          key: const ValueKey('video-hdr-bright'),
+          label: 'Bright',
+          detail: 'Punchy highlights',
+          selected: !balanced,
+          onTap: () => onPicked(VideoOutputPreset.nativeEdr),
+        ),
+        _VideoPresetTile(
+          key: const ValueKey('video-hdr-balanced'),
+          label: 'Balanced',
+          detail: 'Softer highlights, more detail',
+          selected: balanced,
+          onTap: () => onPicked(VideoOutputPreset.sdrToneMapped),
+        ),
+      ],
+    );
+  }
+}
 
 /// One preset row: radio + label + subtitle, gold when selected — the
 /// same tile the Audio and Sources drawers use, in this file so the
@@ -248,6 +359,7 @@ class _VideoPresetTile extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.detail,
+    super.key,
   });
 
   final String label;

@@ -50,6 +50,18 @@ public class TextureSW: NSObject, FlutterTexture, ResizableTextureProtocol {
   private var swLutToneMapping: String?
   private var swLutSize: CGSize?
   private var swLut: [UInt8]?
+  // v9 (Zeus): the Video panel's PICTURE sliders on this software path.
+  // mpv's software renderer ignores its own `brightness` / `contrast` /
+  // `saturation` properties (the OpenGL path applies them), so they are
+  // read here every frame and applied to the rendered frame with the
+  // same maths, in the same place — on the source-encoded values, before
+  // the transfer LUT: saturation as one matrix pass (only when it is not
+  // 0), brightness and contrast folded into the LUT pass (which already
+  // runs for most films, so they cost nothing extra there). All three at
+  // 0 is exactly the pre-v9 frame, so the +50 PiP colour match holds.
+  private var swPictureLut: [UInt8]?
+  private var swPictureLutBrightness = 0
+  private var swPictureLutContrast = 0
   private static let swLutIdentity: [UInt8] = (0...255).map { UInt8($0) }
 
   init(
@@ -500,6 +512,80 @@ public class TextureSW: NSObject, FlutterTexture, ResizableTextureProtocol {
     }
   }
 
+  /// v9: one of mpv's picture properties (`brightness`, `contrast`,
+  /// `saturation`), -100...100, 0 when unreadable.
+  private func readPictureValue(_ name: String) -> Int {
+    var value: Int64 = 0
+    guard mpv_get_property(handle, name, MPV_FORMAT_INT64, &value) >= 0
+    else { return 0 }
+    return Int(max(-100, min(100, value)))
+  }
+
+  /// v9: brightness and contrast as a per-channel LUT, followed by
+  /// `then` (the transfer LUT, nil = none). mpv's own maths: the value
+  /// is scaled by (contrast + 100) / 100 from black and offset by
+  /// brightness / 100 of full scale.
+  private static func pictureLut(
+    brightness: Int,
+    contrast: Int,
+    then base: [UInt8]?
+  ) -> [UInt8] {
+    let gain = Double(contrast + 100) / 100.0
+    let offset = Double(brightness) / 100.0
+    return (0...255).map { i in
+      let v = Double(i) / 255.0 * gain + offset
+      let code = Int(max(0, min(255, (v * 255.0).rounded())))
+      if let base = base { return base[code] }
+      return UInt8(code)
+    }
+  }
+
+  /// v9: saturation, in place — each colour channel moves away from (or
+  /// towards) the pixel's luma by (saturation + 100) / 100, BT.709
+  /// weights. The buffer is bgr0: channel order B, G, R, unused.
+  private static func applySaturation(
+    _ saturation: Int,
+    width: Int,
+    height: Int,
+    pitch: Int,
+    buffer: UnsafeMutablePointer<UInt8>
+  ) {
+    let s = Double(saturation + 100) / 100.0
+    // Luma weights in the buffer's channel order (B, G, R).
+    let weights: [Double] = [0.0722, 0.7152, 0.2126]
+    let divisor: Int32 = 256
+    // vImage treats a pixel as a row vector times this matrix:
+    // out[j] = sum over i of in[i] * matrix[i * 4 + j].
+    var matrix = [Int16](repeating: 0, count: 16)
+    for j in 0..<3 {
+      var offDiagonal = 0
+      for i in 0..<3 where i != j {
+        let m = Int(((1.0 - s) * weights[i] * 256.0).rounded())
+        matrix[i * 4 + j] = Int16(m)
+        offDiagonal += m
+      }
+      // Each output's column sums to the divisor, so greys stay grey.
+      matrix[j * 4 + j] = Int16(256 - offDiagonal)
+    }
+    matrix[15] = Int16(divisor)
+    var src = vImage_Buffer(
+      data: buffer,
+      height: vImagePixelCount(height),
+      width: vImagePixelCount(width),
+      rowBytes: pitch
+    )
+    var dst = src
+    _ = vImageMatrixMultiply_ARGB8888(
+      &src,
+      &dst,
+      matrix,
+      divisor,
+      nil,
+      nil,
+      vImage_Flags(kvImageNoFlags)
+    )
+  }
+
   /// Maps the rendered frame's transfer function to sRGB, in place.
   /// Three cases, decided once per video size: a pure-power TRC
   /// (bt.1886 and friends) gets a power LUT, PQ (HDR) gets a
@@ -530,6 +616,7 @@ public class TextureSW: NSObject, FlutterTexture, ResizableTextureProtocol {
       swLutPQPeak = nil
       swLutHLGPeak = nil
       swLut = nil
+      swPictureLut = nil
     }
     // +57: the Video output preset's tone mapping, read live each
     // frame. A change re-decides the whole LUT at once: resetting
@@ -544,6 +631,7 @@ public class TextureSW: NSObject, FlutterTexture, ResizableTextureProtocol {
       swLutPQPeak = nil
       swLutHLGPeak = nil
       swLut = nil
+      swPictureLut = nil
     }
     if swLutExponent == nil {
       if readVideoGammaName() == "pq" {
@@ -563,6 +651,7 @@ public class TextureSW: NSObject, FlutterTexture, ResizableTextureProtocol {
     }
     if let peak = swLutPQPeak {
       if swLut == nil {
+        swPictureLut = nil
         // +57: the EETF when the live tone-mapping is bt.2390/auto,
         // the clip otherwise (the default preset).
         swLut = Self.toneMappingIsEetf(swLutToneMapping ?? "clip")
@@ -571,20 +660,51 @@ public class TextureSW: NSObject, FlutterTexture, ResizableTextureProtocol {
       }
     } else if let hlgPeak = swLutHLGPeak {
       if swLut == nil {
+        swPictureLut = nil
         swLut = Self.toneMappingIsEetf(swLutToneMapping ?? "clip")
           ? Self.hlgToneMapLutEetf(peakNits: hlgPeak)
           : Self.hlgToneMapLut(peakNits: hlgPeak)
       }
-    } else {
-      guard let exponent = swLutExponent, exponent > 1.0 else { return }
+    } else if let exponent = swLutExponent, exponent > 1.0 {
       if swLut == nil {
+        swPictureLut = nil
         swLut = (0...255).map { i in
           let v = pow(Double(i) / 255.0, exponent)
           return UInt8(max(0, min(255, (v * 255.0).rounded())))
         }
       }
     }
-    guard let lut = swLut else { return }
+    // v9: the PICTURE sliders (see swPictureLut). Saturation first, on
+    // the source-encoded frame; then one LUT pass carrying brightness
+    // and contrast followed by the transfer curve above.
+    let brightness = readPictureValue("brightness")
+    let contrast = readPictureValue("contrast")
+    let saturation = readPictureValue("saturation")
+    if saturation != 0 {
+      Self.applySaturation(
+        saturation,
+        width: width,
+        height: height,
+        pitch: pitch,
+        buffer: buffer
+      )
+    }
+    var frameLut = swLut
+    if brightness != 0 || contrast != 0 {
+      if swPictureLut == nil || swPictureLutBrightness != brightness
+        || swPictureLutContrast != contrast
+      {
+        swPictureLut = Self.pictureLut(
+          brightness: brightness,
+          contrast: contrast,
+          then: swLut
+        )
+        swPictureLutBrightness = brightness
+        swPictureLutContrast = contrast
+      }
+      frameLut = swPictureLut
+    }
+    guard let lut = frameLut else { return }
     lut.withUnsafeBufferPointer { lutPtr in
       Self.swLutIdentity.withUnsafeBufferPointer { idPtr in
         var src = vImage_Buffer(

@@ -41,6 +41,25 @@ class DetailsScreen extends ConsumerStatefulWidget {
 class _DetailsScreenState extends ConsumerState<DetailsScreen> {
   bool _didTriggerAutoPlay = false;
 
+  /// How far the phone page has scrolled; the top bar's backing follows it
+  /// (v9), so content never shows through the clock or the back button.
+  final ValueNotifier<double> _scrollOffset = ValueNotifier<double>(0);
+
+  bool _onPageScroll(ScrollNotification notification) {
+    // Only the page itself: rows inside it scroll sideways.
+    if (notification.depth == 0 &&
+        notification.metrics.axis == Axis.vertical) {
+      _scrollOffset.value = notification.metrics.pixels;
+    }
+    return false;
+  }
+
+  @override
+  void dispose() {
+    _scrollOffset.dispose();
+    super.dispose();
+  }
+
   /// What a bot check met while this title loads is filed under: its
   /// plugin's, else the active one's.
   String? _checkSource() {
@@ -151,19 +170,23 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           : _buildEpisodeSelectionBar(context, selectedEpisodeCount),
       body: Stack(
         children: [
-          CustomScrollView(
-            slivers: _buildMobileSlivers(
-              context,
-              item,
-              details,
-              detailsAsync,
-              isMovie,
-              l10n,
+          NotificationListener<ScrollNotification>(
+            onNotification: _onPageScroll,
+            child: CustomScrollView(
+              slivers: _buildMobileSlivers(
+                context,
+                item,
+                details,
+                detailsAsync,
+                isMovie,
+                l10n,
+              ),
             ),
           ),
           // Mobile: back/bookmark excluded from D-pad traversal.
           // Users navigate back via hardware Back key on TV remotes.
           DetailsHeroTopBar(
+            scrollOffset: _scrollOffset,
             leading: Focus(
               descendantsAreTraversable: false,
               child: DetailsHeroTopBar.button(

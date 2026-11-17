@@ -41,11 +41,11 @@ class SearchPluginsScreen extends ConsumerWidget {
     final disabled = ref.watch(searchDisabledSourcesProvider);
     final notifier = ref.read(searchDisabledSourcesProvider.notifier);
 
-    List<Widget> tiles(List<SkyStreamProvider> sources, String emoji) => [
+    List<Widget> tiles(List<SkyStreamProvider> sources, Reicon reicon) => [
       for (var i = 0; i < sources.length; i++)
         SettingsTile(
           key: ValueKey('search-source-${sources[i].packageName}'),
-          emoji: emoji,
+          reicon: reicon,
           title: sources[i].name,
           isLast: i == sources.length - 1,
           trailing: Switch(
@@ -112,14 +112,14 @@ class SearchPluginsScreen extends ConsumerWidget {
               if (plugins.isNotEmpty)
                 SettingsGroup(
                   title: l10n.searchInPluginsPlugins,
-                  children: tiles(plugins, '🧩'),
+                  children: tiles(plugins, Reicon.puzzlePiece),
                 ),
               if (plugins.isNotEmpty && others.isNotEmpty)
                 const SizedBox(height: LayoutConstants.spacingLg),
               if (others.isNotEmpty)
                 SettingsGroup(
                   title: l10n.searchInPluginsAddons,
-                  children: tiles(others, '🧲'),
+                  children: tiles(others, Reicon.magnet),
                 ),
             ],
           ),

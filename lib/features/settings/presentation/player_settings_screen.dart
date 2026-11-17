@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/device_info_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/utils/layout_constants.dart';
+import '../../../core/utils/source_language.dart';
 import '../../../core/utils/stream_quality_sorter.dart';
 
 import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import 'player_settings_provider.dart';
+import 'widgets/source_language_dialog.dart';
 import 'widgets/settings_dialogs.dart';
 import 'widgets/settings_widgets.dart';
 import 'widgets/subtitle_appearance_settings.dart';
@@ -16,7 +18,7 @@ import 'widgets/subtitle_appearance_settings.dart';
 /// Sub-screen for configuring all video playback, gestures, display, and quality preferences.
 ///
 /// Visual language is the design preview's Player screen: dark cards,
-/// CAPS gold section headers, emoji icon tiles, values right-aligned —
+/// CAPS gold section headers, Reicon icon tiles, values right-aligned —
 /// not the fork's gold line icons with the value under the title.
 class PlayerSettingsScreen extends ConsumerWidget {
   final bool isEmbedded;
@@ -67,7 +69,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                 title: l10n.playback,
                 children: [
                   SettingsTile(
-                    emoji: '▶️',
+                    reicon: Reicon.playCircle,
                     title: l10n.defaultPlayer,
                     value: getPlayerDisplayName(
                       playerSettings.preferredPlayer,
@@ -194,7 +196,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                       ),
                     ),
                     SettingsTile(
-                      emoji: '⧉',
+                      reicon: Reicon.pip,
                       title: 'Enable PiP',
                       subtitle: 'Keep playing in a floating window',
                       trailing: Switch(
@@ -210,7 +212,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                   ],
                   if (isTouchDevice) ...[
                     SettingsTile(
-                      emoji: '👈',
+                      reicon: Reicon.hand,
                       title: l10n.leftGesture,
                       value: getGestureLabel(
                         playerSettings.leftGesture,
@@ -224,7 +226,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                       ),
                     ),
                     SettingsTile(
-                      emoji: '👉',
+                      reicon: Reicon.hand,
                       title: l10n.rightGesture,
                       value: getGestureLabel(
                         playerSettings.rightGesture,
@@ -238,7 +240,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                       ),
                     ),
                     SettingsTile(
-                      emoji: '⏩',
+                      reicon: Reicon.forward10s,
                       title: l10n.doubleTapToSeek,
                       trailing: Switch(
                         value: playerSettings.doubleTapEnabled,
@@ -253,7 +255,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                           ),
                     ),
                     SettingsTile(
-                      emoji: '↔️',
+                      reicon: Reicon.arrowSwapHorizontal,
                       title: l10n.swipeToSeek,
                       subtitle: 'Full width = 90 seconds',
                       trailing: Switch(
@@ -272,7 +274,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     // automatically, like anime/dramas. Title is a plain
                     // English literal, the same as 'Maximum volume' below.
                     SettingsTile(
-                      emoji: '⏭️',
+                      reicon: Reicon.skipNext,
                       title: 'Auto Skip',
                       subtitle: 'AnimeSkip & IntroDB segments',
                       trailing: Switch(
@@ -287,7 +289,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     ),
                   ],
                   SettingsTile(
-                    emoji: '↩️',
+                    reicon: Reicon.timer,
                     title: l10n.seekDuration,
                     value: formatSeekDuration(
                       playerSettings.seekDuration,
@@ -300,7 +302,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   SettingsTile(
-                    emoji: '📶',
+                    reicon: Reicon.gauge,
                     title: l10n.networkBuffer,
                     // The buffer setting is MB-based (the +55 fix: no cap,
                     // cache-secs 3600, demuxer-max-bytes 768 MiB). The
@@ -322,7 +324,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   SettingsTile(
-                    emoji: '🖥️',
+                    reicon: Reicon.aspectRatioSquare,
                     title: l10n.defaultResizeMode,
                     value: getResizeModeLabel(
                       playerSettings.defaultResizeMode,
@@ -342,7 +344,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                 title: l10n.audioSubtitlesAndQuality,
                 children: [
                   SettingsTile(
-                    emoji: '🔊',
+                    reicon: Reicon.volumeHigh,
                     title: l10n.audioLanguage,
                     value: preferredAudioLanguageLabel(
                       playerSettings.preferredAudioLanguage,
@@ -355,7 +357,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   SettingsTile(
-                    emoji: '💬',
+                    reicon: Reicon.subtitles,
                     title: l10n.subtitleDefault,
                     value: subtitleDefaultLabel(
                       playerSettings.subtitleDefault,
@@ -369,7 +371,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                   ),
                   if (_switchReachesDecoder(context))
                     SettingsTile(
-                      emoji: '⚡',
+                      reicon: Reicon.cpu,
                       title: l10n.hardwareDecoding,
                       subtitle: playerSettings.hardwareDecoding
                           ? '${l10n.enabled} (${l10n.recommended})'
@@ -387,7 +389,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                           ),
                     ),
                   SettingsTile(
-                    emoji: '🔉',
+                    reicon: Reicon.volumeUp,
                     title: 'Maximum volume',
                     value: playerSettings.maxVolumePercent <= 100
                         ? '100%'
@@ -398,7 +400,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                   // The pair splits on metered vs unmetered, not on Wi-Fi:
                   // Ethernet, a VPN tunnel and no link at all take this one.
                   SettingsTile(
-                    emoji: '📡',
+                    reicon: Reicon.wifi,
                     title: l10n.unmeteredQualityPreference,
                     subtitle: 'Wi-Fi / unlimited data',
                     value: qualityPreferenceLabel(
@@ -416,7 +418,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   SettingsTile(
-                    emoji: '📱',
+                    reicon: Reicon.mobile,
                     title: l10n.mobileQualityPreference,
                     subtitle: 'Cellular data',
                     value: qualityPreferenceLabel(
@@ -437,7 +439,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                   // the source list and playback starts among them; higher
                   // ones stay listed below.
                   SettingsTile(
-                    emoji: '📶',
+                    reicon: Reicon.signal,
                     title: l10n.mobileDataMaxQuality,
                     subtitle: l10n.mobileDataMaxQualitySubtitle,
                     value:
@@ -461,8 +463,26 @@ class PlayerSettingsScreen extends ConsumerWidget {
                           .setMobileDataMaxQuality,
                     ),
                   ),
+                  // v9: sources that name this language lead every source
+                  // list; nothing is hidden and no language is guessed.
                   SettingsTile(
-                    emoji: '⏭️',
+                    reicon: Reicon.translate,
+                    title: 'Preferred source language',
+                    subtitle: 'Sources in this language are listed first',
+                    value: playerSettings.preferredSourceLanguage.label,
+                    onTap: () async {
+                      final picked = await showSourceLanguageDialog(
+                        context,
+                        current: playerSettings.preferredSourceLanguage,
+                      );
+                      if (picked == null) return;
+                      await ref
+                          .read(playerSettingsProvider.notifier)
+                          .setPreferredSourceLanguage(picked);
+                    },
+                  ),
+                  SettingsTile(
+                    reicon: Reicon.fastForward,
                     title: l10n.autoPlayNextEpisode,
                     subtitle: l10n.autoPlayNextEpisodeSubtitle,
                     trailing: Switch(
@@ -478,7 +498,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                         ),
                   ),
                   SettingsTile(
-                    emoji: '🎚️',
+                    reicon: Reicon.filter,
                     title: 'Quality Filter Mode',
                     value: _qualityFilterModeLabel(
                       playerSettings.qualityFilterMode,
@@ -493,7 +513,7 @@ class PlayerSettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   SettingsTile(
-                    emoji: '🎛️',
+                    reicon: Reicon.sliders,
                     title: l10n.playerControls,
                     subtitle: l10n.playerControlsSubtitle,
                     isLast: true,

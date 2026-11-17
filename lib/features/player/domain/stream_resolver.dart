@@ -9,6 +9,7 @@
 /// knows which engine opens it, so both players share this.
 library;
 
+import '../../../core/utils/source_language.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -376,6 +377,7 @@ Future<ResolvedPlayback> resolvePlayback({
       preference: preference,
       cap: cap,
       lastUsed: (ordered) => _savedStreamIndex(read, item, ordered),
+      language: settings.preferredSourceLanguage,
     );
     streams = plan.streams;
     saved = plan.start;
@@ -545,24 +547,39 @@ Future<PlayerSettings?> _playerSettings(ProviderReader read) async {
   required QualityPreference preference,
   QualityPreference cap = QualityPreference.any,
   int Function(List<StreamResult> ordered)? lastUsed,
+  SourceLanguage language = SourceLanguage.off,
 }) {
-  final ordered = sortStreamsBestFirst(streams, cap: cap);
+  // v9: sources that say they carry the preferred language lead, inside
+  // the mobile-data limit's two parts (within it, above it); the quality
+  // order holds within each. Nothing is dropped.
+  final ordered = preferMatching<StreamResult>(
+    sortStreamsBestFirst(streams, cap: cap),
+    (s) => streamStatesLanguage(s, language),
+    groupOf: (s) => streamExceedsQuality(s, cap) ? 1 : 0,
+  );
   if (ordered.isEmpty) return (streams: ordered, start: 0, lastUsedIndex: -1);
   final startPreference = lowerQualityPreference(preference, cap);
+  // With nothing remembered, playback starts on the quality preference's
+  // pick among the preferred-language sources when there are any.
+  int preferredStart() {
+    final inLanguage = <StreamResult>[
+      for (final s in ordered)
+        if (streamStatesLanguage(s, language)) s,
+    ];
+    if (inLanguage.isEmpty) {
+      return preferredStartIndex(ordered, startPreference);
+    }
+    final pick = inLanguage[preferredStartIndex(inLanguage, startPreference)];
+    final at = ordered.indexWhere((s) => identical(s, pick));
+    return at < 0 ? 0 : at;
+  }
+
   final found = lastUsed?.call(ordered) ?? -1;
   if (found < 0 || found >= ordered.length) {
-    return (
-      streams: ordered,
-      start: preferredStartIndex(ordered, startPreference),
-      lastUsedIndex: -1,
-    );
+    return (streams: ordered, start: preferredStart(), lastUsedIndex: -1);
   }
   if (streamExceedsQuality(ordered[found], cap)) {
-    return (
-      streams: ordered,
-      start: preferredStartIndex(ordered, startPreference),
-      lastUsedIndex: found,
-    );
+    return (streams: ordered, start: preferredStart(), lastUsedIndex: found);
   }
   if (found == 0) return (streams: ordered, start: 0, lastUsedIndex: 0);
   final first = ordered[found];
@@ -576,6 +593,12 @@ Future<PlayerSettings?> _playerSettings(ProviderReader read) async {
     lastUsedIndex: 0,
   );
 }
+
+/// Whether [stream] says it carries [language] (v9): its label or its
+/// provider's name spells the language out. Never a guess.
+bool streamStatesLanguage(StreamResult stream, SourceLanguage language) =>
+    language != SourceLanguage.off &&
+    textStatesLanguage('${stream.source} ${stream.providerName}', language);
 
 /// Stable identity of one source, for remembering the last-played source
 /// per title. The stream URL itself is NOT stable: signed links (DriveSeed

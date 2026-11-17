@@ -37,4 +37,9 @@ void main() {
     mockInfo(version: '2.9.19', buildNumber: '');
     expect(await readAppVersion(), '2.9.19');
   });
+
+  test('the first public release: 1.0.0 build 65', () async {
+    mockInfo(version: '1.0.0', buildNumber: '65');
+    expect(await readAppVersion(), '1.0.0 +65');
+  });
 }

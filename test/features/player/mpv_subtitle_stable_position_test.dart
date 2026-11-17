@@ -35,21 +35,33 @@ void main() {
       expect(config.padding.bottom, 16.0);
     });
 
-    test('chrome up (controls or settings showing): the same 16px', () {
+    test('controls showing: lifted clear of the bottom control row (v9)', () {
+      // The caption was drawn under the icon row (user screenshot,
+      // 2026-11-17). While the row is up the caption sits above it, and
+      // it returns to its own place when the row hides.
       final down = configOf(controlsVisible: false);
       final up = configOf(controlsVisible: true);
-      expect(up.padding.bottom, 16.0);
+      expect(up.padding.bottom, kMpvSubtitlePaddingBottomControlsVisible);
+      expect(up.padding.bottom, greaterThan(down.padding.bottom));
+      expect(configOf(controlsVisible: false).padding, down.padding);
+      // Only the bottom inset moves.
+      expect(up.padding.left, down.padding.left);
+      expect(up.padding.right, down.padding.right);
+      expect(up.padding.top, down.padding.top);
+    });
+
+    test('a caption already raised clear of the row does not move', () {
+      const raised = PlayerSettings(subtitleRaise: 0.4); // 16 + 144 px
+      final down = configOf(s: raised, controlsVisible: false);
+      final up = configOf(s: raised, controlsVisible: true);
+      expect(down.padding.bottom, 16.0 + 0.4 * 360);
       expect(up.padding, down.padding);
     });
 
-    test('locked with the pill showing and locked with it faded: the '
-        'same 16px', () {
-      // The pill rides the chrome: showing is chrome up, faded is chrome
-      // down. Both must leave the caption where it is.
-      final faded = configOf(controlsVisible: false);
-      final showing = configOf(controlsVisible: true);
-      expect(showing.padding.bottom, 16.0);
-      expect(faded.padding, showing.padding);
+    test('a small raise is lifted only as far as the row needs', () {
+      const raised = PlayerSettings(subtitleRaise: 0.1); // 16 + 36 px
+      final up = configOf(s: raised, controlsVisible: true);
+      expect(up.padding.bottom, kMpvSubtitlePaddingBottomControlsVisible);
     });
 
     test('the raise still lifts from the low base', () {
@@ -60,7 +72,7 @@ void main() {
       expect(middle.padding.bottom, 16.0 + 0.1 * 360);
       final top = configOf(
         s: const PlayerSettings(subtitleRaise: 0.2),
-        controlsVisible: true,
+        controlsVisible: false,
       );
       expect(top.padding.bottom, 16.0 + 0.2 * 360);
     });

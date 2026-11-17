@@ -72,9 +72,9 @@ class HomeRowsSettingsScreen extends ConsumerWidget {
                       for (var i = 0; i < rows.length; i++)
                         SettingsTile(
                           key: ValueKey('home-row-${rows[i]}'),
-                          emoji: rows[i] == kHomeRowContinueWatching
-                              ? '🕘'
-                              : '🎞️',
+                          reicon: rows[i] == kHomeRowContinueWatching
+                              ? Reicon.history
+                              : Reicon.film,
                           title: rows[i] == kHomeRowContinueWatching
                               ? l10n.continueWatching
                               : rows[i],
@@ -133,7 +133,7 @@ class HomeRowsSettingsScreen extends ConsumerWidget {
                 children: [
                   SettingsTile(
                     key: const ValueKey('home-rows-reset'),
-                    emoji: '↺',
+                    reicon: Reicon.rotateLeft,
                     title: l10n.resetToDefault,
                     subtitle: l10n.homeRowsResetSubtitle,
                     showChevron: false,

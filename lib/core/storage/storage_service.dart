@@ -542,6 +542,15 @@ class StorageService {
     return _settingsBox.get(key, defaultValue: defaultValue) as T?;
   }
 
+  /// The raw stored value of a settings key, whatever its type (v9: the
+  /// Zeus backup reads its allow-listed settings through this).
+  Object? getRawSetting(String key) => _settingsBox.get(key);
+
+  /// The keys of the settings box as they change (v9: the Zeus account
+  /// re-uploads when a synced setting changes).
+  Stream<String> watchSettingKeys() =>
+      _settingsBox.watch().map((event) => '${event.key}');
+
   // --- General Key-Value ---
   Future<void> setString(String key, String? value) async {
     if (value == null) {

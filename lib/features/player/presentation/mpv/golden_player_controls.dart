@@ -184,6 +184,8 @@ class GoldenPlayerControls extends ConsumerStatefulWidget {
     this.lockAvailable = true,
     this.onEnterPip,
     this.onVideoPresetChanged,
+    this.onPictureChanged,
+    this.videoIsHdr,
     this.sleepTimer,
     super.key,
   });
@@ -268,6 +270,14 @@ class GoldenPlayerControls extends ConsumerStatefulWidget {
   /// where the button never renders. The drawer persists the choice
   /// through [settingsNotifier] itself — this only applies it live.
   final ValueChanged<VideoOutputPreset>? onVideoPresetChanged;
+
+  /// Applies the Video panel's PICTURE sliders to the live mpv instance
+  /// (v9), on every drag tick. iOS mpv only, like the preset.
+  final ValueChanged<PictureValues>? onPictureChanged;
+
+  /// Whether the playing video is HDR (v9): the Video panel shows its
+  /// two HDR choices only then. Null value: the screen could not tell.
+  final ValueListenable<bool?>? videoIsHdr;
 
   @override
   ConsumerState<GoldenPlayerControls> createState() =>
@@ -1664,6 +1674,8 @@ class _GoldenPlayerControlsState
           settings: widget.settings,
           sleepTimer: widget.sleepTimer,
           showPresets: widget.onVideoPresetChanged != null,
+          isHdr: widget.videoIsHdr,
+          onPictureChanged: widget.onPictureChanged,
           onPresetPicked: (preset) {
             unawaited(
               widget.settingsNotifier.setVideoOutputPreset(preset),
@@ -2131,14 +2143,12 @@ class _BottomBar extends StatelessWidget {
             ],
             // Sleep timer (v7): the time left, only while one is armed.
             // A tap opens the drawer the picker lives in.
-            if (sleepTimer != null)
-              Flexible(
-                child: GoldenSleepTimerBadge(
-                  timer: sleepTimer!,
-                  onTap: onOpenVideo,
-                ),
-              ),
-            const Spacer(),
+            // v9: the buttons after this sit flush right, always. The
+            // badge used to be a Flexible beside a Spacer — the two split
+            // the free width, the badge used a sliver of its half, and
+            // the unused rest pushed the buttons to the middle whenever a
+            // timer was armed. One Expanded now owns all the free width.
+            GoldenBottomRowGap(sleepTimer: sleepTimer, onTap: onOpenVideo),
             _SubtitleButton(
               hasSubtitles: hasSubtitles,
               onPressed: onOpenSubtitleStyle,
@@ -2219,6 +2229,30 @@ class _BottomBar extends StatelessWidget {
     VlcVideoFit.fill => Icons.fit_screen_rounded,
     _ => Icons.aspect_ratio_rounded,
   };
+}
+
+/// The stretch of the bottom utility row between the episode buttons on
+/// the left and the option buttons on the right (v9). It owns all the
+/// free width, so the option buttons always sit flush right; the
+/// sleep-timer badge, when one is armed, rides at its left end.
+class GoldenBottomRowGap extends StatelessWidget {
+  const GoldenBottomRowGap({super.key, this.sleepTimer, this.onTap});
+
+  final SleepTimer? sleepTimer;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final timer = sleepTimer;
+    return Expanded(
+      child: timer == null
+          ? const SizedBox.shrink()
+          : Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: GoldenSleepTimerBadge(timer: timer, onTap: onTap),
+            ),
+    );
+  }
 }
 
 class _SubtitleButton extends StatelessWidget {

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,52 +6,114 @@ import 'package:zorox/features/player/presentation/mpv/golden_video_drawer.dart'
 import 'package:zorox/features/player/presentation/mpv/mpv_ios_options.dart';
 import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
 
-/// The Video output panel (+57): four presets, each a REAL render
-/// configuration — a hardware mpv option set (PiP OFF) and a software
-/// LUT curve (PiP ON) — never a label that changes nothing. These
-/// tests pin the preset → option map, the preset → LUT-curve table,
-/// the stored default, and the drawer itself (tap a row, the pick
-/// fires; Reset tuning picks Native EDR; Custom's advanced values
-/// persist and re-apply Custom live).
+/// The Video panel (+57, reworked in v9): PICTURE — three sliders that
+/// are real mpv properties — and HDR — two choices, Bright (clip) and
+/// Balanced (bt.2390), shown on HDR videos only. These tests pin the
+/// migration of the four old presets onto the two, the preset → option
+/// map, the preset → LUT-curve table, the slider → property map and its
+/// clamp, the stored defaults, and the drawer itself.
 void main() {
+  group('migrateVideoOutputPreset', () {
+    test('Native EDR stays Bright', () {
+      expect(migrateVideoOutputPreset('nativeEdr'), VideoOutputPreset.nativeEdr);
+    });
+
+    test('SDR tone mapped stays Balanced', () {
+      expect(
+        migrateVideoOutputPreset('sdrToneMapped'),
+        VideoOutputPreset.sdrToneMapped,
+      );
+    });
+
+    test('Compatibility becomes Balanced', () {
+      expect(
+        migrateVideoOutputPreset('compatibility'),
+        VideoOutputPreset.sdrToneMapped,
+      );
+    });
+
+    test('Custom with clip stored becomes Bright', () {
+      expect(
+        migrateVideoOutputPreset('custom', customToneMapping: 'clip'),
+        VideoOutputPreset.nativeEdr,
+      );
+    });
+
+    test('Custom with any other curve stored becomes Balanced', () {
+      for (final curve in <String>['bt.2390', 'mobius', 'hable', 'auto']) {
+        expect(
+          migrateVideoOutputPreset('custom', customToneMapping: curve),
+          VideoOutputPreset.sdrToneMapped,
+          reason: curve,
+        );
+      }
+    });
+
+    test('Custom with nothing stored behaved as clip, so it is Bright', () {
+      expect(migrateVideoOutputPreset('custom'), VideoOutputPreset.nativeEdr);
+    });
+
+    test('nothing stored, or an unknown name, is Bright (the default)', () {
+      expect(migrateVideoOutputPreset(null), VideoOutputPreset.nativeEdr);
+      expect(migrateVideoOutputPreset(''), VideoOutputPreset.nativeEdr);
+      expect(migrateVideoOutputPreset('future'), VideoOutputPreset.nativeEdr);
+    });
+
+    test('the result is only ever one of the two', () {
+      for (final preset in VideoOutputPreset.values) {
+        for (final curve in <String?>[null, 'clip', 'bt.2390', 'mobius']) {
+          expect(
+            migrateVideoOutputPreset(preset.name, customToneMapping: curve),
+            anyOf(VideoOutputPreset.nativeEdr, VideoOutputPreset.sdrToneMapped),
+          );
+        }
+      }
+    });
+  });
+
   group('videoOutputPresetToneMapping', () {
-    test('Native EDR is clip (the behaviour every install already had)', () {
+    test('Bright is clip (the behaviour every install already had)', () {
       expect(videoOutputPresetToneMapping(VideoOutputPreset.nativeEdr), 'clip');
     });
 
-    test('SDR tone mapped is the bt.2390 reference curve', () {
+    test('Balanced is the bt.2390 reference curve', () {
       expect(
         videoOutputPresetToneMapping(VideoOutputPreset.sdrToneMapped),
         'bt.2390',
       );
     });
 
-    test('Compatibility is mpv auto (bt.2390 on vo=gpu)', () {
+    test('a legacy Compatibility is Balanced: bt.2390, never auto', () {
       expect(
         videoOutputPresetToneMapping(VideoOutputPreset.compatibility),
-        'auto',
+        'bt.2390',
       );
     });
 
-    test('Custom with nothing stored falls back to clip', () {
+    test('a legacy Custom with nothing stored is clip', () {
       expect(videoOutputPresetToneMapping(VideoOutputPreset.custom), 'clip');
     });
 
-    test('Custom uses the stored tone-mapping value', () {
+    test('a legacy Custom never selects a third curve', () {
       expect(
         videoOutputPresetToneMapping(
           VideoOutputPreset.custom,
           customToneMapping: 'mobius',
         ),
-        'mobius',
+        'bt.2390',
+      );
+      expect(
+        videoOutputPresetToneMapping(
+          VideoOutputPreset.custom,
+          customToneMapping: 'clip',
+        ),
+        'clip',
       );
     });
   });
 
   group('videoOutputPresetOptions (hardware path)', () {
-    test('Native EDR: clip + the +34 cheap render', () {
-      final options = videoOutputPresetOptions(VideoOutputPreset.nativeEdr);
-      expect(options['tone-mapping'], 'clip');
+    void expectCheapRender(Map<String, String> options) {
       expect(options['target-peak'], 'auto');
       expect(options['scale'], 'bilinear');
       expect(options['cscale'], 'bilinear');
@@ -58,66 +121,112 @@ void main() {
       expect(options['deband'], 'no');
       expect(options['dither-depth'], 'no');
       expect(options['correct-downscaling'], 'no');
+    }
+
+    test('Bright: clip + the +34 cheap render', () {
+      final options = videoOutputPresetOptions(VideoOutputPreset.nativeEdr);
+      expect(options['tone-mapping'], 'clip');
+      expectCheapRender(options);
     });
 
-    test('SDR tone mapped: bt.2390 + the +34 cheap render', () {
+    test('Balanced: bt.2390 + the same cheap render', () {
       final options = videoOutputPresetOptions(VideoOutputPreset.sdrToneMapped);
       expect(options['tone-mapping'], 'bt.2390');
-      expect(options['target-peak'], 'auto');
-      expect(options['scale'], 'bilinear');
-      expect(options['dscale'], 'bilinear');
-      expect(options['correct-downscaling'], 'no');
+      expectCheapRender(options);
     });
 
-    test('Compatibility: auto + mpv defaults, not the cheap render', () {
+    test('a legacy Compatibility no longer brings the lanczos set', () {
       final options = videoOutputPresetOptions(VideoOutputPreset.compatibility);
-      expect(options['tone-mapping'], 'auto');
-      expect(options['target-peak'], 'auto');
-      // mpv's own defaults: the render before the +34 cheap scalers.
-      expect(options['scale'], 'lanczos');
-      expect(options['cscale'], 'lanczos');
-      expect(options['dscale'], 'hermite');
-      expect(options['deband'], 'no');
-      expect(options['dither-depth'], 'auto');
-      expect(options['correct-downscaling'], 'yes');
+      expect(options['tone-mapping'], 'bt.2390');
+      expectCheapRender(options);
     });
 
-    test('Custom with nothing stored behaves as Native EDR', () {
-      final options = videoOutputPresetOptions(VideoOutputPreset.custom);
-      expect(options['tone-mapping'], 'clip');
-      expect(options['target-peak'], 'auto');
-      expect(options['scale'], 'bilinear');
-    });
-
-    test('Custom uses the stored tone-mapping and target peak', () {
+    test('a legacy Custom target peak is ignored', () {
       final options = videoOutputPresetOptions(
         VideoOutputPreset.custom,
-        customToneMapping: 'mobius',
-        customTargetPeak: '100',
+        customToneMapping: 'clip',
+        customTargetPeak: '400',
       );
-      expect(options['tone-mapping'], 'mobius');
-      expect(options['target-peak'], '100');
-      // The stored values only replace the mapping — the render
-      // stays the cheap one.
-      expect(options['scale'], 'bilinear');
+      expect(options['tone-mapping'], 'clip');
+      expectCheapRender(options);
     });
 
-    test('switching presets is a deterministic state', () {
-      // Picking Native EDR after Compatibility restores the cheap
-      // scalers — it does not leave lanczos behind.
-      final afterCompatibility = videoOutputPresetOptions(
-        VideoOutputPreset.nativeEdr,
-      );
-      expect(afterCompatibility['scale'], 'bilinear');
-      expect(afterCompatibility['dither-depth'], 'no');
-      expect(afterCompatibility['correct-downscaling'], 'no');
+    test('switching is a deterministic state: same keys for every preset', () {
+      final keys = videoOutputPresetOptions(VideoOutputPreset.nativeEdr).keys
+          .toSet();
+      for (final preset in VideoOutputPreset.values) {
+        expect(videoOutputPresetOptions(preset).keys.toSet(), keys);
+      }
     });
 
     test('no preset ever re-adds the v20+1 black-screen value', () {
       for (final preset in VideoOutputPreset.values) {
-        final options = videoOutputPresetOptions(preset);
-        expect(options.containsKey('hdr-compute-peak'), isFalse);
+        expect(
+          videoOutputPresetOptions(preset).containsKey('hdr-compute-peak'),
+          isFalse,
+        );
       }
+    });
+  });
+
+  group('pictureOptions (the PICTURE sliders)', () {
+    test('each slider is its own mpv property, one to one', () {
+      expect(pictureOptions(brightness: 10, contrast: -20, saturation: 30), {
+        'brightness': '10',
+        'contrast': '-20',
+        'saturation': '30',
+      });
+    });
+
+    test('zero is mpv untouched', () {
+      expect(pictureOptions(brightness: 0, contrast: 0, saturation: 0), {
+        'brightness': '0',
+        'contrast': '0',
+        'saturation': '0',
+      });
+    });
+
+    test('values are held to -50…+50', () {
+      expect(pictureOptions(brightness: 90, contrast: -90, saturation: 51), {
+        'brightness': '50',
+        'contrast': '-50',
+        'saturation': '50',
+      });
+    });
+
+    test('clampPictureValue: range, rounding and junk', () {
+      expect(kPictureMin, -50);
+      expect(kPictureMax, 50);
+      expect(clampPictureValue(null), 0);
+      expect(clampPictureValue(12.4), 12);
+      expect(clampPictureValue(-1000), -50);
+      expect(clampPictureValue(1000), 50);
+      expect(clampPictureValue(double.nan), 0);
+    });
+
+    test('the value label shows a sign only above zero', () {
+      expect(pictureValueLabel(0), '0');
+      expect(pictureValueLabel(10), '+10');
+      expect(pictureValueLabel(-10), '-10');
+    });
+  });
+
+  group('videoGammaIsHdr', () {
+    test('PQ and HLG are HDR', () {
+      expect(videoGammaIsHdr('pq'), isTrue);
+      expect(videoGammaIsHdr('hlg'), isTrue);
+      expect(videoGammaIsHdr(' PQ '), isTrue);
+    });
+
+    test('every other transfer is SDR', () {
+      expect(videoGammaIsHdr('bt.1886'), isFalse);
+      expect(videoGammaIsHdr('srgb'), isFalse);
+      expect(videoGammaIsHdr('gamma2.2'), isFalse);
+    });
+
+    test('unreadable is unknown, not SDR', () {
+      expect(videoGammaIsHdr(null), isNull);
+      expect(videoGammaIsHdr(''), isNull);
     });
   });
 
@@ -147,47 +256,38 @@ void main() {
     });
   });
 
-  group('PlayerSettings.videoOutputPreset', () {
-    test('defaults to Native EDR', () {
-      expect(
-        const PlayerSettings().videoOutputPreset,
-        VideoOutputPreset.nativeEdr,
-      );
-      expect(const PlayerSettings().videoCustomToneMapping, isNull);
-      expect(const PlayerSettings().videoCustomTargetPeak, isNull);
+  group('PlayerSettings', () {
+    test('defaults: Bright, sliders at zero', () {
+      const settings = PlayerSettings();
+      expect(settings.videoOutputPreset, VideoOutputPreset.nativeEdr);
+      expect(settings.pictureBrightness, 0);
+      expect(settings.pictureContrast, 0);
+      expect(settings.pictureSaturation, 0);
     });
 
-    test('copyWith sets the preset and the custom values', () {
+    test('copyWith sets the preset and the sliders', () {
       final settings = const PlayerSettings().copyWith(
         videoOutputPreset: VideoOutputPreset.sdrToneMapped,
-        videoCustomToneMapping: 'mobius',
-        videoCustomTargetPeak: '100',
+        pictureBrightness: 5,
+        pictureContrast: -6,
+        pictureSaturation: 7,
       );
       expect(settings.videoOutputPreset, VideoOutputPreset.sdrToneMapped);
-      expect(settings.videoCustomToneMapping, 'mobius');
-      expect(settings.videoCustomTargetPeak, '100');
+      expect(settings.pictureBrightness, 5);
+      expect(settings.pictureContrast, -6);
+      expect(settings.pictureSaturation, 7);
     });
 
-    test('copyWith without the preset keeps the current one', () {
-      final settings = const PlayerSettings()
-          .copyWith(videoOutputPreset: VideoOutputPreset.compatibility)
-          .copyWith(videoCustomToneMapping: 'mobius');
-      expect(settings.videoOutputPreset, VideoOutputPreset.compatibility);
-      expect(settings.videoCustomToneMapping, 'mobius');
-    });
-
-    test('copyWith clears the custom values when asked', () {
+    test('copyWith without them keeps the current values', () {
       final settings = const PlayerSettings()
           .copyWith(
-            videoCustomToneMapping: 'mobius',
-            videoCustomTargetPeak: '100',
+            videoOutputPreset: VideoOutputPreset.sdrToneMapped,
+            pictureContrast: 9,
           )
-          .copyWith(
-            clearVideoCustomToneMapping: true,
-            clearVideoCustomTargetPeak: true,
-          );
-      expect(settings.videoCustomToneMapping, isNull);
-      expect(settings.videoCustomTargetPeak, isNull);
+          .copyWith(pictureBrightness: 1);
+      expect(settings.videoOutputPreset, VideoOutputPreset.sdrToneMapped);
+      expect(settings.pictureContrast, 9);
+      expect(settings.pictureBrightness, 1);
     });
   });
 
@@ -195,12 +295,13 @@ void main() {
     Future<void> pumpDrawer(
       WidgetTester tester, {
       required ValueNotifier<PlayerSettings> settings,
-      required ValueChanged<VideoOutputPreset> onPresetPicked,
-      _RecordingCustomValues? recorder,
+      ValueChanged<VideoOutputPreset>? onPresetPicked,
+      ValueListenable<bool?>? isHdr,
+      ValueChanged<PictureValues>? onPictureChanged,
+      _RecordingPicture? recorder,
     }) async {
       // Tall enough for every row: the drawer is a ListView, so rows
-      // below the fold are not built at the default 600 px height and
-      // no finder can see them.
+      // below the fold are not built at the default 600 px height.
       tester.view.physicalSize = const Size(800, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -208,10 +309,10 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            // The drawer reads the settings notifier to persist a Custom
-            // pick; the recorder keeps the write off Hive.
+            // The drawer persists the sliders through the settings
+            // notifier; the recorder keeps the write off Hive.
             playerSettingsProvider.overrideWith(
-              () => recorder ?? _RecordingCustomValues(),
+              () => recorder ?? _RecordingPicture(),
             ),
           ],
           child: MaterialApp(
@@ -219,7 +320,9 @@ void main() {
               backgroundColor: Colors.black,
               body: GoldenVideoDrawer(
                 settings: settings,
-                onPresetPicked: onPresetPicked,
+                onPresetPicked: onPresetPicked ?? (_) {},
+                isHdr: isHdr,
+                onPictureChanged: onPictureChanged,
                 onClose: () {},
               ),
             ),
@@ -229,118 +332,38 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    /// Whether the tile labelled [label] shows the checked radio: the
-    /// tile's own Padding is the label's Padding ancestor with a
-    /// bottom-only 6 px inset — the SafeArea above the whole drawer is
-    /// a Padding too, so a bare [find.byType] would match it and see
-    /// every checked radio in the drawer. The checked icon is looked
-    /// up inside the tile's Padding only.
-    bool tileChecked(String label) =>
-        find
-            .descendant(
-              of: find.ancestor(
-                of: find.text(label),
-                matching: find.byWidgetPredicate(
-                  (widget) =>
-                      widget is Padding &&
-                      widget.padding == const EdgeInsets.only(bottom: 6),
-                ),
-              ),
-              matching: find.byIcon(Icons.radio_button_checked_rounded),
-            )
-            .evaluate()
-            .isNotEmpty;
+    bool tileChecked(Key key) => find
+        .descendant(
+          of: find.byKey(key),
+          matching: find.byIcon(Icons.radio_button_checked_rounded),
+        )
+        .evaluate()
+        .isNotEmpty;
 
-    testWidgets('lists the four presets in the screenshot order', (
+    const bright = ValueKey('video-hdr-bright');
+    const balanced = ValueKey('video-hdr-balanced');
+    const sdrInfo = ValueKey('video-hdr-sdr-info');
+
+    testWidgets('one list: PICTURE with three sliders, then HDR', (
       tester,
     ) async {
       final settings = ValueNotifier<PlayerSettings>(const PlayerSettings());
       addTearDown(settings.dispose);
-      await pumpDrawer(tester, settings: settings, onPresetPicked: (_) {});
-      expect(find.text('Video'), findsOneWidget);
-      expect(find.text('Native EDR'), findsOneWidget);
-      expect(find.text('SDR tone mapped'), findsOneWidget);
-      expect(find.text('Compatibility'), findsOneWidget);
-      expect(find.text('Custom'), findsOneWidget);
+      await pumpDrawer(tester, settings: settings);
+      expect(find.text('PICTURE'), findsOneWidget);
+      expect(find.text('HDR'), findsOneWidget);
+      expect(find.text('Reset'), findsOneWidget);
+      expect(find.text('Brightness'), findsOneWidget);
+      expect(find.text('Contrast'), findsOneWidget);
+      expect(find.text('Saturation'), findsOneWidget);
+      expect(find.byType(Slider), findsNWidgets(3));
       expect(
-        find.text('Best for HDR-capable iPhones and iPads.'),
-        findsOneWidget,
-      );
-      expect(
-        find.text('More predictable whites and blacks on SDR-style output.'),
-        findsOneWidget,
-      );
-      expect(
-        find.text('Closest to the older iOS MPV behavior.'),
-        findsOneWidget,
-      );
-      expect(find.text('Your own tone mapping and target peak.'), findsOneWidget);
-      expect(find.text('Reset tuning'), findsOneWidget);
-    });
-
-    testWidgets('tapping a preset fires onPresetPicked with it', (
-      tester,
-    ) async {
-      final settings = ValueNotifier<PlayerSettings>(const PlayerSettings());
-      addTearDown(settings.dispose);
-      VideoOutputPreset? picked;
-      await pumpDrawer(
-        tester,
-        settings: settings,
-        onPresetPicked: (preset) => picked = preset,
-      );
-      await tester.tap(find.text('SDR tone mapped'));
-      await tester.pump();
-      expect(picked, VideoOutputPreset.sdrToneMapped);
-    });
-
-    testWidgets('Reset tuning picks Native EDR', (tester) async {
-      final settings = ValueNotifier<PlayerSettings>(
-        const PlayerSettings().copyWith(
-          videoOutputPreset: VideoOutputPreset.compatibility,
-        ),
-      );
-      addTearDown(settings.dispose);
-      VideoOutputPreset? picked;
-      await pumpDrawer(
-        tester,
-        settings: settings,
-        onPresetPicked: (preset) => picked = preset,
-      );
-      await tester.tap(find.text('Reset tuning'));
-      await tester.pump();
-      expect(picked, VideoOutputPreset.nativeEdr);
-    });
-
-    testWidgets('the checkmark follows the active preset', (tester) async {
-      final settings = ValueNotifier<PlayerSettings>(
-        const PlayerSettings().copyWith(
-          videoOutputPreset: VideoOutputPreset.compatibility,
-        ),
-      );
-      addTearDown(settings.dispose);
-      await pumpDrawer(tester, settings: settings, onPresetPicked: (_) {});
-      // One checked radio (Compatibility), three unchecked.
-      expect(find.byIcon(Icons.radio_button_checked_rounded), findsOneWidget);
-      expect(
-        find.byIcon(Icons.radio_button_unchecked_rounded),
-        findsNWidgets(3),
+        tester.getTopLeft(find.text('PICTURE')).dy,
+        lessThan(tester.getTopLeft(find.text('HDR')).dy),
       );
     });
 
-    testWidgets('the advanced section stays hidden until Custom is picked', (
-      tester,
-    ) async {
-      final settings = ValueNotifier<PlayerSettings>(const PlayerSettings());
-      addTearDown(settings.dispose);
-      await pumpDrawer(tester, settings: settings, onPresetPicked: (_) {});
-      expect(find.text('TONE MAPPING'), findsNothing);
-      expect(find.text('TARGET PEAK'), findsNothing);
-      expect(find.text('Clip'), findsNothing);
-      expect(find.text('100 nits'), findsNothing);
-    });
-
-    testWidgets('Custom shows the advanced values, defaults selected', (
+    testWidgets('the old preset names and Custom selectors are gone', (
       tester,
     ) async {
       final settings = ValueNotifier<PlayerSettings>(
@@ -349,133 +372,207 @@ void main() {
         ),
       );
       addTearDown(settings.dispose);
-      await pumpDrawer(tester, settings: settings, onPresetPicked: (_) {});
-      expect(find.text('TONE MAPPING'), findsOneWidget);
-      expect(find.text('TARGET PEAK'), findsOneWidget);
-      expect(find.text('Clip'), findsOneWidget);
-      expect(find.text('BT.2390'), findsOneWidget);
-      // One Auto in each section: tone mapping's and target peak's.
-      expect(find.text('Auto'), findsNWidgets(2));
-      for (final peak in <String>[
-        '100 nits',
-        '200 nits',
-        '400 nits',
-        '1000 nits',
+      await pumpDrawer(tester, settings: settings);
+      for (final gone in <String>[
+        'Native EDR',
+        'SDR tone mapped',
+        'Compatibility',
+        'Custom',
+        'Reset tuning',
+        'Tone mapping',
+        'Target peak',
+        'Video output',
       ]) {
-        expect(find.text(peak), findsOneWidget);
+        expect(find.text(gone), findsNothing, reason: gone);
       }
+    });
+
+    testWidgets('an SDR video shows the info card and no options', (
+      tester,
+    ) async {
+      final settings = ValueNotifier<PlayerSettings>(const PlayerSettings());
+      final isHdr = ValueNotifier<bool?>(false);
+      addTearDown(settings.dispose);
+      addTearDown(isHdr.dispose);
+      await pumpDrawer(tester, settings: settings, isHdr: isHdr);
+      expect(find.byKey(sdrInfo), findsOneWidget);
       expect(
-        find.text(
-          'Nothing stored yet — Custom behaves as Native EDR '
-          'until you pick a value.',
-        ),
+        find.text('This video is SDR. HDR options appear only on HDR videos.'),
         findsOneWidget,
       );
-      // One checked radio per group: Custom, Clip (the effective
-      // tone mapping with nothing stored), Auto (the effective peak).
-      expect(
-        find.byIcon(Icons.radio_button_checked_rounded),
-        findsNWidgets(3),
-      );
-      expect(tileChecked('Custom'), isTrue);
-      expect(tileChecked('Clip'), isTrue);
-      expect(tileChecked('BT.2390'), isFalse);
+      expect(find.byKey(bright), findsNothing);
+      expect(find.byKey(balanced), findsNothing);
+      // The sliders are there on SDR all the same.
+      expect(find.byType(Slider), findsNWidgets(3));
     });
 
-    testWidgets('tapping a tone-mapping value persists it and re-applies Custom', (
+    testWidgets('an HDR video shows the two cards', (tester) async {
+      final settings = ValueNotifier<PlayerSettings>(const PlayerSettings());
+      final isHdr = ValueNotifier<bool?>(true);
+      addTearDown(settings.dispose);
+      addTearDown(isHdr.dispose);
+      await pumpDrawer(tester, settings: settings, isHdr: isHdr);
+      expect(find.byKey(sdrInfo), findsNothing);
+      expect(find.text('Bright'), findsOneWidget);
+      expect(find.text('Punchy highlights'), findsOneWidget);
+      expect(find.text('Balanced'), findsOneWidget);
+      expect(find.text('Softer highlights, more detail'), findsOneWidget);
+    });
+
+    testWidgets('the cards follow the video as it turns out to be HDR', (
       tester,
     ) async {
-      final settings = ValueNotifier<PlayerSettings>(
-        const PlayerSettings().copyWith(
-          videoOutputPreset: VideoOutputPreset.custom,
-        ),
-      );
+      final settings = ValueNotifier<PlayerSettings>(const PlayerSettings());
+      final isHdr = ValueNotifier<bool?>(false);
       addTearDown(settings.dispose);
-      final recorder = _RecordingCustomValues();
-      VideoOutputPreset? picked;
-      await pumpDrawer(
-        tester,
-        settings: settings,
-        onPresetPicked: (preset) => picked = preset,
-        recorder: recorder,
-      );
-      await tester.tap(find.text('BT.2390'));
+      addTearDown(isHdr.dispose);
+      await pumpDrawer(tester, settings: settings, isHdr: isHdr);
+      expect(find.byKey(sdrInfo), findsOneWidget);
+      isHdr.value = true;
       await tester.pump();
-      expect(recorder.toneMappings, <String?>['bt.2390']);
-      expect(recorder.targetPeaks, isEmpty);
-      expect(picked, VideoOutputPreset.custom);
+      expect(find.byKey(sdrInfo), findsNothing);
+      expect(find.byKey(bright), findsOneWidget);
     });
 
-    testWidgets('tapping a target-peak value persists it and re-applies Custom', (
+    testWidgets('unknown is never hidden on a guess: the two cards show', (
       tester,
     ) async {
-      final settings = ValueNotifier<PlayerSettings>(
-        const PlayerSettings().copyWith(
-          videoOutputPreset: VideoOutputPreset.custom,
-        ),
-      );
+      final settings = ValueNotifier<PlayerSettings>(const PlayerSettings());
+      final isHdr = ValueNotifier<bool?>(null);
       addTearDown(settings.dispose);
-      final recorder = _RecordingCustomValues();
-      VideoOutputPreset? picked;
-      await pumpDrawer(
-        tester,
-        settings: settings,
-        onPresetPicked: (preset) => picked = preset,
-        recorder: recorder,
-      );
-      await tester.tap(find.text('400 nits'));
+      addTearDown(isHdr.dispose);
+      await pumpDrawer(tester, settings: settings, isHdr: isHdr);
+      expect(find.byKey(bright), findsOneWidget);
+      expect(find.byKey(balanced), findsOneWidget);
+    });
+
+    testWidgets('tapping a card fires onPresetPicked with it', (tester) async {
+      final settings = ValueNotifier<PlayerSettings>(const PlayerSettings());
+      addTearDown(settings.dispose);
+      final picked = <VideoOutputPreset>[];
+      await pumpDrawer(tester, settings: settings, onPresetPicked: picked.add);
+      await tester.tap(find.text('Balanced'));
       await tester.pump();
-      expect(recorder.targetPeaks, <String?>['400']);
-      expect(recorder.toneMappings, isEmpty);
-      expect(picked, VideoOutputPreset.custom);
+      await tester.tap(find.text('Bright'));
+      await tester.pump();
+      expect(picked, <VideoOutputPreset>[
+        VideoOutputPreset.sdrToneMapped,
+        VideoOutputPreset.nativeEdr,
+      ]);
     });
 
-    testWidgets('the advanced checkmarks follow the stored values', (
-      tester,
-    ) async {
-      final settings = ValueNotifier<PlayerSettings>(
-        const PlayerSettings().copyWith(
-          videoOutputPreset: VideoOutputPreset.custom,
-          videoCustomToneMapping: 'bt.2390',
-          videoCustomTargetPeak: '100',
-        ),
-      );
+    testWidgets('the checkmark follows the active choice', (tester) async {
+      final settings = ValueNotifier<PlayerSettings>(const PlayerSettings());
       addTearDown(settings.dispose);
-      await pumpDrawer(tester, settings: settings, onPresetPicked: (_) {});
-      expect(tileChecked('BT.2390'), isTrue);
-      expect(tileChecked('Clip'), isFalse);
-      expect(tileChecked('100 nits'), isTrue);
-      expect(tileChecked('200 nits'), isFalse);
-      // Nothing stored any more: the note goes away.
-      expect(find.textContaining('Nothing stored yet'), findsNothing);
-
+      await pumpDrawer(tester, settings: settings);
+      expect(tileChecked(bright), isTrue);
+      expect(tileChecked(balanced), isFalse);
       settings.value = settings.value.copyWith(
-        videoCustomToneMapping: 'auto',
-        videoCustomTargetPeak: '1000',
+        videoOutputPreset: VideoOutputPreset.sdrToneMapped,
       );
       await tester.pump();
-      expect(tileChecked('BT.2390'), isFalse);
-      expect(tileChecked('100 nits'), isFalse);
-      expect(tileChecked('1000 nits'), isTrue);
+      expect(tileChecked(bright), isFalse);
+      expect(tileChecked(balanced), isTrue);
+    });
+
+    testWidgets('the sliders open on the saved values', (tester) async {
+      final settings = ValueNotifier<PlayerSettings>(
+        const PlayerSettings().copyWith(
+          pictureBrightness: 10,
+          pictureContrast: -5,
+          pictureSaturation: 0,
+        ),
+      );
+      addTearDown(settings.dispose);
+      await pumpDrawer(tester, settings: settings);
+      expect(find.text('+10'), findsOneWidget);
+      expect(find.text('-5'), findsOneWidget);
+      expect(find.text('0'), findsOneWidget);
+      final sliders = tester.widgetList<Slider>(find.byType(Slider)).toList();
+      expect([for (final s in sliders) s.value], [10.0, -5.0, 0.0]);
+      expect(sliders.every((s) => s.min == -50 && s.max == 50), isTrue);
+    });
+
+    testWidgets('dragging applies live and persists when the drag ends', (
+      tester,
+    ) async {
+      final settings = ValueNotifier<PlayerSettings>(const PlayerSettings());
+      addTearDown(settings.dispose);
+      final recorder = _RecordingPicture();
+      final live = <PictureValues>[];
+      await pumpDrawer(
+        tester,
+        settings: settings,
+        onPictureChanged: live.add,
+        recorder: recorder,
+      );
+      final slider = find.descendant(
+        of: find.byKey(const ValueKey('video-picture-brightness')),
+        matching: find.byType(Slider),
+      );
+      await tester.drag(slider, const Offset(60, 0));
+      await tester.pumpAndSettle();
+      expect(live, isNotEmpty);
+      expect(live.last.brightness, greaterThan(0));
+      expect(live.last.contrast, 0);
+      expect(live.last.saturation, 0);
+      expect(recorder.brightness, isNotEmpty);
+      expect(recorder.brightness.last, live.last.brightness);
+      expect(recorder.contrast, isEmpty);
+      expect(recorder.saturation, isEmpty);
+    });
+
+    testWidgets('Reset sets the three to zero, live and saved', (tester) async {
+      final settings = ValueNotifier<PlayerSettings>(
+        const PlayerSettings().copyWith(
+          pictureBrightness: 10,
+          pictureContrast: -5,
+          pictureSaturation: 20,
+        ),
+      );
+      addTearDown(settings.dispose);
+      final recorder = _RecordingPicture();
+      final live = <PictureValues>[];
+      await pumpDrawer(
+        tester,
+        settings: settings,
+        onPictureChanged: live.add,
+        recorder: recorder,
+      );
+      await tester.tap(find.byKey(const ValueKey('video-picture-reset')));
+      await tester.pump();
+      expect(live.last, (brightness: 0, contrast: 0, saturation: 0));
+      expect(recorder.brightness, [0]);
+      expect(recorder.contrast, [0]);
+      expect(recorder.saturation, [0]);
+      final sliders = tester.widgetList<Slider>(find.byType(Slider));
+      expect([for (final s in sliders) s.value], [0.0, 0.0, 0.0]);
     });
   });
 }
 
-/// Records the Custom advanced-value writes instead of writing them to Hive.
-class _RecordingCustomValues extends PlayerSettingsNotifier {
-  final List<String?> toneMappings = <String?>[];
-  final List<String?> targetPeaks = <String?>[];
+/// A settings notifier that records the PICTURE writes instead of
+/// persisting them.
+class _RecordingPicture extends PlayerSettingsNotifier {
+  final List<int> brightness = <int>[];
+  final List<int> contrast = <int>[];
+  final List<int> saturation = <int>[];
 
   @override
   Future<PlayerSettings> build() async => const PlayerSettings();
 
   @override
-  Future<void> setVideoCustomToneMapping(String? value) async {
-    toneMappings.add(value);
+  Future<void> setPictureBrightness(int value) async {
+    brightness.add(value);
   }
 
   @override
-  Future<void> setVideoCustomTargetPeak(String? value) async {
-    targetPeaks.add(value);
+  Future<void> setPictureContrast(int value) async {
+    contrast.add(value);
+  }
+
+  @override
+  Future<void> setPictureSaturation(int value) async {
+    saturation.add(value);
   }
 }

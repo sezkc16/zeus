@@ -1,3 +1,4 @@
+import '../../../core/utils/source_language.dart';
 import 'dart:async';
 
 import 'package:dpad/dpad.dart';
@@ -141,6 +142,9 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
   /// not on cellular, or "Max quality on mobile data" is Off (v7).
   int? _capHeight;
 
+  /// The "Preferred source language" (v9); Off until the settings load.
+  SourceLanguage _language = SourceLanguage.off;
+
   /// The settings store, or null where it is not available (storage not
   /// opened): the sheet then simply has no "Last used".
   SettingsRepository? _settingsOrNull() {
@@ -156,8 +160,13 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
       final settings = await ref.read(playerSettingsProvider.future);
       final cap = await mobileDataCapInForce(settings);
       final height = qualityPreferenceHeight(cap);
-      if (_disposed || !mounted || height == _capHeight) return;
-      setState(() => _capHeight = height);
+      final language = settings.preferredSourceLanguage;
+      if (_disposed || !mounted) return;
+      if (height == _capHeight && language == _language) return;
+      setState(() {
+        _capHeight = height;
+        _language = language;
+      });
     } catch (_) {
       // No limit known is no limit applied.
     }
@@ -339,6 +348,7 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
     _filtered,
     lastUsedKey: _lastUsedKey,
     capHeight: _capHeight,
+    language: _language,
   );
 
   List<AddonStreamSource> get _filtered => _result.streams
@@ -1068,6 +1078,7 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _SourceRow(
                               stream: topPick,
+                              language: _language,
                               isBest: true,
                               autofocus: true,
                               downloadMode: _downloadMode,
@@ -1090,6 +1101,7 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
                         padding: EdgeInsets.only(top: slot == 0 ? 0 : 6),
                         child: _SourceRow(
                           stream: stream,
+                          language: _language,
                           isBest: false,
                           autofocus: topPick == null && slot == 0,
                           downloadMode: _downloadMode,
@@ -1121,7 +1133,11 @@ class _SourceRow extends StatefulWidget {
     required this.onDownload,
     this.autofocus = false,
     this.downloadMode = false,
+    this.language = SourceLanguage.off,
   });
+
+  /// The preferred source language (v9): a row that names it is tagged.
+  final SourceLanguage language;
 
   @override
   State<_SourceRow> createState() => _SourceRowState();
@@ -1206,6 +1222,13 @@ class _SourceRowState extends State<_SourceRow> {
                           container: cs.primaryContainer,
                           onContainer: cs.onPrimaryContainer,
                         ),
+                        if (addonSourceStatesLanguage(stream, widget.language))
+                          SourceTag(
+                            key: const ValueKey('source-language-tag'),
+                            text: widget.language.label.toUpperCase(),
+                            container: cs.secondaryContainer,
+                            onContainer: cs.onSecondaryContainer,
+                          ),
                         if (stream.isHdr)
                           SourceTag(
                             text: 'HDR',

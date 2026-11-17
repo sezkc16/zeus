@@ -148,15 +148,12 @@ void main() {
   /// with a margin lays out as padding wrapped around the decoration, so
   /// measuring the Container returns the outer edge and reports the margin as
   /// though it were not there.
+  // Design B (1.0.0): there is no card any more; the rows sit on the
+  // page. What has to agree across the screens is the rows' own left edge.
   Finder firstCard() => find
       .descendant(
         of: find.byType(SettingsGroup).first,
-        matching: find.byWidgetPredicate(
-          (w) =>
-              w is DecoratedBox &&
-              w.decoration is BoxDecoration &&
-              (w.decoration as BoxDecoration).borderRadius != null,
-        ),
+        matching: find.byType(SettingsTile),
       )
       .first;
 

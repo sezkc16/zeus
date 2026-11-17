@@ -13,7 +13,9 @@ import 'package:flutter/material.dart';
 import 'package:vlc_player/vlc_player.dart';
 
 import '../../../../../core/domain/entity/multimedia_item.dart';
+import '../../../../../core/utils/source_language.dart';
 import '../../domain/source_row_status.dart';
+import '../../domain/stream_resolver.dart' show streamStatesLanguage;
 import '../vlc/panel/player_panel_data.dart';
 import 'golden_drawer.dart';
 import 'golden_player_theme.dart';
@@ -229,6 +231,13 @@ class GoldenSourcesDrawer extends StatelessWidget {
                               : null),
                     selected: i == data.currentSourceIndex,
                     lastUsed: i == data.lastUsedSourceIndex,
+                    languageTag:
+                        streamStatesLanguage(
+                          data.sources[i],
+                          data.preferredLanguage,
+                        )
+                        ? data.preferredLanguage.label
+                        : null,
                     onTap: () => onPickSource?.call(i),
                   ),
             ],
@@ -253,7 +262,11 @@ class _SourceTile extends StatelessWidget {
     required this.onTap,
     this.detail,
     this.lastUsed = false,
+    this.languageTag,
   });
+
+  /// The preferred source language's name when this row names it (v9).
+  final String? languageTag;
 
   /// Whether this is the source the title last played on (v7).
   final bool lastUsed;
@@ -329,9 +342,17 @@ class _SourceTile extends StatelessWidget {
                           fontSize: 14,
                         ),
                       ),
-                      if (lastUsed) ...<Widget>[
+                      if (lastUsed || languageTag != null) ...<Widget>[
                         const SizedBox(height: 3),
-                        const _Chip(label: 'Last used', gold: true),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 3,
+                          children: <Widget>[
+                            if (lastUsed)
+                              const _Chip(label: 'Last used', gold: true),
+                            if (languageTag != null) _Chip(label: languageTag!),
+                          ],
+                        ),
                       ],
                       if (detail != null) ...<Widget>[
                         const SizedBox(height: 2),
@@ -417,7 +438,7 @@ class _SourceTile extends StatelessWidget {
 /// A small pill for a chip that must stay visible when the label
 /// truncates: gold for the quality, plain for the server.
 class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.gold});
+  const _Chip({required this.label, this.gold = false});
 
   final String label;
   final bool gold;

@@ -20,7 +20,7 @@ class HomeRowsSettingsTile extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     return SettingsTile(
       key: const ValueKey('settings-home-rows'),
-      emoji: '🧱',
+      reicon: Reicon.layout,
       title: l10n.homeRowsTitle,
       subtitle: l10n.homeRowsSubtitle,
       onTap: () => unawaited(
@@ -65,7 +65,7 @@ class AppLockSettingsTile extends ConsumerWidget {
       listenable: controller,
       builder: (context, _) => SettingsTile(
         key: const ValueKey('settings-app-lock'),
-        emoji: '🔒',
+        reicon: Reicon.faceScanSquare,
         title: l10n.appLockTitle,
         subtitle: l10n.appLockSubtitle,
         trailing: Switch(

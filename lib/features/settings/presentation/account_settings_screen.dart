@@ -132,7 +132,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                 title: 'Subtitle Accounts',
                 children: [
                   SettingsTile(
-                    emoji: '💬',
+                    reicon: Reicon.subtitles,
                     title: l10n.openSubtitles,
                     // A stored username is not a session: with no API key the
                     // provider returns nothing before it sends a request, so
@@ -152,7 +152,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                     ),
                   ),
                   SettingsTile(
-                    emoji: '💬',
+                    reicon: Reicon.subtitles,
                     title: l10n.subDl,
                     subtitle: playerSettings.subdlApiKey.isNotEmpty
                         ? l10n.apiKeyConfigured
@@ -164,7 +164,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                         showSubDlAuthDialog(context, ref, playerSettings),
                   ),
                   SettingsTile(
-                    emoji: '💬',
+                    reicon: Reicon.subtitles,
                     title: l10n.subSource,
                     subtitle: playerSettings.subsourceApiKey.isNotEmpty
                         ? l10n.apiKeyConfigured
@@ -190,7 +190,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                         children: [
                           SettingsTile(
                             focusNode: _simklFocusNode,
-                            emoji: '📊',
+                            reicon: Reicon.chart,
                             title: 'Simkl',
                             subtitle: trackingAuthAsync.when(
                               data: (state) => state['simkl'] == true
@@ -296,7 +296,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                           ),
                           SettingsTile(
                             focusNode: _traktFocusNode,
-                            emoji: '📺',
+                            reicon: Reicon.tv,
                             title: 'Trakt',
                             subtitle: trackingAuthAsync.when(
                               data: (state) => state['trakt'] == true
@@ -402,7 +402,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                           ),
                           SettingsTile(
                             focusNode: _malFocusNode,
-                            emoji: '🍥',
+                            reicon: Reicon.listCheck,
                             title: 'MyAnimeList',
                             subtitle: trackingAuthAsync.when(
                               data: (state) => state['mal'] == true
@@ -463,7 +463,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                           ),
                           SettingsTile(
                             focusNode: _anilistFocusNode,
-                            emoji: '📘',
+                            reicon: Reicon.bookOpen,
                             title: 'AniList',
                             subtitle: trackingAuthAsync.when(
                               data: (state) => state['anilist'] == true
@@ -536,7 +536,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                 title: 'Integrations & Metadata',
                 children: [
                   SettingsTile(
-                    emoji: '🔑',
+                    reicon: Reicon.key,
                     title: 'TMDB API key',
                     subtitle: 'Posters, logos & metadata',
                     value: generalSettings.tmdbApiKey.isNotEmpty
@@ -547,7 +547,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                     onTap: () => showTmdbApiKeyDialog(context, ref),
                   ),
                   SettingsTile(
-                    emoji: '⏩',
+                    reicon: Reicon.skipNext,
                     title: 'AnimeSkip',
                     isBeta: true,
                     subtitle: 'Skip segments for Anime',
@@ -567,7 +567,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                     },
                   ),
                   SettingsTile(
-                    emoji: '⏩',
+                    reicon: Reicon.skipNext,
                     title: 'IntroDB',
                     isBeta: true,
                     subtitle: 'Skip segments for TV Shows',
@@ -604,7 +604,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           SettingsTile(
-                            emoji: '🔒',
+                            reicon: Reicon.shieldLock,
                             title: l10n.dnsOverHttps,
                             subtitle: 'Encrypt DNS lookups',
                             trailing: Switch(
@@ -623,7 +623,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                           ),
                           if (dohState.enabled)
                             SettingsTile(
-                              emoji: '🌐',
+                              reicon: Reicon.globe,
                               title: l10n.dohProvider,
                               value: getDohProviderLabel(
                                 dohState.provider,
@@ -637,7 +637,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                           // the old toggle only ever meant jsDelivr, which
                           // is one of the choices now.
                           SettingsTile(
-                            emoji: '🐙',
+                            reicon: Reicon.serverPath,
                             title: l10n.githubProxy,
                             subtitle: 'For repo & extension downloads',
                             value: githubProxyLabel(generalSettings),
@@ -656,7 +656,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                 title: l10n.downloads,
                 children: [
                   SettingsTile(
-                    emoji: '📁',
+                    reicon: Reicon.folder,
                     title: 'Download location',
                     value:
                         generalSettings.downloadDirectory ??
@@ -668,7 +668,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                     ),
                   ),
                   SettingsTile(
-                    emoji: '⏬',
+                    reicon: Reicon.download,
                     title: 'Parallel downloads',
                     value: '${generalSettings.downloadConcurrency}',
                     onTap: () => showDownloadConcurrencyDialog(
@@ -678,7 +678,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                     ),
                   ),
                   SettingsTile(
-                    emoji: '🧩',
+                    reicon: Reicon.layers,
                     title: 'Download segments per file',
                     value: generalSettings.downloadChunks == 1
                         ? 'Off'

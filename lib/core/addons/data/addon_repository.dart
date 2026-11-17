@@ -44,6 +44,10 @@ class AddonRepository extends _$AddonRepository {
   /// look at an empty list.
   Future<void> _loaded = Future<void>.value();
 
+  /// Completes once the stored list has reached [state] (v9: the Zeus
+  /// backup waits on it before it reads or adds).
+  Future<void> whenLoaded() => _loaded;
+
   @override
   AddonsState build() {
     _loaded = Future.microtask(load);

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_displaymode/flutter_displaymode.dart';
+import 'features/account/presentation/zeus_auto_sync.dart';
 import 'features/app_lock/app_lock_gate.dart';
 import 'package:flutter/material.dart';
 
@@ -750,6 +751,9 @@ class _MyAppState extends ConsumerState<MyApp> {
             // App lock (v7): the lock screen / privacy cover over the whole
             // app, toasts included. It stands down over the player.
             result = AppLockGate(router: appRouter, child: result);
+            // v9: the Zeus account's automatic sync, on open and on
+            // return to the foreground. Draws nothing.
+            result = ZeusAutoSync(router: appRouter, child: result);
 
             // Outermost, so every focus indicator in the app - the browsing
             // UI, the player chrome, dialogs and the toast host alike - reads

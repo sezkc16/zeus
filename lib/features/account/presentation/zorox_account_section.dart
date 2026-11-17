@@ -32,13 +32,13 @@ class ZoroxAccountSection extends ConsumerWidget {
           title: 'Backup',
           children: [
             SettingsTile(
-              emoji: '📤',
+              reicon: Reicon.export,
               title: 'Export backup',
-              subtitle: 'Save watch history, plugins & library to a file',
+              subtitle: 'Save history, library, plugins, add-ons & settings',
               onTap: () => _exportBackup(context, ref),
             ),
             SettingsTile(
-              emoji: '⬆️',
+              reicon: Reicon.import,
               title: 'Import backup',
               subtitle: 'Restore from a backup file',
               isLast: true,
@@ -51,7 +51,7 @@ class ZoroxAccountSection extends ConsumerWidget {
           title: 'Zeus Account',
           children: [
             SettingsTile(
-              emoji: '👤',
+              reicon: Reicon.userCircle,
               title: 'Zeus Account',
               subtitle: account.loggedIn
                   ? 'Logged in as ${account.email}'
@@ -65,7 +65,7 @@ class ZoroxAccountSection extends ConsumerWidget {
             ),
             if (account.loggedIn)
               SettingsTile(
-                emoji: '☁️',
+                reicon: Reicon.cloud,
                 title: 'Sync now',
                 subtitle: account.cloudConfigured
                     ? (account.lastSyncedAt == null
@@ -74,8 +74,25 @@ class ZoroxAccountSection extends ConsumerWidget {
                     : 'Cloud sync not set up yet',
                 onTap: () => _syncNow(context, ref),
               ),
+            // v9: sync by itself on open and on return to the app.
+            if (account.loggedIn)
+              SettingsTile(
+                key: const ValueKey('zeus-auto-sync'),
+                reicon: Reicon.refresh,
+                title: 'Sync automatically',
+                subtitle: 'When the app opens',
+                trailing: Switch(
+                  value: account.autoSyncEnabled,
+                  onChanged: (value) => ref
+                      .read(zoroxAccountProvider.notifier)
+                      .setAutoSyncEnabled(value),
+                ),
+                onTap: () => ref
+                    .read(zoroxAccountProvider.notifier)
+                    .setAutoSyncEnabled(!account.autoSyncEnabled),
+              ),
             SettingsTile(
-              emoji: '🌐',
+              reicon: Reicon.server,
               title: 'Sync server',
               subtitle: account.usingDefaultServer
                   ? 'Default'
@@ -94,12 +111,12 @@ class ZoroxAccountSection extends ConsumerWidget {
 
   Future<void> _syncNow(BuildContext context, WidgetRef ref) async {
     final notifier = ref.read(zoroxAccountProvider.notifier);
-    final ok = await notifier.uploadBackup();
+    final ok = await notifier.syncNow();
     if (!context.mounted) return;
     final notifications = ref.read(notificationServiceProvider);
     if (ok) {
       notifications.showSuccess(
-        'Backed up to the cloud.',
+        'Synced with the cloud.',
         title: 'Zeus Account',
         icon: Icons.cloud_done_rounded,
       );
@@ -536,14 +553,14 @@ class _ZoroxAccountDialogState extends ConsumerState<ZoroxAccountDialog> {
   }
 
   Future<void> _syncNow() async {
-    final ok = await ref.read(zoroxAccountProvider.notifier).uploadBackup();
+    final ok = await ref.read(zoroxAccountProvider.notifier).syncNow();
     if (!mounted) return;
     if (ok) {
       Navigator.pop(context);
       ref
           .read(notificationServiceProvider)
           .showSuccess(
-            'Backed up to the cloud.',
+            'Synced with the cloud.',
             title: 'Zeus Account',
             icon: Icons.cloud_done_rounded,
           );

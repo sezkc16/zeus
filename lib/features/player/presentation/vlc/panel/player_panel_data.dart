@@ -18,6 +18,7 @@
 /// time. See that typedef for why a map would be the wrong shape.
 library;
 
+import '../../../../../core/utils/source_language.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../../../core/domain/entity/multimedia_item.dart';
@@ -93,6 +94,7 @@ class PanelData {
     this.qualityFilteredFallback = false,
     this.lastUsedSourceIndex = -1,
     this.dataSaver = false,
+    this.preferredLanguage = SourceLanguage.off,
     this.qualityLadder = const <int>[],
     this.qualityPick,
     this.episodes = const <Episode>[],
@@ -139,6 +141,10 @@ class PanelData {
   /// "Data saver".
   final bool dataSaver;
 
+  /// The "Preferred source language" in force (v9): rows that name it are
+  /// tagged with it.
+  final SourceLanguage preferredLanguage;
+
   /// The heights the HLS stream playing offers, tallest first, each once;
   /// empty for anything else. Two or more make the Quality tab.
   final List<int> qualityLadder;
@@ -181,6 +187,7 @@ class PanelData {
     bool? qualityFilteredFallback,
     int? lastUsedSourceIndex,
     bool? dataSaver,
+    SourceLanguage? preferredLanguage,
     List<int>? qualityLadder,
     int? qualityPick,
     bool clearQualityPick = false,
@@ -203,6 +210,7 @@ class PanelData {
           qualityFilteredFallback ?? this.qualityFilteredFallback,
       lastUsedSourceIndex: lastUsedSourceIndex ?? this.lastUsedSourceIndex,
       dataSaver: dataSaver ?? this.dataSaver,
+      preferredLanguage: preferredLanguage ?? this.preferredLanguage,
       qualityLadder: qualityLadder ?? this.qualityLadder,
       qualityPick: clearQualityPick ? null : qualityPick ?? this.qualityPick,
       episodes: episodes ?? this.episodes,
@@ -240,6 +248,7 @@ class PanelData {
         qualityFilteredFallback == other.qualityFilteredFallback &&
         lastUsedSourceIndex == other.lastUsedSourceIndex &&
         dataSaver == other.dataSaver &&
+        preferredLanguage == other.preferredLanguage &&
         listEquals(qualityLadder, other.qualityLadder) &&
         qualityPick == other.qualityPick &&
         listEquals(episodes, other.episodes) &&
@@ -261,6 +270,7 @@ class PanelData {
     qualityFilteredFallback,
     lastUsedSourceIndex,
     dataSaver,
+    preferredLanguage,
     Object.hashAll(qualityLadder),
     qualityPick,
     Object.hashAll(episodes),

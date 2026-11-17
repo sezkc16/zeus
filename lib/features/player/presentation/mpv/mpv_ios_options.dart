@@ -245,50 +245,44 @@ IosResumeAction iosResumeAction({
   return is4K ? IosResumeAction.reopen4K : IosResumeAction.plainResume;
 }
 
-/// The iOS Video output preset's render options (+57).
+/// The iOS HDR choice's render options (+57; two choices since v9).
 ///
-/// The full render configuration for a preset, as `option → value`,
-/// applied on top of [kMpvIosOptions] — every preset carries the WHOLE
-/// render set (tone mapping + target peak + scalers), so switching
-/// presets is always a deterministic state: picking Native EDR after
-/// Compatibility restores the cheap scalers, it does not leave lanczos
-/// behind.
+/// The full render configuration, as `option → value`, applied on top of
+/// [kMpvIosOptions]: the tone-mapping curve (Bright = `clip`, Balanced =
+/// `bt.2390`), `target-peak: auto`, and the +34 cheap scalers — the same
+/// scalers for both, so a pick only ever changes the curve.
 ///
-/// Hardware path (PiP OFF, gl_video): these are real mpv options,
-/// applied live via setProperty — the picture changes at once, no
-/// re-open. Software path (PiP ON, TextureSW): the scaler options are
-/// no-ops there (libswscale); the tone-mapping curve is honoured through
-/// the LUT, which reads the `tone-mapping` value (see
-/// [swToneMapCurveForToneMapping] and TextureSW.swift).
+/// Hardware path (PiP OFF, gl_video): real mpv options, applied live via
+/// setProperty. Software path (PiP ON, TextureSW): the scaler options
+/// are no-ops there (libswscale); the curve is honoured through the LUT,
+/// which reads the live `tone-mapping` value (see
+/// [swToneMapCurveForToneMapping] and TextureSW.swift) — so PiP ON
+/// matches PiP OFF for both choices, the +50 principle.
 ///
-/// The mapping (mpv manual, verified 2026-11-16):
-/// - `tone-mapping: auto` (the default) maps to bt.2390 on vo=gpu, so
-///   Compatibility's `auto` and SDR tone mapped's `bt.2390` are the SAME
-///   curve — Compatibility differs from SDR tone mapped only in the
-///   scalers (mpv defaults vs the +34 cheap ones).
-/// - `target-peak: auto` (the default) picks the peak from the TRC.
-/// - `scale` defaults to lanczos, `dscale` to hermite, `cscale` unset
-///   follows scale, `dither-depth` defaults to auto,
-///   `correct-downscaling` is enabled by default, `deband` is a flag
-///   defaulting to no.
-/// - `hdr-compute-peak` is deliberately NOT set by any preset: it blacks
-///   the video with vo=libmpv (media_kit forces it off).
-///
-/// Native EDR is `clip` on both paths — the behaviour every install
-/// already had (clip on both paths since +50) — so the default preset
-/// changes nothing on upgrade. SDR tone mapped is the bt.2390 reference
-/// curve on both paths (the hardware option + the software EETF LUT),
-/// which is what makes PiP ON match PiP OFF for that preset, the +50
-/// principle. Pure, so it is unit-tested (see
+/// The curve only does anything on an HDR (PQ / HLG) video: an SDR video
+/// is never tone-mapped, which is why the panel shows the two choices on
+/// HDR videos only. `hdr-compute-peak` is deliberately NOT set: it blacks
+/// the video with vo=libmpv (media_kit forces it off). Bright is the
+/// behaviour every install already had, so the default changes nothing
+/// on upgrade. Pure, so it is unit-tested (see
 /// `mpv_video_output_preset_test.dart`).
 Map<String, String> videoOutputPresetOptions(
   VideoOutputPreset preset, {
   String? customToneMapping,
   String? customTargetPeak,
 }) {
-  // The +34 cheap render: the fastest scaler, no deband, no dither, no
-  // extra downscale pass. The base for every preset except Compatibility.
-  const cheapScalers = <String, String>{
+  // v9: two choices — Bright (clip) and Balanced (bt.2390) — and one
+  // render set for both: the +34 cheap scalers (fastest scaler, no
+  // deband, no dither, no extra downscale pass) and the peak from the
+  // video. Compatibility's lanczos set and Custom's own target peak are
+  // gone with those presets; [customTargetPeak] is accepted and ignored
+  // so an old caller still compiles.
+  return <String, String>{
+    'tone-mapping': videoOutputPresetToneMapping(
+      preset,
+      customToneMapping: customToneMapping,
+    ),
+    'target-peak': 'auto',
     'scale': 'bilinear',
     'cscale': 'bilinear',
     'dscale': 'bilinear',
@@ -296,47 +290,77 @@ Map<String, String> videoOutputPresetOptions(
     'dither-depth': 'no',
     'correct-downscaling': 'no',
   };
-  // mpv's own defaults: the render before the +34 cheap-scalers.
-  const defaultScalers = <String, String>{
-    'scale': 'lanczos',
-    'cscale': 'lanczos',
-    'dscale': 'hermite',
-    'deband': 'no',
-    'dither-depth': 'auto',
-    'correct-downscaling': 'yes',
-  };
-  final toneMapping = videoOutputPresetToneMapping(
-    preset,
-    customToneMapping: customToneMapping,
-  );
-  final targetPeak = preset == VideoOutputPreset.custom
-      ? (customTargetPeak ?? 'auto')
-      : 'auto';
-  final scalers = preset == VideoOutputPreset.compatibility
-      ? defaultScalers
-      : cheapScalers;
-  return <String, String>{
-    'tone-mapping': toneMapping,
-    'target-peak': targetPeak,
-    ...scalers,
-  };
 }
 
-/// The `tone-mapping` value a preset selects (+57).
+/// The `tone-mapping` value a preset selects (+57, two values since v9).
 ///
 /// The single value the software renderer reads to pick its LUT (see
 /// [swToneMapCurveForToneMapping]): the hardware path gets the same value
 /// through [videoOutputPresetOptions], so one setting drives both paths.
-/// Custom with nothing stored falls back to `clip` (Native EDR).
+/// Bright is `clip`, Balanced is `bt.2390`; a legacy Compatibility or
+/// Custom value is mapped through [migrateVideoOutputPreset] first, so it
+/// can never select a third curve.
 String videoOutputPresetToneMapping(
   VideoOutputPreset preset, {
   String? customToneMapping,
-}) => switch (preset) {
-  VideoOutputPreset.nativeEdr => 'clip',
-  VideoOutputPreset.sdrToneMapped => 'bt.2390',
-  VideoOutputPreset.compatibility => 'auto',
-  VideoOutputPreset.custom => customToneMapping ?? 'clip',
+}) {
+  final effective = migrateVideoOutputPreset(
+    preset.name,
+    customToneMapping: customToneMapping,
+  );
+  return effective == VideoOutputPreset.sdrToneMapped ? 'bt.2390' : 'clip';
+}
+
+/// The Video panel's PICTURE sliders as mpv properties (v9).
+///
+/// Each slider is −50…+50 and maps one-to-one onto mpv's own
+/// `brightness` / `contrast` / `saturation` (−100…100, 0 = untouched),
+/// held to the slider's range. Hardware path (PiP setting OFF): the
+/// OpenGL renderer applies them itself. Software path (PiP setting ON):
+/// mpv's software renderer ignores them, so TextureSW.swift reads the
+/// same three properties every frame and applies the same maths to the
+/// frame it hands Flutter and the PiP window. Pure, so it is unit-tested.
+Map<String, String> pictureOptions({
+  required int brightness,
+  required int contrast,
+  required int saturation,
+}) => <String, String>{
+  'brightness': '${clampPictureValue(brightness)}',
+  'contrast': '${clampPictureValue(contrast)}',
+  'saturation': '${clampPictureValue(saturation)}',
 };
+
+/// Applies the PICTURE sliders to a player's mpv instance (v9).
+/// Best-effort, like the other option appliers.
+Future<void> applyPictureOptions(
+  NativePlayer platform, {
+  required int brightness,
+  required int contrast,
+  required int saturation,
+}) async {
+  final options = pictureOptions(
+    brightness: brightness,
+    contrast: contrast,
+    saturation: saturation,
+  );
+  for (final entry in options.entries) {
+    try {
+      await platform.setProperty(entry.key, entry.value);
+    } catch (e) {
+      debugPrint('[mpv] picture option ${entry.key} not applied: $e');
+    }
+  }
+}
+
+/// Whether an mpv `video-params/gamma` value is an HDR transfer (v9):
+/// `pq` (HDR10, Dolby Vision's base layer) or `hlg`. The same two values
+/// the software renderer's tone-mapping LUT keys on (TextureSW.swift).
+/// Null — the property could not be read — is "unknown".
+bool? videoGammaIsHdr(String? gamma) {
+  final value = gamma?.trim().toLowerCase();
+  if (value == null || value.isEmpty) return null;
+  return value == 'pq' || value == 'hlg';
+}
 
 /// Which software LUT curve a `tone-mapping` value means (+57).
 ///

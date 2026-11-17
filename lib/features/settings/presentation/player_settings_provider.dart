@@ -6,6 +6,7 @@ import '../../../core/storage/secure_token_storage.dart';
 import '../../../core/storage/settings_repository.dart';
 import '../../../core/storage/storage_service.dart'
     show kOsPasswordKey, kSubDlPasswordKey;
+import '../../../core/utils/source_language.dart';
 import '../../player/domain/network_buffer.dart';
 import '../../player/domain/subtitle_code_pages.dart';
 import '../../player/domain/track_language.dart';
@@ -179,6 +180,12 @@ enum PipMode { mpv, ios }
 /// behaviour (no tone-mapping curve), not real EDR — see the per-value
 /// notes. `hdr-compute-peak` is never set by any preset: it blacks the
 /// video with vo=libmpv (media_kit forces it off).
+///
+/// v9: the panel shows two choices only — "Bright" ([nativeEdr]) and
+/// "Balanced" ([sdrToneMapped]) — and only on HDR videos. [compatibility]
+/// and [custom] are no longer offered; the names stay so an old stored
+/// value (or an old backup) still parses, and [migrateVideoOutputPreset]
+/// turns them into one of the two.
 enum VideoOutputPreset {
   /// Closest to HDR passthrough: no tone-mapping curve, hard clip at
   /// peak white (`tone-mapping: clip` on the hardware path, the clip LUT
@@ -289,6 +296,18 @@ class PlayerSettings {
   /// higher ones stay listed below. [QualityPreference.any] is Off, the
   /// default. One of [kMobileDataMaxQualities].
   final QualityPreference mobileDataMaxQuality;
+
+  /// "Preferred source language" (v9): sources that say they carry it are
+  /// listed first. Off by default.
+  final SourceLanguage preferredSourceLanguage;
+
+  /// The Video panel's PICTURE sliders (v9): brightness, contrast and
+  /// saturation, each −50…+50, 0 by default. Global, not per title;
+  /// applied to every video on open and live while dragging (see
+  /// `pictureOptions` in `mpv_ios_options.dart`).
+  final int pictureBrightness;
+  final int pictureContrast;
+  final int pictureSaturation;
 
   /// Whether the next episode starts on its own when one ends (v7): a 5 s
   /// "Next episode" card with Play now and Cancel. Off: the episode just
@@ -418,6 +437,10 @@ class PlayerSettings {
     this.mobileQuality = QualityPreference.q1080,
     this.qualityFilterMode = QualityFilterMode.any,
     this.mobileDataMaxQuality = QualityPreference.any,
+    this.preferredSourceLanguage = SourceLanguage.off,
+    this.pictureBrightness = 0,
+    this.pictureContrast = 0,
+    this.pictureSaturation = 0,
     this.autoPlayNextEpisode = true,
     this.bufferOverrideMb,
     this.maxVolumePercent = 200,
@@ -472,6 +495,10 @@ class PlayerSettings {
     QualityPreference? mobileQuality,
     QualityFilterMode? qualityFilterMode,
     QualityPreference? mobileDataMaxQuality,
+    SourceLanguage? preferredSourceLanguage,
+    int? pictureBrightness,
+    int? pictureContrast,
+    int? pictureSaturation,
     bool? autoPlayNextEpisode,
     int? bufferOverrideMb,
     bool clearBufferOverride = false,
@@ -532,6 +559,11 @@ class PlayerSettings {
       mobileQuality: mobileQuality ?? this.mobileQuality,
       qualityFilterMode: qualityFilterMode ?? this.qualityFilterMode,
       mobileDataMaxQuality: mobileDataMaxQuality ?? this.mobileDataMaxQuality,
+      preferredSourceLanguage:
+          preferredSourceLanguage ?? this.preferredSourceLanguage,
+      pictureBrightness: pictureBrightness ?? this.pictureBrightness,
+      pictureContrast: pictureContrast ?? this.pictureContrast,
+      pictureSaturation: pictureSaturation ?? this.pictureSaturation,
       autoPlayNextEpisode: autoPlayNextEpisode ?? this.autoPlayNextEpisode,
       bufferOverrideMb: clearBufferOverride
           ? null
@@ -833,16 +865,16 @@ class PlayerSettingsNotifier extends _$PlayerSettingsNotifier {
     // Video output preset (+57): stored by enum name; an unknown name —
     // written by a newer build, or a corrupted box — reads back as
     // Native EDR, the behaviour every install already had.
-    final videoOutputPreset = VideoOutputPreset.values.firstWhere(
-      (e) =>
-          e.name ==
-          storage.getPlayerSetting<String>('player_video_output_preset'),
-      orElse: () => VideoOutputPreset.nativeEdr,
-    );
-    // The Custom preset's stored advanced values; null when never set
-    // (Custom then behaves as Native EDR).
+    // v9: only two choices remain — Bright (nativeEdr) and Balanced
+    // (sdrToneMapped). A stored Compatibility or Custom is read as the
+    // one it was closest to (see [migrateVideoOutputPreset]); the stored
+    // name itself is rewritten the first time the viewer picks.
     final videoCustomToneMapping = storage.getPlayerSetting<String>(
       'player_video_custom_tone_mapping',
+    );
+    final videoOutputPreset = migrateVideoOutputPreset(
+      storage.getPlayerSetting<String>('player_video_output_preset'),
+      customToneMapping: videoCustomToneMapping,
     );
     final videoCustomTargetPeak = storage.getPlayerSetting<String>(
       'player_video_custom_target_peak',
@@ -886,6 +918,18 @@ class PlayerSettingsNotifier extends _$PlayerSettingsNotifier {
       mobileQuality: mobileQ,
       qualityFilterMode: filterMode,
       mobileDataMaxQuality: mobileDataMaxQuality,
+      preferredSourceLanguage: sourceLanguageFromName(
+        storage.getPlayerSetting<String>(kPreferredSourceLanguageKey),
+      ),
+      pictureBrightness: clampPictureValue(
+        storage.getPlayerSetting<int>(kPictureBrightnessKey),
+      ),
+      pictureContrast: clampPictureValue(
+        storage.getPlayerSetting<int>(kPictureContrastKey),
+      ),
+      pictureSaturation: clampPictureValue(
+        storage.getPlayerSetting<int>(kPictureSaturationKey),
+      ),
       autoPlayNextEpisode: autoPlayNextEpisode,
       bufferOverrideMb: bufferOverrideMb,
       maxVolumePercent: maxVolumePercent,
@@ -1367,6 +1411,33 @@ class PlayerSettingsNotifier extends _$PlayerSettingsNotifier {
     _update((PlayerSettings c) => c.copyWith(mobileDataMaxQuality: value));
   }
 
+  /// One of the Video panel's PICTURE sliders (v9), −50…+50.
+  Future<void> setPictureBrightness(int value) async {
+    final v = clampPictureValue(value);
+    await _repository.setPlayerSetting(kPictureBrightnessKey, v);
+    _update((PlayerSettings c) => c.copyWith(pictureBrightness: v));
+  }
+
+  Future<void> setPictureContrast(int value) async {
+    final v = clampPictureValue(value);
+    await _repository.setPlayerSetting(kPictureContrastKey, v);
+    _update((PlayerSettings c) => c.copyWith(pictureContrast: v));
+  }
+
+  Future<void> setPictureSaturation(int value) async {
+    final v = clampPictureValue(value);
+    await _repository.setPlayerSetting(kPictureSaturationKey, v);
+    _update((PlayerSettings c) => c.copyWith(pictureSaturation: v));
+  }
+
+  Future<void> setPreferredSourceLanguage(SourceLanguage language) async {
+    await _repository.setPlayerSetting(
+      kPreferredSourceLanguageKey,
+      language == SourceLanguage.off ? null : language.name,
+    );
+    _update((PlayerSettings c) => c.copyWith(preferredSourceLanguage: language));
+  }
+
   Future<void> setAutoPlayNextEpisode(bool val) async {
     await _repository.setPlayerSetting('player_autoplay_next_episode', val);
     _update((PlayerSettings c) => c.copyWith(autoPlayNextEpisode: val));
@@ -1509,5 +1580,50 @@ class PlayerSettingsNotifier extends _$PlayerSettingsNotifier {
       (e) => e.name == s,
       orElse: () => QualityFilterMode.any,
     );
+  }
+}
+
+
+/// Storage keys of the Video panel's PICTURE sliders (v9).
+const String kPictureBrightnessKey = 'player_picture_brightness';
+const String kPictureContrastKey = 'player_picture_contrast';
+const String kPictureSaturationKey = 'player_picture_saturation';
+
+/// The PICTURE sliders' range (v9): −50…+50.
+const int kPictureMin = -50;
+const int kPictureMax = 50;
+
+/// A stored or dragged PICTURE value held to its range; null (never set)
+/// and anything that is not a number is 0, the untouched picture.
+int clampPictureValue(num? value) {
+  if (value == null || value.isNaN) return 0;
+  return value.round().clamp(kPictureMin, kPictureMax);
+}
+
+/// What a stored `player_video_output_preset` means from v9 on, where the
+/// panel offers only Bright ([VideoOutputPreset.nativeEdr]) and Balanced
+/// ([VideoOutputPreset.sdrToneMapped]):
+///
+/// * `nativeEdr` → Bright;
+/// * `sdrToneMapped`, `compatibility` → Balanced (both were bt.2390);
+/// * `custom` → Bright when its stored tone mapping is `clip` or was never
+///   set (Custom then behaved as Native EDR), otherwise Balanced;
+/// * nothing stored, or a name this build does not know → Bright, the
+///   default every install already had.
+VideoOutputPreset migrateVideoOutputPreset(
+  String? stored, {
+  String? customToneMapping,
+}) {
+  switch (stored) {
+    case 'sdrToneMapped':
+    case 'compatibility':
+      return VideoOutputPreset.sdrToneMapped;
+    case 'custom':
+      final tone = (customToneMapping ?? 'clip').trim().toLowerCase();
+      return tone == 'clip'
+          ? VideoOutputPreset.nativeEdr
+          : VideoOutputPreset.sdrToneMapped;
+    default:
+      return VideoOutputPreset.nativeEdr;
   }
 }

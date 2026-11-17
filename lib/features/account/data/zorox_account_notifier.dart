@@ -8,17 +8,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../../core/addons/data/addon_repository.dart';
 import '../../../core/cloudstream/cloudstream_models.dart';
 import '../../../core/cloudstream/cloudstream_repository.dart';
 import '../../../core/extensions/models/extension_plugin.dart';
 import '../../../core/logger/app_logger.dart';
+import '../../../core/nuvio/data/nuvio_repository.dart';
 import '../../../core/storage/library_repository.dart';
 import '../../../core/storage/secure_token_storage.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../extensions/providers/extensions_controller.dart';
 import '../../library/presentation/history_provider.dart';
+import '../../../core/theme/accent_color.dart';
+import '../../../core/theme/theme_provider.dart';
+import '../../../core/theme/theme_variant.dart';
+import '../../home/presentation/home_row_prefs_provider.dart';
 import '../../library/presentation/library_provider.dart';
+import '../../search/domain/search_plugin_filter.dart';
+import '../../settings/presentation/general_settings_provider.dart';
+import '../../settings/presentation/player_settings_provider.dart';
 import 'zorox_backup.dart';
+import 'zorox_settings_sync.dart';
 import 'zorox_sync_client.dart';
 
 /// The ZoroX account: login + cloud sync, and Export/Import backup.
@@ -45,7 +55,12 @@ class ZoroxAccountState {
     this.workerUrl = kZoroxSyncWorkerUrl,
     this.usingDefaultServer = true,
     this.sessionExpired = false,
+    this.autoSyncEnabled = true,
   });
+
+  /// "Sync automatically" (v9): on by default. When on and logged in, the
+  /// app syncs by itself on open and on return to the foreground.
+  final bool autoSyncEnabled;
 
   final String? email;
   final bool loggedIn;
@@ -79,7 +94,9 @@ class ZoroxAccountState {
     String? workerUrl,
     bool? usingDefaultServer,
     bool? sessionExpired,
+    bool? autoSyncEnabled,
   }) => ZoroxAccountState(
+    autoSyncEnabled: autoSyncEnabled ?? this.autoSyncEnabled,
     email: email ?? this.email,
     loggedIn: loggedIn ?? this.loggedIn,
     busy: busy ?? this.busy,
@@ -106,6 +123,26 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
   static const String _kWorkerUrlKey = 'zorox_sync_worker_url';
   static const String _kLastSyncedKey = 'zorox_last_synced_at';
 
+  /// "Sync automatically" (v9). Stored only when switched off; this
+  /// device's own choice, never part of a backup.
+  static const String _kAutoSyncOffKey = 'zorox_auto_sync_off';
+
+  /// When a synced setting last changed on this device (v9), Unix ms.
+  /// What decides whether the cloud's settings or this device's are the
+  /// newer ones in an automatic sync. Never part of a backup's settings.
+  static const String _kSettingsChangedAtKey = 'zorox_settings_changed_at';
+
+  /// The automatic sync's throttle (v9): at most once per 10 minutes.
+  final AutoSyncGate _autoSyncGate = AutoSyncGate();
+  bool _autoSyncRunning = false;
+
+  /// True while a restore is writing into the stores (v9). The change
+  /// listeners below see those writes; they must not read them as the
+  /// user changing something (no upload scheduled, no "settings changed
+  /// here" stamp) — a restore never triggers a sync of its own.
+  bool _restoring = false;
+  StreamSubscription<String>? _settingsWatch;
+
   /// How long after a change the auto-upload waits, so ten history saves in
   /// a row become one upload instead of ten.
   static const Duration _autoSyncDebounce = Duration(seconds: 10);
@@ -125,7 +162,10 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
 
   @override
   ZoroxAccountState build() {
-    ref.onDispose(() => _autoSyncTimer?.cancel());
+    ref.onDispose(() {
+      _autoSyncTimer?.cancel();
+      unawaited(_settingsWatch?.cancel());
+    });
     if (!_restored) {
       _restored = true;
       unawaited(_restoreSession());
@@ -140,7 +180,63 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
     ref.listen(watchHistoryProvider, (_, _) => requestAutoSync());
     ref.listen(extensionsControllerProvider, (_, _) => requestAutoSync());
     ref.listen(cloudStreamRepositoryProvider, (_, _) => requestAutoSync());
+    // v9: add-ons and synced settings too, on the same 10 s debounce.
+    ref.listen(addonRepositoryProvider, (_, _) => requestAutoSync());
+    ref.listen(nuvioRepositoryProvider, (_, _) => requestAutoSync());
+    _watchSyncedSettings();
     return const ZoroxAccountState();
+  }
+
+  /// Watches the settings box for a change to an allow-listed key: stamps
+  /// "settings changed here, now" and schedules the debounced upload.
+  /// Writes made by a restore are ignored.
+  void _watchSyncedSettings() {
+    if (_settingsWatch != null) return;
+    try {
+      _settingsWatch = ref
+          .read(storageServiceProvider)
+          .watchSettingKeys()
+          .listen((key) {
+            if (_restoring || !kSyncedSettingKeys.contains(key)) return;
+            unawaited(_stampSettingsChanged());
+            requestAutoSync();
+          }, onError: (Object _) {});
+    } catch (e) {
+      talker.warning('[ZoroX Account] settings watch not started: $e');
+    }
+  }
+
+  Future<void> _stampSettingsChanged([int? at]) async {
+    try {
+      await ref
+          .read(storageServiceProvider)
+          .setString(
+            _kSettingsChangedAtKey,
+            '${at ?? DateTime.now().millisecondsSinceEpoch}',
+          );
+    } catch (_) {
+      // A missing stamp only makes the cloud's settings win once.
+    }
+  }
+
+  int _settingsChangedAt() {
+    try {
+      return int.tryParse(
+            ref.read(storageServiceProvider).getString(_kSettingsChangedAtKey) ??
+                '',
+          ) ??
+          0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Switches "Sync automatically" (v9).
+  Future<void> setAutoSyncEnabled(bool enabled) async {
+    await ref
+        .read(storageServiceProvider)
+        .setString(_kAutoSyncOffKey, enabled ? null : '1');
+    if (ref.mounted) state = state.copyWith(autoSyncEnabled: enabled);
   }
 
   // --- session ---------------------------------------------------------------
@@ -161,7 +257,10 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
         cloudConfigured: workerUrl.isNotEmpty,
         usingDefaultServer: _savedWorkerUrl(storage).isEmpty,
         lastSyncedAt: lastSynced,
+        autoSyncEnabled: storage.getString(_kAutoSyncOffKey) == null,
       );
+      // Cold start (v9): the session is known now — sync once, quietly.
+      unawaited(autoSync());
     } catch (e) {
       talker.warning('[ZoroX Account] restoring the session failed: $e');
     }
@@ -264,8 +363,11 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
         password,
       );
       await _saveSession(email.trim().toLowerCase(), token);
-      await downloadAndRestore();
-      await uploadBackup();
+      // v9: on login the cloud copy's settings apply. And the upload only
+      // follows a download that worked (or found no backup yet): a cloud
+      // copy this app could not read is never overwritten.
+      final outcome = await _downloadAndRestore(cloudSettingsWin: true);
+      if (outcome != _DownloadOutcome.failed) await uploadBackup();
       return true;
     } on ZoroxSyncException catch (e) {
       if (ref.mounted) state = state.copyWith(busy: false, error: e.message);
@@ -349,9 +451,11 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
 
   /// Uploads the current local backup. Returns false (with [state.error])
   /// when not logged in, not configured, or the server refuses.
-  Future<bool> uploadBackup() async {
+  Future<bool> uploadBackup() => _uploadBackup();
+
+  Future<bool> _uploadBackup({bool silent = false}) async {
     if (!state.loggedIn) return false;
-    state = state.copyWith(busy: true, clearError: true);
+    if (!silent) state = state.copyWith(busy: true, clearError: true);
     try {
       final baseUrl = await _requireWorkerUrl();
       final token = await _token();
@@ -368,15 +472,17 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
     } on ZoroxSyncException catch (e) {
       if (e.sessionExpired) {
         await _expireSession();
-      } else if (ref.mounted) {
+      } else if (!silent && ref.mounted) {
         state = state.copyWith(error: e.message);
       }
       return false;
     } catch (e) {
-      if (ref.mounted) state = state.copyWith(error: '$e');
+      if (!silent && ref.mounted) state = state.copyWith(error: '$e');
       return false;
     } finally {
-      if (ref.mounted && state.busy) state = state.copyWith(busy: false);
+      if (!silent && ref.mounted && state.busy) {
+        state = state.copyWith(busy: false);
+      }
     }
   }
 
@@ -398,10 +504,40 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
   }
 
   /// Downloads the cloud backup and restores it. Returns the restore
-  /// report, or null when the account has never synced (nothing to restore).
+  /// report, or null when the account has never synced (nothing to
+  /// restore) or the download failed ([state.error] says why).
   Future<ZoroxRestoreReport?> downloadAndRestore() async {
-    if (!state.loggedIn) return null;
-    state = state.copyWith(busy: true, clearError: true);
+    ZoroxRestoreReport? report;
+    await _downloadAndRestore(onReport: (r) => report = r);
+    return report;
+  }
+
+  /// "Sync now" (v9): download, merge, upload — the same round the
+  /// automatic sync makes, but with the busy state and errors shown.
+  Future<bool> syncNow() async {
+    if (!state.loggedIn) return false;
+    final outcome = await _downloadAndRestore();
+    if (outcome == _DownloadOutcome.failed) return false;
+    return uploadBackup();
+  }
+
+  /// The download + restore step shared by login, Sync now and the
+  /// automatic sync.
+  ///
+  /// [cloudSettingsWin]: the cloud's settings replace this device's
+  /// whatever their age (login). Otherwise they apply only when they are
+  /// newer than this device's last settings change.
+  ///
+  /// [silent]: no busy state and no error text — for the automatic sync.
+  /// A refused session (401) is never silent: it still flips the card to
+  /// "Session expired".
+  Future<_DownloadOutcome> _downloadAndRestore({
+    bool cloudSettingsWin = false,
+    bool silent = false,
+    void Function(ZoroxRestoreReport report)? onReport,
+  }) async {
+    if (!state.loggedIn) return _DownloadOutcome.failed;
+    if (!silent) state = state.copyWith(busy: true, clearError: true);
     try {
       final baseUrl = await _requireWorkerUrl();
       final token = await _token();
@@ -412,22 +548,73 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
         );
       }
       final remote = await _client.download(baseUrl, token);
-      if (remote == null) return null;
-      final report = await restoreBackup(ZoroxBackup.fromJson(remote));
+      if (remote == null) return _DownloadOutcome.nothingStored;
+      final report = await restoreBackup(
+        ZoroxBackup.fromJson(remote),
+        settings: cloudSettingsWin
+            ? SettingsRestore.always
+            : SettingsRestore.ifNewer,
+      );
+      onReport?.call(report);
       await _markSynced();
-      return report;
+      return _DownloadOutcome.restored;
     } on ZoroxSyncException catch (e) {
       if (e.sessionExpired) {
         await _expireSession();
-      } else if (ref.mounted) {
+      } else if (!silent && ref.mounted) {
         state = state.copyWith(error: e.message);
       }
-      return null;
+      return _DownloadOutcome.failed;
     } catch (e) {
-      if (ref.mounted) state = state.copyWith(error: '$e');
-      return null;
+      if (!silent && ref.mounted) state = state.copyWith(error: '$e');
+      return _DownloadOutcome.failed;
     } finally {
-      if (ref.mounted && state.busy) state = state.copyWith(busy: false);
+      if (!silent && ref.mounted && state.busy) {
+        state = state.copyWith(busy: false);
+      }
+    }
+  }
+
+  /// The automatic sync (v9): on cold start and on return to the
+  /// foreground. Quietly downloads, merges and uploads — no busy state, no
+  /// error text; only a refused session shows (the v8 "Session expired").
+  ///
+  /// It does nothing when logged out, switched off, already running,
+  /// while a manual sync is busy, while the player is on top
+  /// ([playerOnTop]), or within 10 minutes of the last automatic sync.
+  /// Returns whether a round actually ran.
+  ///
+  /// No loops: the restore inside it does not schedule an upload (see
+  /// [_restoring]), the round ends with its own single upload, and an
+  /// upload never causes a download — only the app opening or returning
+  /// does, and that is throttled.
+  Future<bool> autoSync({bool playerOnTop = false, DateTime? now}) async {
+    final at = now ?? DateTime.now();
+    if (_autoSyncRunning || !state.cloudConfigured) return false;
+    if (!_autoSyncGate.mayRun(
+      now: at,
+      loggedIn: state.loggedIn,
+      enabled: state.autoSyncEnabled,
+      playerOnTop: playerOnTop,
+      busy: state.busy,
+    )) {
+      return false;
+    }
+    _autoSyncGate.markRan(at);
+    _autoSyncRunning = true;
+    try {
+      final outcome = await _downloadAndRestore(silent: true);
+      if (outcome == _DownloadOutcome.failed) return true;
+      if (!ref.mounted || !state.loggedIn) return true;
+      // The round's own upload replaces any upload a change scheduled.
+      _autoSyncTimer?.cancel();
+      await _uploadBackup(silent: true);
+      return true;
+    } catch (e) {
+      talker.warning('[ZoroX Account] automatic sync failed: $e');
+      return true;
+    } finally {
+      _autoSyncRunning = false;
     }
   }
 
@@ -437,12 +624,13 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
   /// background sync must never pop an error over what the user is doing;
   /// the next manual Sync now reports it.
   void requestAutoSync() {
+    if (_restoring) return;
     if (!state.loggedIn || !state.cloudConfigured) return;
     _autoSyncTimer?.cancel();
     _autoSyncTimer = Timer(_autoSyncDebounce, () async {
       if (!ref.mounted || !state.loggedIn) return;
       try {
-        await uploadBackup();
+        await _uploadBackup(silent: true);
       } catch (e) {
         talker.warning('[ZoroX Account] auto-upload failed: $e');
       }
@@ -503,6 +691,60 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       talker.warning('[ZoroX Account] CloudStream plugins not backed up: $e');
     }
 
+    // v9: Stremio add-ons, as manifest URLs in the user's order. An
+    // add-on whose URL carries a credential (a debrid or API key in its
+    // configuration) is left out — a backup never carries a key.
+    var stremioAddons = <Map<String, dynamic>>[];
+    var addonsSkipped = 0;
+    try {
+      await ref.read(addonRepositoryProvider.notifier).whenLoaded();
+      for (final addon in ref.read(addonRepositoryProvider).addons) {
+        if (addonUrlCarriesSecret(addon.manifestUrl)) {
+          addonsSkipped++;
+          continue;
+        }
+        stremioAddons.add({
+          'url': addon.manifestUrl,
+          'enabled': addon.enabled,
+        });
+      }
+    } catch (e) {
+      stremioAddons = [];
+      talker.warning('[ZoroX Account] add-ons not backed up: $e');
+    }
+
+    // v9: Nuvio repositories and which of their providers are on or off.
+    // Provider settings and the Nuvio TMDB key are never read.
+    var nuvioRepos = <Map<String, dynamic>>[];
+    bool? nuvioEnabled;
+    try {
+      await ref.read(nuvioRepositoryProvider.notifier).whenLoaded();
+      final nuvio = ref.read(nuvioRepositoryProvider);
+      nuvioEnabled = nuvio.enabled;
+      for (final repo in nuvio.repos) {
+        if (addonUrlCarriesSecret(repo.manifestUrl)) {
+          addonsSkipped++;
+          continue;
+        }
+        nuvioRepos.add({
+          'url': repo.manifestUrl,
+          'disabled': repo.disabledScrapers.toList()..sort(),
+          'enabledOverrides': repo.enabledOverrides.toList()..sort(),
+        });
+      }
+    } catch (e) {
+      nuvioRepos = [];
+      talker.warning('[ZoroX Account] Nuvio repositories not backed up: $e');
+    }
+
+    // v9: the allow-listed settings, and when they last changed here.
+    Map<String, dynamic>? settings;
+    try {
+      settings = collectSyncedSettings(storage.getRawSetting);
+    } catch (e) {
+      talker.warning('[ZoroX Account] settings not backed up: $e');
+    }
+
     return ZoroxBackup(
       exportedAt: DateTime.now().millisecondsSinceEpoch,
       history: history,
@@ -511,6 +753,12 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       zoroxPlugins: zoroxPlugins,
       cloudstreamRepos: cloudstreamRepos,
       cloudstreamPlugins: cloudstreamPlugins,
+      stremioAddons: stremioAddons,
+      nuvioRepos: nuvioRepos,
+      nuvioEnabled: nuvioEnabled,
+      settings: settings,
+      settingsUpdatedAt: _settingsChangedAt(),
+      addonsSkippedForSecrets: addonsSkipped,
     );
   }
 
@@ -520,7 +768,31 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
   /// entry, bookmarks are added when missing, repositories are re-added and
   /// their missing plugins re-installed. Never throws for one bad entry;
   /// failures are collected in the report.
-  Future<ZoroxRestoreReport> restoreBackup(ZoroxBackup backup) async {
+  ///
+  /// v9: add-ons and Nuvio repositories that are missing are re-added
+  /// (what is already installed is left exactly as it is), and settings
+  /// follow [settings] — a backup file and a login apply the backup's
+  /// settings; a routine sync applies them only when they are newer than
+  /// this device's last settings change.
+  Future<ZoroxRestoreReport> restoreBackup(
+    ZoroxBackup backup, {
+    SettingsRestore settings = SettingsRestore.always,
+  }) async {
+    _restoring = true;
+    try {
+      return await _restoreBackup(backup, settings);
+    } finally {
+      // Box-watch events arrive a beat after the write; let them pass
+      // before changes count as the user's again.
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      _restoring = false;
+    }
+  }
+
+  Future<ZoroxRestoreReport> _restoreBackup(
+    ZoroxBackup backup,
+    SettingsRestore settingsRule,
+  ) async {
     final errors = <String>[];
     var historyRestored = 0;
     var historySkipped = 0;
@@ -672,6 +944,98 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       errors.add('CloudStream plugins were not restored: $e');
     }
 
+    // v9: Stremio add-ons. Only the missing ones are installed; an add-on
+    // already here keeps its own on/off state and position.
+    var addonsRestored = 0;
+    try {
+      final addons = ref.read(addonRepositoryProvider.notifier);
+      await addons.whenLoaded();
+      for (final saved in backup.stremioAddons) {
+        final url = saved['url'];
+        if (url is! String || url.isEmpty) continue;
+        // A backup file is outside input: never install a URL that
+        // carries a credential from one either.
+        if (addonUrlCarriesSecret(url)) continue;
+        if (addons.isInstalled(url)) continue;
+        try {
+          final added = await addons.install(url);
+          if (saved['enabled'] == false) {
+            await addons.setEnabled(added.manifestUrl, false);
+          }
+          addonsRestored++;
+        } catch (e) {
+          errors.add('Could not install add-on $url: $e');
+        }
+      }
+    } catch (e) {
+      errors.add('Add-ons were not restored: $e');
+    }
+
+    // v9: Nuvio repositories, same rule — add what is missing, with the
+    // provider switches it was backed up with.
+    var nuvioReposRestored = 0;
+    try {
+      final nuvio = ref.read(nuvioRepositoryProvider.notifier);
+      await nuvio.whenLoaded();
+      for (final saved in backup.nuvioRepos) {
+        final url = saved['url'];
+        if (url is! String || url.isEmpty) continue;
+        if (addonUrlCarriesSecret(url)) continue;
+        if (ref
+            .read(nuvioRepositoryProvider)
+            .repos
+            .any((repo) => repo.manifestUrl == url)) {
+          continue;
+        }
+        try {
+          final repo = await nuvio.addRepository(url);
+          for (final id in (saved['disabled'] as List?) ?? const []) {
+            if (id is String) {
+              await nuvio.setScraperEnabled(repo.manifestUrl, id, false);
+            }
+          }
+          for (final id in (saved['enabledOverrides'] as List?) ?? const []) {
+            if (id is String) {
+              await nuvio.setScraperEnabled(repo.manifestUrl, id, true);
+            }
+          }
+          nuvioReposRestored++;
+        } catch (e) {
+          errors.add('Could not add Nuvio repository $url: $e');
+        }
+      }
+      if (nuvioReposRestored > 0 &&
+          backup.nuvioEnabled == true &&
+          !ref.read(nuvioRepositoryProvider).enabled) {
+        await nuvio.setEnabled(true);
+      }
+    } catch (e) {
+      errors.add('Nuvio repositories were not restored: $e');
+    }
+
+    // v9: settings — only when the backup carries any, and by the rule.
+    var settingsChanged = 0;
+    final incoming = backup.settings;
+    final applySettings =
+        incoming != null &&
+        (settingsRule == SettingsRestore.always ||
+            (settingsRule == SettingsRestore.ifNewer &&
+                backup.settingsUpdatedAt > _settingsChangedAt()));
+    if (applySettings) {
+      try {
+        settingsChanged = await applySyncedSettings(
+          incoming,
+          read: storage.getRawSetting,
+          write: storage.setPlayerSetting,
+        );
+        // This device's settings are now the backup's: same age.
+        await _stampSettingsChanged(backup.settingsUpdatedAt);
+        if (settingsChanged > 0) _refreshSettingsProviders();
+      } catch (e) {
+        errors.add('Settings were not restored: $e');
+      }
+    }
+
     // Push the restored items into the Home / Library UI. Both providers
     // are keep-alive and cache their lists, and this restore writes straight
     // to the boxes/repository — without a refresh, Continue Watching and the
@@ -694,8 +1058,31 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       zoroxPluginsRestored: zoroxPluginsRestored,
       cloudstreamReposRestored: cloudstreamReposRestored,
       cloudstreamPluginsRestored: cloudstreamPluginsRestored,
+      addonsRestored: addonsRestored,
+      nuvioReposRestored: nuvioReposRestored,
+      settingsChanged: settingsChanged,
       errors: errors,
     );
+  }
+
+  /// Makes the running app re-read the settings a restore just wrote:
+  /// each of these providers caches what it read at start.
+  void _refreshSettingsProviders() {
+    void refresh(void Function() invalidate) {
+      try {
+        invalidate();
+      } catch (e) {
+        talker.warning('[ZoroX Account] a settings refresh failed: $e');
+      }
+    }
+
+    refresh(() => ref.invalidate(playerSettingsProvider));
+    refresh(() => ref.invalidate(appThemeModeProvider));
+    refresh(() => ref.invalidate(themeVariantProvider));
+    refresh(() => ref.invalidate(accentColorProvider));
+    refresh(() => ref.invalidate(generalSettingsProvider));
+    refresh(() => ref.invalidate(homeRowPrefsProvider));
+    refresh(() => ref.invalidate(searchDisabledSourcesProvider));
   }
 
   static ExtensionPlugin? _findZoroXPlugin(
@@ -839,3 +1226,19 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
     }
   }
 }
+
+
+/// How a restore treats the backup's settings (v9).
+enum SettingsRestore {
+  /// The backup's settings replace this device's (a backup file, a login).
+  always,
+
+  /// Only when the backup's settings are newer than this device's last
+  /// settings change (Sync now, the automatic sync).
+  ifNewer,
+
+  /// Settings are left alone.
+  never,
+}
+
+enum _DownloadOutcome { restored, nothingStored, failed }

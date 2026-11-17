@@ -591,13 +591,13 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
       title: 'More Sources',
       children: [
         SettingsTile(
-          emoji: '🔌',
+          reicon: Reicon.plug,
           title: 'Nuvio Plugins',
           subtitle: 'Scraper plugins for movies & shows',
           onTap: () => const NuvioPluginsRoute().go(context),
         ),
         SettingsTile(
-          emoji: '🧲',
+          reicon: Reicon.magnet,
           title: 'Stremio Add-ons',
           subtitle: 'Install add-ons by manifest URL',
           isLast: true,

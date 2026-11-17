@@ -71,8 +71,8 @@ void main() {
       expect(config.padding.bottom, 16.0);
     });
 
-    test('the bars coming up do not move the caption: 16px bottom either '
-        'way', () {
+    test('fullscreen: the bars coming up lift the caption clear of the '
+        'control row (v9), same text size', () {
       final down = mpvSubtitleViewConfiguration(
         settings,
         screenHeight: 360,
@@ -84,8 +84,19 @@ void main() {
         controlsVisible: true,
       );
       expect(down.style.fontSize, 22.0);
-      expect(up.padding.bottom, 16.0);
-      expect(up.padding, down.padding);
+      expect(up.style.fontSize, 22.0);
+      expect(down.padding.bottom, 16.0);
+      expect(up.padding.bottom, kMpvSubtitlePaddingBottomControlsVisible);
+    });
+
+    test('the PiP window has no control row: nothing is lifted there', () {
+      final pip = mpvSubtitleViewConfiguration(
+        settings,
+        screenHeight: 140,
+        controlsVisible: false,
+        isPip: true,
+      );
+      expect(pip.padding.bottom, lessThan(16.0 + 1));
     });
 
     test('leaving PiP restores the exact fullscreen configuration', () {

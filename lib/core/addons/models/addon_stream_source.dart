@@ -1,6 +1,7 @@
 /// Stream + subtitle objects returned by an add-on's `/stream` resource.
 library;
 
+import '../../utils/source_language.dart';
 import '../../utils/file_size_formatter.dart';
 import '../../../features/player/domain/track_language.dart';
 
@@ -591,6 +592,15 @@ List<AddonStreamSource> rankAddonStreams(
 String addonSourceKey(AddonStreamSource stream) =>
     '${stream.addonName}\u0001${stream.providerName ?? ''}\u0001${stream.qualityLabel}';
 
+/// Whether [stream] says it carries [language] (v9): its name, title,
+/// description or file name spells it out. Never a guess.
+bool addonSourceStatesLanguage(
+  AddonStreamSource stream,
+  SourceLanguage language,
+) =>
+    language != SourceLanguage.off &&
+    textStatesLanguage(stream._text, language);
+
 /// The sources sheet's final arrangement of an already ranked list (v7).
 ///
 /// The source matching [lastUsedKey] (see [addonSourceKey]; the first match)
@@ -602,7 +612,14 @@ List<AddonStreamSource> arrangeAddonSources(
   List<AddonStreamSource> ranked, {
   String? lastUsedKey,
   int? capHeight,
+  SourceLanguage language = SourceLanguage.off,
 }) {
+  // v9: the sources that name the preferred language lead; the split
+  // below keeps that order inside the limit's two parts.
+  ranked = preferMatching<AddonStreamSource>(
+    ranked,
+    (s) => addonSourceStatesLanguage(s, language),
+  );
   if (ranked.length <= 1 || (lastUsedKey == null && capHeight == null)) {
     return ranked;
   }

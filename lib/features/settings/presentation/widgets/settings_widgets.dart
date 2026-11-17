@@ -2,8 +2,23 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/icons/reicon_icon.dart';
 import '../../../../core/utils/layout_constants.dart';
 import '../../../../shared/focus/app_focus.dart';
+
+export '../../../../core/icons/reicon_icon.dart' show Reicon;
+
+/// Settings rows are open rows (design B, public 1.0.0): no card around a
+/// group, no divider between rows, and this much clear space above and
+/// below each row's text. One line to retune every Settings screen.
+const double kSettingsRowVerticalPadding = 19;
+
+/// The gap between a row's icon tile and its text.
+const double kSettingsRowIconGap = 14;
+
+/// The space above a group's CAPS header — what separates one group from
+/// the next now that there is no card to do it.
+const double kSettingsGroupHeaderTopGap = 22;
 
 class SettingsGroup extends StatelessWidget {
   final String title;
@@ -36,11 +51,12 @@ class SettingsGroup extends StatelessWidget {
           // tracked out — not the fork's title-case bold header. The
           // header sits on the same left edge as the card (spacingMd),
           // so the whole group reads as one column.
-          padding: const EdgeInsets.fromLTRB(
+          padding: EdgeInsets.fromLTRB(
             LayoutConstants.spacingMd,
-            8,
+            // Inside a dialog (filled: false) the header keeps its old gap.
+            filled ? kSettingsGroupHeaderTopGap : 8,
             LayoutConstants.spacingMd,
-            8,
+            filled ? 2 : 8,
           ),
           child: Text(
             title.toUpperCase(),
@@ -60,13 +76,9 @@ class SettingsGroup extends StatelessWidget {
           margin: const EdgeInsets.symmetric(
             horizontal: LayoutConstants.spacingMd,
           ),
-          decoration: filled
-              ? BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Theme.of(context).dividerColor),
-                )
-              : null,
+          // Design B: no card background, border or rounded box — the
+          // rows sit on the page ([filled] is kept for callers; it no
+          // longer draws anything).
           child: Column(children: children),
         ),
       ],
@@ -80,7 +92,7 @@ class SettingsGroup extends StatelessWidget {
 /// before the chevron. The fork's pattern — gold line icon, value below
 /// the title, title-case header — is not used anywhere.
 ///
-/// Pass either [icon] (a Material icon) or [emoji] (one emoji string,
+/// Pass either [icon] (a Material icon) or [reicon] (a Reicon icon,
 /// rendered as text in the tile); exactly one must be set. [value] is
 /// the right-aligned current value (e.g. "English", "Home", "2.9.19");
 /// [trailing] overrides it with a widget of its own (a Switch). [danger]
@@ -88,8 +100,9 @@ class SettingsGroup extends StatelessWidget {
 class SettingsTile extends StatefulWidget {
   final IconData? icon;
 
-  /// One emoji string, rendered as text in the icon tile.
-  final String? emoji;
+  /// A Reicon icon, drawn in the accent colour on an accent-tinted
+  /// tile, in [kSettingsIconWeight]. Every Settings row uses this.
+  final Reicon? reicon;
   final String title;
   final String? subtitle;
 
@@ -111,7 +124,7 @@ class SettingsTile extends StatefulWidget {
   const SettingsTile({
     super.key,
     this.icon,
-    this.emoji,
+    this.reicon,
     required this.title,
     this.subtitle,
     this.value,
@@ -123,8 +136,8 @@ class SettingsTile extends StatefulWidget {
     this.danger = false,
     this.focusNode,
   }) : assert(
-         icon != null || emoji != null,
-         'SettingsTile needs an icon or an emoji',
+         icon != null || reicon != null,
+         'SettingsTile needs an icon',
        );
 
   @override
@@ -189,22 +202,23 @@ class _SettingsTileState extends State<SettingsTile> {
                 focusColor: Colors.transparent,
                 hoverColor: primary.withValues(alpha: 0.10),
                 minTileHeight: 52,
-                minLeadingWidth: 34,
-                horizontalTitleGap: 12,
+                minLeadingWidth: 36,
+                minVerticalPadding: kSettingsRowVerticalPadding,
+                // No card, so no inset inside one: the icon tiles stand on the
+                // header's left edge.
+                contentPadding: EdgeInsets.zero,
+                horizontalTitleGap: kSettingsRowIconGap,
                 leading: Container(
-                  width: 34,
-                  height: 34,
+                  width: 36,
+                  height: 36,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: primary.withValues(alpha: 0.16),
+                    color: primary.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: widget.emoji != null
-                      ? Text(
-                          widget.emoji!,
-                          style: const TextStyle(fontSize: 18),
-                        )
-                      : Icon(widget.icon, color: primary, size: 20),
+                  child: widget.reicon != null
+                      ? ReiconIcon(widget.reicon!, color: primary, size: 21)
+                      : Icon(widget.icon, color: primary, size: 21),
                 ),
                 title: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -347,13 +361,6 @@ class _SettingsTileState extends State<SettingsTile> {
             ),
           ),
         ),
-        if (!widget.isLast && !showFocus)
-          Divider(
-            height: 1,
-            indent: 62,
-            endIndent: 16,
-            color: Theme.of(context).dividerColor.withValues(alpha: 0.8),
-          ),
       ],
     );
   }

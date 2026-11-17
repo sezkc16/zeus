@@ -29,6 +29,8 @@
 ///     visible, low when hidden (see [subtitleEffectiveRaise]).
 library;
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -215,6 +217,14 @@ SubtitleViewConfiguration mpvSubtitleViewConfiguration(
   final base = autoAdjust && controlsVisible
       ? kMpvSubtitlePaddingBottomControlsVisible
       : kMpvSubtitlePaddingBottom;
+  // v9: the caption never sits under the bottom control row. While the
+  // controls are up it is lifted to just above them — only as far as it
+  // has to go, so a caption already raised clear of the row does not move
+  // — and it returns to its own place when they hide.
+  final resting = base + liftPx;
+  final bottom = controlsVisible
+      ? math.max(resting, kMpvSubtitlePaddingBottomControlsVisible)
+      : resting;
   return SubtitleViewConfiguration(
     style: mpvSubtitleTextStyle(settings),
     textAlign: TextAlign.center,
@@ -223,7 +233,7 @@ SubtitleViewConfiguration mpvSubtitleViewConfiguration(
     // so a 22pt caption renders at ~10pt. 1.0 renders the configured size
     // as-is, matching the VLC player's look.
     textScaler: const TextScaler.linear(1.0),
-    padding: EdgeInsets.fromLTRB(16, 0, 16, base + liftPx),
+    padding: EdgeInsets.fromLTRB(16, 0, 16, bottom),
   );
 }
 

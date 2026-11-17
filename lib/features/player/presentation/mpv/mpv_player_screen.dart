@@ -54,6 +54,7 @@
 ///   * Side-car subtitle download, ClearKey DRM, torrent files.
 library;
 
+import '../../../../core/utils/source_language.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -100,6 +101,7 @@ import '../vlc/panel/player_panel_labels.dart';
 import '../vlc/player_startup_view.dart';
 import 'golden_player_controls.dart';
 import 'mpv_android_options.dart';
+import 'golden_video_drawer.dart' show PictureValues;
 import 'mpv_ios_options.dart';
 import 'mpv_pip_quality.dart';
 import 'mpv_subtitle_style.dart';
@@ -715,6 +717,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // The chrome showing/hiding moves the caption's bottom padding, so
     // the padding is pushed into the video view on every change.
     _chrome.addListener(_onChromeVisibilityChanged);
+    _locked.addListener(_onChromeVisibilityChanged);
     // PiP transport buttons + mode changes ride back through the platform
     // channel; attach early so a window opened before the first play is
     // still routed.
@@ -763,11 +766,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // Tracking must never block leaving the player.
     }
     _chrome.removeListener(_onChromeVisibilityChanged);
+    _locked.removeListener(_onChromeVisibilityChanged);
     _chrome.dispose();
     _videoScale.dispose();
     _bufferedFraction.dispose();
     _hasSubtitles.dispose();
     _locked.dispose();
+    _videoIsHdr.dispose();
     _panelData.dispose();
     _playerSettings.dispose();
     unawaited(_player.stop());
@@ -1023,6 +1028,45 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       );
     } catch (_) {
       // A preset failing to apply must never break playback.
+    }
+  }
+
+  /// Applies the Video panel's PICTURE sliders to the live mpv instance
+  /// (v9): mpv's own brightness / contrast / saturation. Called on every
+  /// drag tick, so the picture follows the thumb.
+  Future<void> _applyPicture(PictureValues values) async {
+    try {
+      final platform = _player.platform;
+      if (platform is! NativePlayer) return;
+      await applyPictureOptions(
+        platform,
+        brightness: values.brightness,
+        contrast: values.contrast,
+        saturation: values.saturation,
+      );
+    } catch (_) {
+      // A slider failing to apply must never break playback.
+    }
+  }
+
+  /// Whether the playing video is HDR (v9), for the Video panel: null
+  /// until mpv reports the video's transfer function, and when it cannot
+  /// be read.
+  final ValueNotifier<bool?> _videoIsHdr = ValueNotifier<bool?>(null);
+
+  /// Reads `video-params/gamma` — `pq` or `hlg` is HDR, the same test the
+  /// software renderer's tone-mapping LUT uses. Run when the video's size
+  /// is known (a new video) so the panel is right by the time it opens.
+  Future<void> _refreshVideoIsHdr() async {
+    try {
+      final platform = _player.platform;
+      if (platform is! NativePlayer) return;
+      final gamma = await platform.getProperty('video-params/gamma');
+      if (_disposed || !mounted) return;
+      _videoIsHdr.value = videoGammaIsHdr(gamma);
+    } catch (_) {
+      if (_disposed) return;
+      _videoIsHdr.value = null;
     }
   }
 
@@ -1630,6 +1674,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
           customToneMapping: settings.videoCustomToneMapping,
           customTargetPeak: settings.videoCustomTargetPeak,
         );
+        // The PICTURE sliders (v9), re-applied on every open.
+        await applyPictureOptions(
+          iosPlatform,
+          brightness: settings.pictureBrightness,
+          contrast: settings.pictureContrast,
+          saturation: settings.pictureSaturation,
+        );
       }
     }
     // Subtitle options for every platform (+26): mpv's `secondary-sid`
@@ -1670,10 +1721,21 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   }
 
   void _listen() {
+    // v9: a decoded size is a (new) video — ask whether it is HDR, for
+    // the Video panel.
+    _subs.add(
+      _player.stream.width.listen((_) {
+        if (_disposed) return;
+        unawaited(_refreshVideoIsHdr());
+      }),
+    );
     _subs.add(
       _player.stream.playing.listen((playing) {
         if (_disposed) return;
         _playing = playing;
+        if (playing && _videoIsHdr.value == null) {
+          unawaited(_refreshVideoIsHdr());
+        }
         // Sleep timer (v7): see [_onSleepPlayingChanged].
         if (playing) _onSleepPlayingChanged();
         // Keeps the native side's picture-in-picture state current at all
@@ -3071,6 +3133,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
           : const <int>{},
       lastUsedSourceIndex: _lastUsedIndex,
       dataSaver: _dataSaver,
+      preferredLanguage:
+          ref
+              .read(playerSettingsProvider)
+              .asData
+              ?.value
+              .preferredSourceLanguage ??
+          SourceLanguage.off,
       // mpv's ABR picks the rendition: no quality ladder, so no Quality tab.
       qualityLadder: const <int>[],
       episodes: effectiveEpisodes(widget.item, _currentEpisode),
@@ -3467,6 +3536,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// still runs, and its guard makes it cheap.
   void _onChromeVisibilityChanged() => _syncSubtitlePadding();
 
+  /// Whether the bottom control row is on screen (v9): the chrome is up
+  /// and the screen is not locked — locked, only the lock pill shows, and
+  /// there is no row for the caption to clear.
+  bool get _bottomControlsShowing => _chrome.value && !_locked.value;
+
   /// Pushes the current subtitle padding into the video view.
   ///
   /// media_kit's [SubtitleView] caches its padding in a `late` field at
@@ -3498,7 +3572,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       final padding = mpvSubtitleViewConfiguration(
         settings,
         screenHeight: _lastScreenHeight,
-        controlsVisible: _chrome.value,
+        controlsVisible: _bottomControlsShowing,
         // The PiP window is a third of the screen: the caption is halved
         // and its padding shrunk, or it overflows the window (v20+24).
         // The style reaches the view on the next rebuild (it reads the
@@ -3542,7 +3616,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     final subtitleConfig = mpvSubtitleViewConfiguration(
       settings,
       screenHeight: screenHeight,
-      controlsVisible: _chrome.value,
+      controlsVisible: _bottomControlsShowing,
       // PiP halves the caption (see the doc in mpv_subtitle_style.dart);
       // _inPip flips by setState, so the rebuild carries it to the view.
       isPip: _inPip,
@@ -3773,6 +3847,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
                     defaultTargetPlatform == TargetPlatform.iOS
                     ? _applyVideoOutputPreset
                     : null,
+                onPictureChanged:
+                    defaultTargetPlatform == TargetPlatform.iOS
+                    ? (values) => unawaited(_applyPicture(values))
+                    : null,
+                videoIsHdr: _videoIsHdr,
                 sleepTimer: _sleepTimer,
               ),
             ),

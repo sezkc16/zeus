@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -78,19 +81,19 @@ class SettingsScreen extends ConsumerWidget {
                     // SkyStream-related, and the preview's Extensions card
                     // has no SkyStream row either.
                     SettingsTile(
-                      emoji: '🧩',
+                      reicon: Reicon.puzzlePiece,
                       title: 'CloudStream Repos (.cs3)',
                       subtitle: 'Zeus repo & official CloudStream repo',
                       onTap: () => const ExtensionsRoute().go(context),
                     ),
                     SettingsTile(
-                      emoji: '🔌',
+                      reicon: Reicon.plug,
                       title: 'Nuvio Plugins',
                       subtitle: 'Manage installed Nuvio plugins',
                       onTap: () => const NuvioPluginsRoute().go(context),
                     ),
                     SettingsTile(
-                      emoji: '🧲',
+                      reicon: Reicon.magnet,
                       title: 'Stremio Add-ons',
                       subtitle: 'Manage installed Stremio add-ons',
                       onTap: () => const AddonsRoute().go(context),
@@ -98,7 +101,7 @@ class SettingsScreen extends ConsumerWidget {
                     // v7: which plugins and add-ons Search asks.
                     SettingsTile(
                       key: const ValueKey('settings-search-in-plugins'),
-                      emoji: '🔎',
+                      reicon: Reicon.search,
                       title: l10n.searchInPlugins,
                       subtitle: l10n.searchInPluginsSubtitle,
                       value: ref.watch(searchDisabledSourcesProvider).isEmpty
@@ -198,7 +201,7 @@ class SettingsScreen extends ConsumerWidget {
         // it off goes to Frost, flipping it on returns to the last dark
         // variant (Liquid Glass if none was ever picked).
         SettingsTile(
-          emoji: '🌙',
+          reicon: Reicon.moon,
           title: 'Dark Mode',
           subtitle: 'Dark backgrounds, light text',
           trailing: Switch(
@@ -219,7 +222,7 @@ class SettingsScreen extends ConsumerWidget {
         // swatch row, right under the theme control.
         const AccentColorPicker(),
         SettingsTile(
-          emoji: '🌐',
+          reicon: Reicon.globe,
           title: l10n.language,
           subtitle: 'App & metadata language',
           value: l10n.languageName,
@@ -227,7 +230,7 @@ class SettingsScreen extends ConsumerWidget {
               showLanguageDialog(context, ref, ref.read(localeProvider)),
         ),
         SettingsTile(
-          emoji: '🏠',
+          reicon: Reicon.home2,
           title: l10n.defaultHomeScreen,
           subtitle: 'Tab shown on launch',
           value: getHomeScreenLabel(generalSettings.defaultHomeScreen, l10n),
@@ -240,7 +243,7 @@ class SettingsScreen extends ConsumerWidget {
         const HomeRowsSettingsTile(),
         const AppLockSettingsTile(),
         SettingsTile(
-          emoji: '🕘',
+          reicon: Reicon.history,
           title: l10n.recordWatchHistory,
           subtitle: 'Keep Continue Watching & progress',
           trailing: Switch(
@@ -254,7 +257,7 @@ class SettingsScreen extends ConsumerWidget {
               .setWatchHistoryEnabled(!generalSettings.watchHistoryEnabled),
         ),
         SettingsTile(
-          emoji: '🔤',
+          reicon: Reicon.text,
           title: l10n.titlePosition,
           subtitle: 'Where titles sit on posters',
           value: getTitlePositionLabel(generalSettings.titlePosition, l10n),
@@ -282,13 +285,13 @@ class SettingsScreen extends ConsumerWidget {
                 .setEnabled(!fullScreenModeEnabled),
           ),
         SettingsTile(
-          emoji: '▶️',
+          reicon: Reicon.playCircle,
           title: l10n.player,
           subtitle: 'Engine, gestures, subtitles, quality',
           onTap: () => const PlayerSettingsRoute().go(context),
         ),
         SettingsTile(
-          emoji: '👤',
+          reicon: Reicon.userCircle,
           title: '${l10n.accounts}, ${l10n.network} & ${l10n.downloads}',
           subtitle: 'Trakt, Simkl, subtitle accounts, DNS, downloads',
           isLast: true,
@@ -309,7 +312,7 @@ class SettingsScreen extends ConsumerWidget {
       children: [
         if (!kIsWeb)
           SettingsTile(
-            emoji: '🧹',
+            reicon: Reicon.broom,
             title: l10n.clearCache,
             subtitle: ref
                 .watch(cacheSizeProvider)
@@ -322,13 +325,13 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => showClearCacheDialog(context, ref),
           ),
         SettingsTile(
-          emoji: '↺',
+          reicon: Reicon.rotateLeft,
           title: l10n.resetDataKeepExtensions,
           subtitle: 'Reset settings & library, keep extensions',
           onTap: () => showResetDataDialog(context, ref),
         ),
         SettingsTile(
-          emoji: '⚠️',
+          reicon: Reicon.triangleWarning,
           title: l10n.factoryReset,
           subtitle: 'Erase everything and start fresh',
           danger: true,
@@ -338,7 +341,7 @@ class SettingsScreen extends ConsumerWidget {
         // default) — it turns the QoE stats overlay and debug logging on.
         // The Developer Options screen still holds the rest of the tools.
         SettingsTile(
-          emoji: '🛠️',
+          reicon: Reicon.terminalSquare,
           title: l10n.developerOptions,
           subtitle: 'Logs, QoE stats overlay, debug info',
           isLast: true,
@@ -366,11 +369,21 @@ class SettingsScreen extends ConsumerWidget {
       title: l10n.about,
       children: [
         SettingsTile(
-          emoji: '👨‍💻',
+          reicon: Reicon.code,
           title: l10n.developer,
           subtitle: 'Legion',
           trailing: const SizedBox.shrink(),
           onTap: () => showDeveloperDialog(context),
+        ),
+        // v9 (public 1.0.0): the credit GPL v3 asks for, at the user's
+        // request — the one place the app names the project it is based
+        // on. Opens the project page in the browser.
+        SettingsTile(
+          key: const ValueKey('about-based-on'),
+          reicon: Reicon.branchUp,
+          title: 'Based on SkyStream',
+          subtitle: 'Open source · GPL v3',
+          onTap: () => unawaited(openBasedOnProject()),
         ),
         // The Telegram row is shown per the design, but it does NOT
         // link to SkyStream's server (the invite the fork shipped) —
@@ -378,7 +391,7 @@ class SettingsScreen extends ConsumerWidget {
         // community link. (Discord was removed from About at the
         // user's request, 2026-11-17.)
         SettingsTile(
-          emoji: '✈️',
+          reicon: Reicon.send,
           title: 'Telegram',
           subtitle: 'Updates & support channel',
           onTap: () => _showCommunityComingSoon(context, ref, 'Telegram'),
@@ -387,11 +400,12 @@ class SettingsScreen extends ConsumerWidget {
         // user's request (2026-11-17). The LICENSE file and the licence
         // texts registered with Flutter stay in the app bundle.
         SettingsTile(
-          emoji: '🏷️',
+          reicon: Reicon.infoCircle,
           title: l10n.version,
           subtitle: 'Zeus for iOS',
           value: versionAsync.when(
-            data: (v) => v,
+            // The version alone ("1.0.0"), never the build suffix.
+            data: aboutVersionLabel,
             loading: () => l10n.loading,
             error: (err, stack) => l10n.unknown,
           ),
@@ -446,3 +460,22 @@ bool _supportsFullScreenMode(BuildContext context) {
     _ => false,
   };
 }
+
+/// The project Zeus is based on; the About credit row opens it.
+const String kBasedOnProjectUrl = 'https://github.com/akashdh11/skystream';
+
+/// Opens [kBasedOnProjectUrl] in the browser. Best effort.
+Future<void> openBasedOnProject() async {
+  try {
+    await launchUrl(
+      Uri.parse(kBasedOnProjectUrl),
+      mode: LaunchMode.externalApplication,
+    );
+  } catch (_) {
+    // No browser to open it in: nothing to do.
+  }
+}
+
+/// What About shows for the version: the version alone — "1.0.0 +65"
+/// reads as "1.0.0".
+String aboutVersionLabel(String version) => version.split(' +').first.trim();
