@@ -461,7 +461,30 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// Whether a VideoToolbox restore (+40 P4) is already running: the
   /// resume hook and the PiP-stop hook can both fire for one return,
   /// and two overlapping restores could re-open the stream twice.
-  bool _hwdecRestoreRunning = false;
+
+  /// The hardware-decode watch that follows a Home → return (build 70,
+  /// see [_runHwdecResumeWatch]). The token is bumped by every new
+  /// watch and by every backgrounding, so an older watch stands down
+  /// the moment it is superseded. The counters feed the QoE overlay's
+  /// `hw-restore:` line ([hwdecResumeOverlayLine]).
+  int _hwdecWatchToken = 0;
+  bool _hwdecWatchArmed = false;
+  int _hwdecWatchChecks = 0;
+  int _hwdecWatchCycles = 0;
+  bool _hwdecWatchReopened = false;
+  String _hwdecWatchOutcome = 'waiting';
+
+  /// Whether this source has been SEEN decoding on VideoToolbox (build
+  /// 70). The restore only ever brings back what was there: with the
+  /// PiP renderer on (PiP mode mpv) a film can run with an empty
+  /// `hwdec-current` from its first frame (phone proof 2026-11-18,
+  /// 1080p, `pip: on`, `hwdec:` empty while playing normally), and
+  /// build 69 called that "lost" on every return from the PiP window
+  /// and re-opened the source — the black 00:00/LIVE flash. Set by
+  /// [_noteHwdecBaseline]; cleared on a different source and after the
+  /// watch's own re-open, so one film is re-opened for this at most
+  /// once until hardware decode is seen again.
+  bool _hwdecSeenAlive = false;
 
   /// Where the open source started (its resume point, else zero): the
   /// pre-buffer cushion is measured from here, not from the stream start.
@@ -793,6 +816,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Build 70: note whether hardware decode is alive on the way out,
+    // so the return only restores a decoder that was really there.
+    if (state != AppLifecycleState.resumed) {
+      unawaited(_noteHwdecBaseline());
+    }
     if (_disposed || !mounted) return;
     if (state == AppLifecycleState.inactive) {
       if (defaultTargetPlatform == TargetPlatform.iOS) {
@@ -891,6 +919,9 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // next `resumed` may run the plain resume (see
       // [_appWasBackgrounded]).
       _appWasBackgrounded = true;
+      // Build 70: a new backgrounding ends the last return's
+      // hardware-decode watch; the next return arms a fresh one.
+      _hwdecWatchToken++;
       _flushProgress();
       // +55: Home PAUSES the film (user 2026-11-16: "home se janepe
       // pause ho"). With automatic PiP removed there is no window any
@@ -947,6 +978,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         start: _position,
         autoPlay: true,
       ));
+      // Build 70: the re-open itself can come up in SOFTWARE decode
+      // (phone proof 2026-11-18: `hwdec: videotoolbox` before Home,
+      // empty after the 4K re-open, for the rest of the film), and
+      // nothing checked the decoder after it — the early check in the
+      // resumed hook stands down while the film is still paused. So
+      // the decoder is verified once the re-opened film is playing.
+      unawaited(_runHwdecResumeWatch());
       return;
     }
     debugPrint('[mpv] resume: plain resume from $_position '
@@ -954,14 +992,15 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _resumeStallPosition = _position;
     unawaited(_player.play());
     // +40 P4: iOS can invalidate the VideoToolbox session while
-    // the app is backgrounded. The early call above stands down
-    // while paused, so this delayed one is what makes the
-    // restore run on a Home → return at all: by the time it
-    // fires, play() has flipped [_playing] true through the
-    // playing stream and the restore can read the live decoder.
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (!_disposed && mounted) unawaited(_restoreHwdecOnResume());
-    });
+    // the app is backgrounded. The early call in the resumed hook
+    // stands down while paused, so the watch below is what makes
+    // the restore run on a Home → return at all. Build 70: the
+    // single delayed check became the bounded watch the 4K branch
+    // uses too (see [_runHwdecResumeWatch]) — it waits for the film
+    // to be playing, and a lost decoder is cycled in place before
+    // any re-open, so a film below 4K gets no 00:00/black flash
+    // unless two cycles have already failed.
+    unawaited(_runHwdecResumeWatch());
     _resumeStallTimer?.cancel();
     _resumeStallTimer = Timer(
       const Duration(seconds: 8),
@@ -1755,6 +1794,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         if (playing) {
           final firstPlay = !_startedPlaying;
           _startedPlaying = true;
+          if (firstPlay) {
+            // Build 70: the decoder baseline for this open, read once
+            // frames are flowing (see [_hwdecSeenAlive]).
+            Future<void>.delayed(const Duration(seconds: 3), () {
+              if (!_disposed && mounted) unawaited(_noteHwdecBaseline());
+            });
+          }
           // v7: this source plays, so it is the one remembered for this
           // title (see [streamSourceKey]) — the next episode starts on it
           // and the Sources list tags it "Last used".
@@ -2062,7 +2108,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // same-index re-open (stall recovery) keeps it — the media is the
     // same, the remembered pick is re-applied, and the anchor holds the
     // drawer on it while the re-application lands.
-    if (index != _streamIndex) _adapter.noteNewSource();
+    if (index != _streamIndex) {
+      _adapter.noteNewSource();
+      _hwdecSeenAlive = false;
+    }
     _streamIndex = index;
     // +46 remembered the source here, on every open. v7 remembers it when
     // it actually starts playing instead (see the first-play branch of the
@@ -2404,6 +2453,147 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     await _setIosRenderCap(target == PipRenderCap.capped1080p);
   }
 
+  /// Whether the film is actually moving again after a return: playing,
+  /// past the pre-buffer hold of a re-open, and past its first play.
+  /// Only then does `hwdec-current` say anything — it is empty until
+  /// the decoder has produced a frame.
+  bool get _hwdecWatchPlaybackReady =>
+      _playing && !_awaitingPrebuffer && _startedPlaying;
+
+  /// The hardware-decode watch that follows a Home → return (build 70).
+  ///
+  /// Why: on 2026-11-18 the user's 4K film (PiP mode iOS, so the
+  /// hardware renderer) read `hwdec: videotoolbox` before Home and an
+  /// empty `hwdec:` after the return, with `vo-drop` climbing and a
+  /// full cache. The 4K return re-opens the source, the re-opened film
+  /// came up in software decode, and no check ran after it: the one in
+  /// the resumed hook returns at once because Home paused the film.
+  ///
+  /// What: once the film is moving again ([_hwdecWatchPlaybackReady])
+  /// the live decoder is read up to [kHwdecResumeCheckDelays].length
+  /// times — about 1 s, 3 s and 6 s later. A healthy decoder ends the
+  /// watch untouched. A lost one is cycled (`hwdec` off, then back to
+  /// [mpvIosHwdec]): mpv re-creates the decoder and seeks in place, so
+  /// the position holds and there is no fresh connection. Only if it
+  /// is still lost on the last check is the stream re-opened at the
+  /// playhead, once, and the watch ends there — it never follows its
+  /// own re-open, so it cannot loop ([hwdecResumeStep],
+  /// [hwdecResumeContinues]).
+  ///
+  /// Bounded in time too: it gives up if the film has not started
+  /// moving 45 s after the return (a dead source is the stall
+  /// recovery's job). A new backgrounding, a newer watch or dispose
+  /// ends it through [_hwdecWatchToken]. iOS only; Android is
+  /// untouched.
+  Future<void> _runHwdecResumeWatch() async {
+    if (defaultTargetPlatform != TargetPlatform.iOS) return;
+    if (_disposed || !mounted) return;
+    final platform = _player.platform;
+    if (platform is! NativePlayer) return;
+    final token = ++_hwdecWatchToken;
+    _hwdecWatchArmed = true;
+    _hwdecWatchChecks = 0;
+    _hwdecWatchCycles = 0;
+    _hwdecWatchReopened = false;
+    _hwdecWatchOutcome = 'waiting';
+    if (!hwdecRestoreAllowed(seenAlive: _hwdecSeenAlive)) {
+      // This film was never seen on VideoToolbox (the PiP renderer's
+      // software session, or a file the phone cannot hardware-decode):
+      // there is nothing to restore, and a re-open would only flash.
+      _hwdecWatchOutcome = 'skip (no hw before)';
+      return;
+    }
+    bool live() => !_disposed && mounted && token == _hwdecWatchToken;
+    final expected = mpvIosHwdec(pipEnabled: _iosMpvPipEnabled);
+    final deadline = DateTime.now().add(const Duration(seconds: 45));
+    var attempt = 0;
+    while (attempt < kHwdecResumeCheckDelays.length) {
+      // Wait for the film to be moving again (the 4K re-open holds it
+      // paused until the pre-buffer refills).
+      while (!_hwdecWatchPlaybackReady) {
+        if (!live()) return;
+        if (DateTime.now().isAfter(deadline)) {
+          _hwdecWatchOutcome = 'stopped';
+          return;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      }
+      await Future<void>.delayed(kHwdecResumeCheckDelays[attempt]);
+      if (!live()) return;
+      // Paused or re-buffering during the wait: the read would prove
+      // nothing, so wait for playback again without spending a check
+      // (still inside the 45 s budget).
+      if (!_hwdecWatchPlaybackReady) {
+        if (DateTime.now().isAfter(deadline)) {
+          _hwdecWatchOutcome = 'stopped';
+          return;
+        }
+        continue;
+      }
+      String? current;
+      try {
+        current = (await platform.getProperty('hwdec-current')).toString();
+      } catch (_) {
+        current = null;
+      }
+      if (!live()) return;
+      _hwdecWatchChecks++;
+      final step = hwdecResumeStep(
+        current: current,
+        attempt: attempt,
+        inPip: _inPip,
+      );
+      switch (step) {
+        case HwdecResumeStep.healthy:
+          _hwdecWatchOutcome = 'ok';
+          _hwdecSeenAlive = true;
+          debugPrint('[mpv] hwdec watch: healthy '
+              '(hwdec-current="$current", check ${attempt + 1})');
+        case HwdecResumeStep.unreadable:
+          _hwdecWatchOutcome = 'unreadable';
+        case HwdecResumeStep.cycle:
+          _hwdecWatchCycles++;
+          _hwdecWatchOutcome = 'lost';
+          debugPrint('[mpv] hwdec watch: lost (hwdec-current="$current"), '
+              'cycling hwdec to "$expected" (check ${attempt + 1})');
+          try {
+            // Off, then on: a same-value set can be a no-op in mpv, a
+            // real change always re-creates the decoder.
+            await platform.setProperty('hwdec', 'no');
+            await Future<void>.delayed(const Duration(milliseconds: 150));
+            await platform.setProperty('hwdec', expected);
+          } catch (e) {
+            debugPrint('[mpv] hwdec watch: cycle failed: $e');
+          }
+          if (!live()) return;
+        case HwdecResumeStep.reopen:
+          if (_streamIndex < 0 || _streamIndex >= _streams.length) {
+            _hwdecWatchOutcome = 'stopped';
+            return;
+          }
+          _hwdecWatchReopened = true;
+          _hwdecWatchOutcome = 'reopened';
+          // One re-open per loss: no further one for this film until
+          // hardware decode has been seen again.
+          _hwdecSeenAlive = false;
+          debugPrint('[mpv] hwdec watch: still lost after '
+              '$_hwdecWatchCycles cycle(s), re-opening stream '
+              '$_streamIndex at $_position');
+          _resumeStallTimer?.cancel();
+          _resumeStallTimer = null;
+          unawaited(_openStream(
+            _streamIndex,
+            start: _position,
+            autoPlay: true,
+          ));
+        case HwdecResumeStep.giveUp:
+          _hwdecWatchOutcome = 'stopped';
+      }
+      if (!hwdecResumeContinues(step: step, attempt: attempt)) return;
+      attempt++;
+    }
+  }
+
   /// Restores the VideoToolbox decoder after the app comes back to the
   /// foreground (+40 P4).
   ///
@@ -2435,52 +2625,30 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// brief spinner on the re-open rung, and only when the decoder was
   /// actually lost.
   Future<void> _restoreHwdecOnResume() async {
-    if (_hwdecRestoreRunning) return;
     if (defaultTargetPlatform != TargetPlatform.iOS) return;
     if (_disposed || !mounted || !_playing) return;
+    // Build 70: the one-shot check became the bounded watch (see
+    // [_runHwdecResumeWatch]): it only restores a decoder that was
+    // seen alive, cycles in place first, and re-opens at most once.
+    // Build 69 re-opened here whenever `hwdec-current` was empty —
+    // which is its normal value on the PiP renderer — so every return
+    // from the PiP window flashed black 00:00/LIVE.
+    await _runHwdecResumeWatch();
+  }
+
+  /// Records that this source decodes on VideoToolbox, when it does
+  /// (see [_hwdecSeenAlive]). Never clears it: an empty read on the
+  /// way out of the app is not proof the session was never there.
+  Future<void> _noteHwdecBaseline() async {
+    if (defaultTargetPlatform != TargetPlatform.iOS) return;
+    if (_disposed) return;
     final platform = _player.platform;
     if (platform is! NativePlayer) return;
-    _hwdecRestoreRunning = true;
     try {
-      final expected = mpvIosHwdec(pipEnabled: _iosMpvPipEnabled);
-      final stats = await _readMpvStats();
-      if (_disposed || !mounted || !_playing) return;
-      // Unreadable is not evidence of loss: the property read itself
-      // failed, so do nothing rather than re-open a healthy player.
-      final current = stats['hwdec-current'];
-      if (current == null) return;
-      if (!hwdecSessionLost(current: current)) return;
-      debugPrint('[mpv] hwdec restore: session lost on resume '
-          '(hwdec-current="$current", expected "$expected")');
-      // Rung 1: re-apply hwdec to the live player.
-      try {
-        await platform.setProperty('hwdec', expected);
-      } catch (e) {
-        debugPrint('[mpv] hwdec restore: setProperty failed: $e');
-      }
-      await Future.delayed(const Duration(seconds: 1));
-      if (_disposed || !mounted || !_playing) return;
-      final after = await _readMpvStats();
-      if (_disposed || !mounted || !_playing) return;
-      final recovered = after['hwdec-current'];
-      if (recovered != null && !hwdecSessionLost(current: recovered)) {
-        debugPrint('[mpv] hwdec restore: session back '
-            '(hwdec-current="$recovered")');
-        return;
-      }
-      // Rung 2: re-open the same stream at the playhead. Never while
-      // the PiP window is up or an open is already landing.
-      if (_inPip || _awaitingPrebuffer) {
-        debugPrint('[mpv] hwdec restore: still lost, re-open deferred '
-            '(_inPip=$_inPip, _awaitingPrebuffer=$_awaitingPrebuffer)');
-        return;
-      }
-      if (_streamIndex < 0 || _streamIndex >= _streams.length) return;
-      debugPrint('[mpv] hwdec restore: still lost after setProperty, '
-          're-opening stream $_streamIndex at $_position');
-      unawaited(_openStream(_streamIndex, start: _position));
-    } finally {
-      _hwdecRestoreRunning = false;
+      final current = (await platform.getProperty('hwdec-current')).toString();
+      if (!hwdecSessionLost(current: current)) _hwdecSeenAlive = true;
+    } catch (_) {
+      // Unreadable: leave the baseline as it is.
     }
   }
 
@@ -2686,6 +2854,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   Future<void> _refreshMpvStatsOverlay() async {
     final stats = await _readMpvStats();
     if (_disposed || stats.isEmpty) return;
+    final liveHwdec = stats['hwdec-current'];
+    if (liveHwdec != null && !hwdecSessionLost(current: liveHwdec)) {
+      _hwdecSeenAlive = true;
+    }
     String dropLine(String key, String label) {
       final total = int.tryParse(stats[key] ?? '') ?? 0;
       final prev = _prevMpvDrops[key];
@@ -2721,6 +2893,17 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         'framedrop: ${stats['framedrop'] ?? '?'} '
         'pip: ${_iosMpvPipEnabled ? 'on' : 'off'}',
       );
+    // Build 70: what the hardware-decode watch did on the last Home →
+    // return (iOS only — Android has no such watch).
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      buffer.writeln(hwdecResumeOverlayLine(
+        armed: _hwdecWatchArmed,
+        checks: _hwdecWatchChecks,
+        cycles: _hwdecWatchCycles,
+        reopened: _hwdecWatchReopened,
+        outcome: _hwdecWatchOutcome,
+      ));
+    }
     final text = buffer.toString().trimRight();
     if (_mpvStatsText.value != text) _mpvStatsText.value = text;
   }

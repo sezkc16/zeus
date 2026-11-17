@@ -145,6 +145,127 @@ bool hwdecSessionLost({required String current}) {
   return !alive.contains(current.trim());
 }
 
+/// The waits between the hardware-decode checks that follow a Home →
+/// return (build 70): each is counted from the previous check (or, for
+/// the first, from the moment playback has actually resumed), so the
+/// checks land about 1 s, 3 s and 6 s after the film is moving again.
+///
+/// The first wait is not zero on purpose: `hwdec-current` is empty
+/// until the decoder has produced its first frame after a re-open, so
+/// reading it at once would call a healthy decoder lost.
+const List<Duration> kHwdecResumeCheckDelays = <Duration>[
+  Duration(seconds: 1),
+  Duration(seconds: 2),
+  Duration(seconds: 3),
+];
+
+/// Whether the hardware-decode restore may act at all (build 70): only
+/// when this film was seen decoding on VideoToolbox before. An empty
+/// `hwdec-current` is the NORMAL state of a film that never had
+/// hardware decode — the PiP renderer's session read empty while
+/// playing normally on the phone (2026-11-18, 1080p, `pip: on`) — and
+/// build 69 re-opened the source for it on every return from the PiP
+/// window (black, 00:00/LIVE). Nothing was lost there, so nothing is
+/// restored. Pure, so it is unit-tested.
+bool hwdecRestoreAllowed({required bool seenAlive}) => seenAlive;
+
+/// What one hardware-decode check after a Home → return does.
+enum HwdecResumeStep {
+  /// The decoder is VideoToolbox: stop checking, touch nothing.
+  healthy,
+
+  /// `hwdec-current` could not be read. Not evidence of loss: do
+  /// nothing now, and look again at the next check if one is left.
+  unreadable,
+
+  /// Lost: switch `hwdec` off and back on in the live player. mpv
+  /// re-creates the decoder and seeks in place — the film keeps its
+  /// position, no fresh connection, no 00:00.
+  cycle,
+
+  /// Still lost on the last check: re-open the stream at the playhead
+  /// (the last rung, a fresh decoder).
+  reopen,
+
+  /// Still lost on the last check, but the re-open may not run (the
+  /// PiP window is up): stop, leave the film playing in software.
+  giveUp,
+}
+
+/// Decides one hardware-decode check after a Home → return (build 70).
+///
+/// The phone proof (2026-11-18, 4K, PiP mode iOS): `hwdec: videotoolbox`
+/// before Home, `hwdec:` empty after the return and for the rest of the
+/// film. The 4K return re-opens the source, and nothing looked at the
+/// decoder after that re-open — the only check ran while the film was
+/// still paused and stood down. So the decoder is now checked after
+/// playback has resumed, [kHwdecResumeCheckDelays].length times at
+/// most, and never again once it is healthy.
+///
+/// [attempt] is the zero-based index of this check. [current] is the
+/// live `hwdec-current`, null when the read failed. Every check but the
+/// last cycles `hwdec`; the last one re-opens the stream instead, and
+/// only when no PiP window is up ([inPip]) — a re-open would tear the
+/// window's feed down. Either VideoToolbox flavour is healthy (see
+/// [hwdecSessionLost]), so the PiP-mode expectation
+/// (`videotoolbox-copy`, see [mpvIosHwdec]) is never "restored" away
+/// from a working hardware decoder. Pure, so it is unit-tested (see
+/// `mpv_hwdec_resume_test.dart`).
+HwdecResumeStep hwdecResumeStep({
+  required String? current,
+  required int attempt,
+  required bool inPip,
+}) {
+  if (current == null) return HwdecResumeStep.unreadable;
+  if (!hwdecSessionLost(current: current)) return HwdecResumeStep.healthy;
+  final isLast = attempt >= kHwdecResumeCheckDelays.length - 1;
+  if (!isLast) return HwdecResumeStep.cycle;
+  return inPip ? HwdecResumeStep.giveUp : HwdecResumeStep.reopen;
+}
+
+/// Whether another check follows [step] at [attempt]: only a check that
+/// left the decoder unproven ([HwdecResumeStep.unreadable]) or tried a
+/// cycle ([HwdecResumeStep.cycle]) is followed up, and only while a
+/// check is left. Healthy, re-open and give-up all end the watch — the
+/// re-open is the last rung and is never itself followed by another
+/// re-open, so the watch cannot loop.
+bool hwdecResumeContinues({
+  required HwdecResumeStep step,
+  required int attempt,
+}) {
+  final hasNext = attempt + 1 < kHwdecResumeCheckDelays.length;
+  switch (step) {
+    case HwdecResumeStep.unreadable:
+    case HwdecResumeStep.cycle:
+      return hasNext;
+    case HwdecResumeStep.healthy:
+    case HwdecResumeStep.reopen:
+    case HwdecResumeStep.giveUp:
+      return false;
+  }
+}
+
+/// The QoE overlay's `hw-restore:` line (build 70): what the
+/// hardware-decode watch did on the last Home → return, so one
+/// screenshot says whether it ran and how it ended. `-` until a return
+/// has armed it.
+///
+/// [checks] is how many times the decoder was read, [cycles] how many
+/// times `hwdec` was switched off and on, [reopened] whether the last
+/// rung ran, [outcome] the short state word (`waiting`, `ok`, `lost`,
+/// `reopened`, `stopped`).
+String hwdecResumeOverlayLine({
+  required bool armed,
+  required int checks,
+  required int cycles,
+  required bool reopened,
+  required String outcome,
+}) {
+  if (!armed) return 'hw-restore: -';
+  final reopen = reopened ? ' reopen 1' : '';
+  return 'hw-restore: checks $checks cycles $cycles$reopen $outcome';
+}
+
 /// Whether the stream needs a re-open as the +55 stall fallback
 /// (+48, +49, +50, +55).
 ///
