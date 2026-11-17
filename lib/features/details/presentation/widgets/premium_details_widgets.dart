@@ -18,7 +18,18 @@ import 'details_layout_widgets.dart';
 class MetadataBar extends ConsumerWidget {
   final MultimediaItem item;
   final bool isLoading;
-  const MetadataBar({super.key, required this.item, this.isLoading = false});
+
+  /// Fields left out because the page shows them elsewhere - the phone
+  /// page's banner carries the source and its info strip the year, runtime
+  /// and status: any of 'provider', 'year', 'status', 'duration', 'score'.
+  final Set<String> hide;
+
+  const MetadataBar({
+    super.key,
+    required this.item,
+    this.isLoading = false,
+    this.hide = const {},
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -33,7 +44,9 @@ class MetadataBar extends ConsumerWidget {
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        if (item.provider != null && item.provider!.isNotEmpty)
+        if (!hide.contains('provider') &&
+            item.provider != null &&
+            item.provider!.isNotEmpty)
           DetailsProviderChip(providerName: item.provider!),
         if (showTypeBadge)
           _buildBorderedInfo(
@@ -49,7 +62,9 @@ class MetadataBar extends ConsumerWidget {
             borderRadius: 4,
           ),
 
-        if (item.year != null)
+        if (hide.contains('year'))
+          ...const <Widget>[]
+        else if (item.year != null)
           _buildIconInfo(
             context,
             Icons.calendar_today_rounded,
@@ -71,7 +86,7 @@ class MetadataBar extends ConsumerWidget {
             borderRadius: 4,
           ),
 
-        if (!isLoading && _showsStatus(item))
+        if (!hide.contains('status') && !isLoading && _showsStatus(item))
           _buildBorderedInfo(
             context,
             item.status == ShowStatus.completed
@@ -79,7 +94,9 @@ class MetadataBar extends ConsumerWidget {
                 : l10n.showStatusOngoing,
           ),
 
-        if (item.duration != null)
+        if (hide.contains('duration'))
+          ...const <Widget>[]
+        else if (item.duration != null)
           _buildIconInfo(context, Icons.timer_outlined, "${item.duration}m")
         else if (isLoading)
           ShimmerPlaceholder.rectangular(
@@ -88,7 +105,9 @@ class MetadataBar extends ConsumerWidget {
             borderRadius: 4,
           ),
 
-        if (item.score != null)
+        if (hide.contains('score'))
+          ...const <Widget>[]
+        else if (item.score != null)
           _buildIconInfo(
             context,
             Icons.star_rounded,

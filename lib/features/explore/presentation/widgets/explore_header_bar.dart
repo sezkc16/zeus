@@ -7,8 +7,6 @@ import 'package:zorox/features/explore/presentation/delegates/explore_search_del
 import 'package:zorox/features/explore/presentation/widgets/unified_filter_dialog.dart';
 import 'package:zorox/features/explore/data/explore_filter_provider.dart';
 import 'package:zorox/features/explore/data/explore_mode_provider.dart';
-import 'package:zorox/features/explore/presentation/widgets/hover_border_gradient.dart';
-import 'package:zorox/features/explore/presentation/widgets/explore_mode_selector_dialog.dart';
 
 import 'dart:async';
 
@@ -80,73 +78,6 @@ class ExploreHeaderBar extends ConsumerWidget {
                 color: hasCarousel
                     ? theme.colorScheme.onSurface
                     : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 16),
-
-          CardsWrapper(
-            scaleFactor: 1.01,
-            onTap: () => showExploreModeSelectorDialog(context, ref),
-            borderRadius: BorderRadius.circular(LayoutConstants.radiusPill),
-            child: HoverBorderGradient(
-              onTap: () => showExploreModeSelectorDialog(context, ref),
-              child: Consumer(
-                builder: (context, ref, _) {
-                  final mode = ref.watch(exploreModeProvider);
-                  final isDark =
-                      Theme.of(context).brightness == Brightness.dark;
-                  final textColor = isDark ? Colors.white : Colors.black;
-
-                  Widget iconWidget;
-                  String labelText;
-
-                  switch (mode) {
-                    case ExploreModeType.movies:
-                      iconWidget = Icon(
-                        Icons.movie_outlined,
-                        size: 14,
-                        color: textColor,
-                      );
-                      labelText = l10n.exploreMovies;
-                      break;
-                    case ExploreModeType.anime:
-                      iconWidget = SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CustomPaint(
-                          painter: AnimeLogoPainter(color: textColor),
-                        ),
-                      );
-                      labelText = l10n.exploreAnime;
-                      break;
-                    case ExploreModeType.stremio:
-                      iconWidget = Icon(
-                        Icons.extension_outlined,
-                        size: 14,
-                        color: textColor,
-                      );
-                      labelText = 'Stremio Add-ons';
-                      break;
-                  }
-
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      iconWidget,
-                      const SizedBox(width: 8),
-                      Text(
-                        labelText,
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  );
-                },
               ),
             ),
           ),

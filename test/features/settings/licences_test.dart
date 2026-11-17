@@ -14,10 +14,9 @@ import 'package:zorox/features/settings/presentation/general_settings_provider.d
 import 'package:zorox/features/settings/presentation/settings_screen.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
 
-/// ZoroX is GPL-3.0, and the GPL asks an interactive program to show its
-/// legal notices: who holds the copyright, that there is no warranty, that it
-/// may be shared under the GPL, and where the licence is. Settings' About
-/// group is where they are, on Flutter's licence page.
+/// Zeus is GPL-3.0. The "Open-source licences" row was removed from
+/// Settings' About group at the user's request (v5); the LICENSE file and
+/// the licence texts stay in the bundle.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -67,38 +66,32 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('About opens the licence page with Zeus\'s notice', (
-    tester,
-  ) async {
+  testWidgets('About has no Open-source licences row (v5)', (tester) async {
     await pumpSettings(tester);
-    final row = find.text('Open-source licences');
+    final version = find.text('Zeus for iOS');
     await tester.scrollUntilVisible(
-      row,
+      version,
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    // The list jumps the row into view; the tap needs the frame that lays the
-    // jump out.
     await tester.pump();
+
+    // About is Developer, Telegram and Version only.
+    expect(find.text('Telegram'), findsOneWidget);
+    expect(version, findsOneWidget);
+    expect(find.text('Open-source licences'), findsNothing);
     expect(
       find.text('Zeus is free software under the GNU GPL v3'),
-      findsOneWidget,
+      findsNothing,
     );
+  });
 
-    await tester.tap(row);
-    await tester.pump();
-    await tester.pump(const Duration(seconds: 1));
-
-    expect(find.byType(LicensePage), findsOneWidget);
+  test('the licence text still ships with the app', () {
+    expect(File('LICENSE').existsSync(), isTrue);
     expect(
-      find.textContaining('GNU General Public License, version 3'),
-      findsOneWidget,
-      reason: 'the notice says which licence applies',
-    );
-    expect(
-      find.textContaining('ABSOLUTELY NO WARRANTY'),
-      findsOneWidget,
-      reason: 'and that there is no warranty',
+      File('pubspec.yaml').readAsStringSync(),
+      contains('- LICENSE'),
+      reason: 'LICENSE stays a bundled asset',
     );
   });
 }

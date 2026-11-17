@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/accent_color.dart';
 
 /// Accent color picker — the design preview's swatch row in Settings >
-/// General: the label "Accent Color — Gold is default" and the 8 presets
+/// General: the label "Accent Color — Green is default" and the 8 presets
 /// in one row of 38px circles. Tapping a swatch sets the accent
 /// immediately across the whole app (the theme is seeded from the accent,
 /// so the MaterialApp rebuilds — no restart, no re-login). Gold is the
@@ -23,7 +23,7 @@ class AccentColorPicker extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
           child: Text(
-            'Accent Color — Gold is default',
+            'Accent Color — Green is default',
             style: TextStyle(
               fontSize: 14.5,
               fontWeight: FontWeight.w600,

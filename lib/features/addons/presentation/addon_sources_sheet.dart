@@ -10,6 +10,8 @@ import '../../../core/addons/data/addon_client.dart';
 import '../../../core/widgets/app_snack_bar.dart';
 import '../../../core/addons/data/addon_repository.dart';
 import '../../../core/addons/data/addon_stream_service.dart';
+import '../../../core/addons/data/merged_source_service.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/addons/models/addon_manifest.dart';
 import '../../../core/addons/models/addon_meta.dart';
 import '../../../core/addons/models/addon_stream_source.dart';
@@ -36,6 +38,12 @@ class AddonSourcesSheet extends ConsumerStatefulWidget {
   /// Full episode list, forwarded to the player for binge playback.
   final List<AddonVideo> playlist;
 
+  /// Ask every kind of source the person has installed — their plugins,
+  /// their Nuvio providers and their Stremio add-ons — rather than the
+  /// add-ons alone. Set for titles opened from Browse (Cinemeta titles),
+  /// which belong to no plugin.
+  final bool merged;
+
   const AddonSourcesSheet({
     super.key,
     required this.item,
@@ -43,6 +51,7 @@ class AddonSourcesSheet extends ConsumerStatefulWidget {
     this.episode,
     this.playlist = const [],
     this.mode = SourcesMode.play,
+    this.merged = false,
   });
 
   static Future<void> open(
@@ -52,6 +61,7 @@ class AddonSourcesSheet extends ConsumerStatefulWidget {
     Episode? episode,
     List<AddonVideo> playlist = const [],
     SourcesMode mode = SourcesMode.play,
+    bool merged = false,
   }) {
     return showDialog<void>(
       context: context,
@@ -63,6 +73,7 @@ class AddonSourcesSheet extends ConsumerStatefulWidget {
         episode: episode,
         playlist: playlist,
         mode: mode,
+        merged: merged,
       ),
     );
   }
@@ -195,19 +206,27 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
     final clearance = Clearance.instance;
     _startedAt = clearance.isReady ? clearance.checks.now : DateTime.now();
     // A person opened the sheet: a check that wants a click opens its sheet.
-    _sub = ref
-        .read(addonStreamServiceProvider)
-        .resolve(
-          addons: ref.read(addonRepositoryProvider).enabled,
-          request: widget.request,
-          forceRefresh: forceRefresh,
-          personWaiting: true,
-        )
-        .listen((progress) {
-          if (_disposed) return;
-          _main = progress;
-          setState(() => _result = _merged());
-        });
+    final Stream<AddonStreamProgress> answers = widget.merged
+        ? ref
+              .read(mergedSourceServiceProvider)
+              .resolve(
+                request: widget.request,
+                forceRefresh: forceRefresh,
+                personWaiting: true,
+              )
+        : ref
+              .read(addonStreamServiceProvider)
+              .resolve(
+                addons: ref.read(addonRepositoryProvider).enabled,
+                request: widget.request,
+                forceRefresh: forceRefresh,
+                personWaiting: true,
+              );
+    _sub = answers.listen((progress) {
+      if (_disposed) return;
+      _main = progress;
+      setState(() => _result = _merged());
+    });
   }
 
   List<ManagedAddon> get _streamAddons => AddonStreamService.streamProvidersOf(
@@ -586,8 +605,8 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
     final subtitleText = episode != null
         ? 'S${episode.season} · E${episode.episode} ${episode.name}'
         : (_result.isLoading
-              ? 'Asking add-ons… ${_result.completedCount}/${_result.totalCount}'
-              : '${_result.streams.length} links from ${_result.respondedCount} add-on(s)');
+              ? '${widget.merged ? 'Asking plugins & add-ons…' : 'Asking add-ons…'} ${_result.completedCount}/${_result.totalCount}'
+              : '${_result.streams.length} links from ${_result.respondedCount} ${widget.merged ? 'source(s)' : 'add-on(s)'}');
     final visible = _visible;
 
     final topPick = visible.isNotEmpty ? visible.first : null;
@@ -645,10 +664,11 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
                       Expanded(
                         child: Text(
                           _result.isLoading
-                              ? 'Asking add-ons… '
+                              ? '${widget.merged ? 'Asking plugins & add-ons…' : 'Asking add-ons…'} '
                                     '${_result.completedCount}/${_result.totalCount}'
                               : '${_result.streams.length} links from '
-                                    '${_result.respondedCount} add-on(s)',
+                                    '${_result.respondedCount} '
+                                    '${widget.merged ? 'source(s)' : 'add-on(s)'}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: _result.isLoading
                                 ? cs.primary
@@ -845,7 +865,9 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
                       padding: const EdgeInsets.all(24),
                       child: _result.isLoading
                           ? Text(
-                              'Asking active add-ons…',
+                              widget.merged
+                                  ? l10n.sourcesAskingAll
+                                  : 'Asking active add-ons…',
                               textAlign: TextAlign.center,
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: cs.onSurfaceVariant,
@@ -863,6 +885,8 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
                                 Text(
                                   _result.streams.isNotEmpty
                                       ? l10n.addonSourcesNoMatchFilter
+                                      : widget.merged
+                                      ? l10n.sourcesNoneFound
                                       : _result.error ??
                                             'No add-on returned links for this title. '
                                                 'Install a stream add-on such as Torrentio, '
@@ -883,6 +907,21 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
                                       icon: const Icon(Icons.refresh_rounded),
                                       label: const Text('Retry'),
                                     ),
+                                    if (widget.merged &&
+                                        _result.streams.isEmpty)
+                                      FilledButton.icon(
+                                        key: const ValueKey(
+                                          'sources-open-plugins',
+                                        ),
+                                        onPressed: () {
+                                          Navigator.of(context).pop();
+                                          const ExtensionsRoute().go(context);
+                                        },
+                                        icon: const Icon(
+                                          Icons.extension_rounded,
+                                        ),
+                                        label: Text(l10n.sourcesOpenPlugins),
+                                      ),
                                     OutlinedButton.icon(
                                       onPressed: () =>
                                           setState(() => _showDetails = true),

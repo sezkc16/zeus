@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zorox/core/cloudstream/cloudstream_models.dart';
 import 'package:zorox/core/cloudstream/cloudstream_repository.dart';
 import 'package:zorox/shared/focus/app_focus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,6 +35,25 @@ class _LoadedCloudStream extends CloudStreamRepository {
 void _tallViewport(WidgetTester tester) {
   tester.view.physicalSize = const Size(800, 2400);
   tester.view.devicePixelRatio = 1.0;
+}
+
+/// Starts the Plugins tab on [segment] — the tests about the repository
+/// cards and the Add Repository field live under "Add Plugins" (v5).
+class _StartOn extends PluginsSegmentNotifier {
+  _StartOn(this.segment);
+  final PluginsSegment segment;
+
+  @override
+  PluginsSegment build() => segment;
+}
+
+/// A CloudStream store with the given repositories already stored.
+class _StoredCloudStream extends CloudStreamRepository {
+  _StoredCloudStream(this._state);
+  final CloudStreamState _state;
+
+  @override
+  CloudStreamState build() => _state;
 }
 
 class MockExtensionsController extends ExtensionsController {
@@ -76,122 +96,345 @@ class MockExtensionManager extends ExtensionManager {
 }
 
 void main() {
-  testWidgets(
-    'ExtensionsScreen shows one scroll with the guided empty state when no plugins installed',
-    (WidgetTester tester) async {
-      final emptyState = ExtensionsSuccess(
-        repositories: [
-          ExtensionRepository(
-            name: 'Test Repo',
-            url: 'https://example.com/repo.json',
-            pluginLists: [],
-          ),
-        ],
-        installedPlugins: [],
-        availablePlugins: {},
-        availableUpdates: {},
-        installingPlugins: {},
-      );
+  ExtensionsSuccess emptyWithRepo() => ExtensionsSuccess(
+    repositories: [
+      ExtensionRepository(
+        name: 'Test Repo',
+        url: 'https://example.com/repo.json',
+        pluginLists: [],
+      ),
+    ],
+    installedPlugins: [],
+    availablePlugins: {},
+    availableUpdates: {},
+    installingPlugins: {},
+  );
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            extensionsControllerProvider.overrideWith(
-              () => MockExtensionsController(emptyState),
-            ),
-            extensionManagerProvider.overrideWith(() => MockExtensionManager()),
-            cloudStreamRepositoryProvider.overrideWith(
-              () => _LoadedCloudStream(),
-            ),
-          ],
-          child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: ExtensionsScreen(),
-          ),
+  ExtensionsSuccess oneInstalled() => ExtensionsSuccess(
+    repositories: [
+      ExtensionRepository(
+        name: 'Test Repo',
+        url: 'https://example.com/repo.json',
+        pluginLists: [],
+      ),
+    ],
+    installedPlugins: [
+      ExtensionPlugin(
+        name: 'Installed Plugin',
+        version: 1,
+        packageName: 'com.example.plugin',
+        repositoryId: 'test_repo',
+        sourceUrl: 'https://example.com/plugin.js',
+      ),
+    ],
+    availablePlugins: {},
+    availableUpdates: {},
+    installingPlugins: {},
+  );
+
+  /// The screen under [container], so a test can rebuild it from scratch
+  /// against the same (app-lifetime) providers.
+  Widget hosted(ProviderContainer container, {Key? key}) =>
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ExtensionsScreen(key: key),
         ),
       );
 
-      await tester.pumpAndSettle();
+  ProviderContainer containerFor(ExtensionsState state) {
+    final container = ProviderContainer(
+      overrides: [
+        extensionsControllerProvider.overrideWith(
+          () => MockExtensionsController(state),
+        ),
+        extensionManagerProvider.overrideWith(() => MockExtensionManager()),
+        cloudStreamRepositoryProvider.overrideWith(() => _LoadedCloudStream()),
+      ],
+    );
+    addTearDown(container.dispose);
+    return container;
+  }
 
-      // One scroll, not the fork's Installed / Repositories tabs.
-      expect(find.byType(TabBar), findsNothing);
-      expect(find.byType(TabBarView), findsNothing);
-      expect(find.text('Plugins'), findsOneWidget);
+  const installedKey = ValueKey('plugins-segment-installed');
+  const addKey = ValueKey('plugins-segment-add');
 
-      // The guided empty state: no installed extensions, and the hint
-      // points at the Add Repository card below (there is no Browse
-      // Repositories button any more — the card is right there).
-      expect(find.text('No Extensions Installed'), findsOneWidget);
-      expect(
-        find.text('Add a repository below to discover and install extensions.'),
-        findsOneWidget,
-      );
-      expect(find.widgetWithText(FilledButton, 'Browse Repositories'), findsNothing);
+  Color? segmentFill(WidgetTester tester, Key key) => tester
+      .widget<Material>(
+        find
+            .descendant(of: find.byKey(key), matching: find.byType(Material))
+            .first,
+      )
+      .color;
 
-      // The inline Add Repository card is on screen, and the repository
-      // is already visible below it — no tab to switch to.
-      expect(find.text('ADD REPOSITORY'), findsOneWidget);
-      expect(find.byType(TextField), findsOneWidget);
-      expect(find.widgetWithText(FilledButton, 'Add'), findsOneWidget);
-      expect(find.text('Test Repo'), findsOneWidget);
-    },
-  );
+  testWidgets('the default segment is Installed, filled with the accent', (
+    tester,
+  ) async {
+    _tallViewport(tester);
+    await tester.pumpWidget(hosted(containerFor(oneInstalled())));
+    await tester.pumpAndSettle();
 
-  testWidgets(
-    'ExtensionsScreen displays Installed plugin list when extensions installed',
-    (WidgetTester tester) async {
-      final installedState = ExtensionsSuccess(
-        repositories: [
-          ExtensionRepository(
-            name: 'Test Repo',
-            url: 'https://example.com/repo.json',
-            pluginLists: [],
-          ),
-        ],
-        installedPlugins: [
-          ExtensionPlugin(
-            name: 'Installed Plugin',
-            version: 1,
-            packageName: 'com.example.plugin',
-            repositoryId: 'test_repo',
-            sourceUrl: 'https://example.com/plugin.js',
-          ),
-        ],
-        availablePlugins: {},
-        availableUpdates: {},
-        installingPlugins: {},
-      );
+    // No TabBar: the two segments are one row under the title + subtitle.
+    expect(find.byType(TabBar), findsNothing);
+    expect(find.text('Plugins'), findsOneWidget);
+    expect(
+      find.text('Zeus Repo, CloudStream (.cs3), Nuvio & Stremio'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('TojiX'), findsNothing);
+    expect(find.byKey(installedKey), findsOneWidget);
+    expect(find.byKey(addKey), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(installedKey),
+        matching: find.text('Installed'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: find.byKey(addKey), matching: find.text('Add Plugins')),
+      findsOneWidget,
+    );
+    // Installed sits left of Add Plugins.
+    expect(
+      tester.getCenter(find.byKey(installedKey)).dx,
+      lessThan(tester.getCenter(find.byKey(addKey)).dx),
+    );
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            extensionsControllerProvider.overrideWith(
-              () => MockExtensionsController(installedState),
+    final scheme = Theme.of(tester.element(find.byKey(installedKey))).colorScheme;
+    expect(segmentFill(tester, installedKey), scheme.primary);
+    expect(segmentFill(tester, addKey), isNot(scheme.primary));
+
+    // Installed shows the installed list only: nothing for adding.
+    expect(find.text('Installed Plugin'), findsOneWidget);
+    expect(find.text('Installed Extensions'), findsOneWidget);
+    expect(find.text('ADD REPOSITORY'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('Test Repo'), findsNothing);
+    expect(find.text('Zeus (SkyStream)'), findsNothing);
+    expect(find.text('MORE SOURCES'), findsNothing);
+  });
+
+  testWidgets('Add Plugins shows the Add Repository card and the repository '
+      'sections, and hides the installed list', (tester) async {
+    _tallViewport(tester);
+    final container = ProviderContainer(
+      overrides: [
+        extensionsControllerProvider.overrideWith(
+          () => MockExtensionsController(oneInstalled()),
+        ),
+        extensionManagerProvider.overrideWith(() => MockExtensionManager()),
+        cloudStreamRepositoryProvider.overrideWith(
+          () => _StoredCloudStream(
+            const CloudStreamState(
+              isLoading: false,
+              repositories: [
+                CsRepository(
+                  url:
+                      'https://raw.githubusercontent.com/sezkc16/TojiX/main/repo.json',
+                  name: 'TojiX Repo',
+                ),
+              ],
             ),
-            extensionManagerProvider.overrideWith(() => MockExtensionManager()),
-            cloudStreamRepositoryProvider.overrideWith(
-              () => _LoadedCloudStream(),
-            ),
-          ],
-          child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: ExtensionsScreen(),
           ),
         ),
-      );
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(hosted(container));
+    await tester.pumpAndSettle();
 
-      await tester.pumpAndSettle();
+    await tester.tap(find.byKey(addKey));
+    await tester.pumpAndSettle();
 
-      // One scroll, not the fork's Installed / Repositories tabs.
-      expect(find.byType(TabBar), findsNothing);
-      expect(find.byType(TabBarView), findsNothing);
+    final scheme = Theme.of(tester.element(find.byKey(addKey))).colorScheme;
+    expect(segmentFill(tester, addKey), scheme.primary);
+    expect(segmentFill(tester, installedKey), isNot(scheme.primary));
 
-      // Installed plugin list should display the installed plugin exactly once
-      expect(find.text('Installed Plugin'), findsOneWidget);
-    },
-  );
+    // Everything for adding, in the same order as before.
+    expect(find.text('ADD REPOSITORY'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Add'), findsOneWidget);
+    expect(find.text('Zeus'), findsOneWidget);
+    expect(find.text('Zeus Repo'), findsOneWidget);
+    expect(find.text('Zeus (SkyStream)'), findsOneWidget);
+    expect(find.text('Test Repo'), findsOneWidget);
+    expect(find.text('CloudStream'), findsWidgets);
+    expect(find.text('MORE SOURCES'), findsOneWidget);
+    expect(find.text('Nuvio Plugins'), findsOneWidget);
+    expect(find.text('Stremio Add-ons'), findsOneWidget);
+    double top(String text) => tester.getTopLeft(find.text(text)).dy;
+    expect(top('ADD REPOSITORY'), lessThan(top('Zeus Repo')));
+    expect(top('Zeus Repo'), lessThan(top('Zeus (SkyStream)')));
+    expect(top('Zeus (SkyStream)'), lessThan(top('MORE SOURCES')));
+
+    // ... and the installed list is gone from this segment.
+    expect(find.text('Installed Plugin'), findsNothing);
+    expect(find.text('Installed Extensions'), findsNothing);
+
+    // Back to Installed: the list returns, the add half leaves.
+    await tester.tap(find.byKey(installedKey));
+    await tester.pumpAndSettle();
+    expect(find.text('Installed Plugin'), findsOneWidget);
+    expect(find.text('ADD REPOSITORY'), findsNothing);
+  });
+
+  testWidgets("the empty Installed state's button switches to Add Plugins", (
+    tester,
+  ) async {
+    _tallViewport(tester);
+    final container = containerFor(emptyWithRepo());
+    await tester.pumpWidget(hosted(container));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No Extensions Installed'), findsOneWidget);
+    expect(
+      find.text('Open Add Plugins to add a repository and install extensions.'),
+      findsOneWidget,
+    );
+    expect(find.text('ADD REPOSITORY'), findsNothing);
+    expect(find.text('Test Repo'), findsNothing);
+
+    const button = ValueKey('plugins-empty-add-button');
+    expect(find.byKey(button), findsOneWidget);
+    await tester.tap(find.byKey(button));
+    await tester.pumpAndSettle();
+
+    expect(container.read(pluginsSegmentProvider), PluginsSegment.add);
+    expect(find.text('No Extensions Installed'), findsNothing);
+    expect(find.text('ADD REPOSITORY'), findsOneWidget);
+    expect(find.text('Test Repo'), findsOneWidget);
+  });
+
+  testWidgets('the segment choice is remembered when the screen is rebuilt', (
+    tester,
+  ) async {
+    _tallViewport(tester);
+    final container = containerFor(oneInstalled());
+    await tester.pumpWidget(hosted(container, key: const ValueKey('first')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(addKey));
+    await tester.pumpAndSettle();
+    expect(find.text('ADD REPOSITORY'), findsOneWidget);
+
+    // The screen leaves the tree entirely (another tab) ...
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: SizedBox.shrink()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(ExtensionsScreen), findsNothing);
+
+    // ... and a brand-new screen (new State) opens on the same segment.
+    await tester.pumpWidget(hosted(container, key: const ValueKey('second')));
+    await tester.pumpAndSettle();
+    expect(find.text('ADD REPOSITORY'), findsOneWidget);
+    expect(find.text('Installed Plugin'), findsNothing);
+    final scheme = Theme.of(tester.element(find.byKey(addKey))).colorScheme;
+    expect(segmentFill(tester, addKey), scheme.primary);
+  });
+
+  testWidgets('both segments keep the bottom clearance for the nav pill', (
+    tester,
+  ) async {
+    await tester.pumpWidget(hosted(containerFor(oneInstalled())));
+    await tester.pumpAndSettle();
+    EdgeInsetsGeometry? padding() =>
+        tester.widget<ListView>(find.byType(ListView)).padding;
+    // Outside the shell the minimum (100) applies; inside it the shell's
+    // inflated MediaQuery padding (156) does — same call in both segments.
+    expect((padding()! as EdgeInsets).bottom, 100);
+    await tester.tap(find.byKey(addKey));
+    await tester.pumpAndSettle();
+    expect((padding()! as EdgeInsets).bottom, 100);
+  });
+
+  // "Kartoons-style" plugin login: an installed .cs3 plugin's own settings
+  // screen (where its "Get Login Code" lives) opens from the tune button on
+  // its row. The Installed segment reuses the same tile, so the button —
+  // same gate (hasSettings == true), same key — sits beside delete.
+  testWidgets('an installed .cs3 plugin with settings keeps its tune button '
+      'in the Installed segment; one without does not', (tester) async {
+    _tallViewport(tester);
+    CsInstalledPlugin cs(String name, bool? hasSettings) => CsInstalledPlugin(
+      info: CsPluginInfo(
+        internalName: name,
+        name: name,
+        url: 'https://example.com/$name.cs3',
+        repositoryUrl: 'https://example.com/repo.json',
+        version: 3,
+      ),
+      filePath: '/tmp/$name.cs3',
+      hasSettings: hasSettings,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        extensionsControllerProvider.overrideWith(
+          () => MockExtensionsController(emptyWithRepo()),
+        ),
+        extensionManagerProvider.overrideWith(() => MockExtensionManager()),
+        cloudStreamRepositoryProvider.overrideWith(
+          () => _StoredCloudStream(
+            CloudStreamState(
+              isLoading: false,
+              installed: [
+                cs('KartoonsProvider', true),
+                cs('AnikotoProvider', false),
+                cs('UnknownProvider', null),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(hosted(container));
+    await tester.pumpAndSettle();
+
+    // Installed is the default segment, and all three rows are in it.
+    expect(container.read(pluginsSegmentProvider), PluginsSegment.installed);
+    expect(find.text('KartoonsProvider'), findsOneWidget);
+    expect(find.text('AnikotoProvider'), findsOneWidget);
+    expect(find.text('UnknownProvider'), findsOneWidget);
+    expect(find.text('No Extensions Installed'), findsNothing);
+
+    // The settings (login) button: only where the plugin has settings.
+    final tune = find.byKey(const ValueKey('cs3_settings_KartoonsProvider'));
+    expect(tune, findsOneWidget);
+    expect(
+      find.descendant(of: tune, matching: find.byIcon(Icons.tune_rounded)),
+      findsOneWidget,
+    );
+    expect(tester.widget<IconButton>(tune).onPressed, isNotNull);
+    expect(
+      find.byKey(const ValueKey('cs3_settings_AnikotoProvider')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('cs3_settings_UnknownProvider')),
+      findsNothing,
+    );
+    expect(find.byIcon(Icons.tune_rounded), findsOneWidget);
+
+    // Delete stays on every row, the tune button to its left.
+    for (final name in ['KartoonsProvider', 'AnikotoProvider', 'UnknownProvider']) {
+      expect(find.byKey(ValueKey('cs3_uninstall_$name')), findsOneWidget);
+    }
+    expect(
+      tester.getCenter(tune).dx,
+      lessThan(
+        tester
+            .getCenter(
+              find.byKey(const ValueKey('cs3_uninstall_KartoonsProvider')),
+            )
+            .dx,
+      ),
+    );
+  });
 
   group('plugin row focus affordance', _focusAffordanceTests);
   group('under a thumb or a mouse', _touchTests);
@@ -210,7 +453,12 @@ void _touchTests() {
     // cards under a pointer - a header tapped to expand it, a node focused by
     // code written for the remote - and the card lit up for any of it.
     _tallViewport(tester);
-    await tester.pumpWidget(_app(_oneRepository(), visibility: true));
+    await tester.pumpWidget(_app(
+        _oneRepository(),
+        visibility: true,
+        segment: PluginsSegment.add,
+      ),
+    );
     await tester.pumpAndSettle();
     final theme = Theme.of(tester.element(find.text('Test Repo')));
 
@@ -353,8 +601,13 @@ ExtensionsSuccess _twoInstalled() => ExtensionsSuccess(
 /// The screen under a provider scope. [visibility] installs the app's own
 /// input-aware focus rule over it, the way the app's root does, for the tests
 /// that are about which input is driving.
-Widget _app(ExtensionsState state, {bool visibility = false}) => ProviderScope(
+Widget _app(
+  ExtensionsState state, {
+  bool visibility = false,
+  PluginsSegment segment = PluginsSegment.installed,
+}) => ProviderScope(
   overrides: [
+    pluginsSegmentProvider.overrideWith(() => _StartOn(segment)),
     extensionsControllerProvider.overrideWith(
       () => MockExtensionsController(state),
     ),
@@ -526,7 +779,7 @@ void _focusAffordanceTests() {
         installingPlugins: const {},
       );
 
-      await tester.pumpWidget(_app(state));
+      await tester.pumpWidget(_app(state, segment: PluginsSegment.add));
       await tester.pumpAndSettle();
 
       final theme = Theme.of(tester.element(find.text('Test Repo')));
@@ -636,6 +889,8 @@ void _tvDeadEndTests() {
 
   Widget hostFor(MutableExtensionsController controller) => ProviderScope(
     overrides: [
+      // The Add Repository field and rows live under "Add Plugins" (v5).
+      pluginsSegmentProvider.overrideWith(() => _StartOn(PluginsSegment.add)),
       extensionsControllerProvider.overrideWith(() => controller),
       extensionManagerProvider.overrideWith(() => MockExtensionManager()),
       cloudStreamRepositoryProvider.overrideWith(

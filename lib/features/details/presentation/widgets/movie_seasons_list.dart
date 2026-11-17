@@ -11,6 +11,7 @@ import '../../../../shared/widgets/desktop_scroll_wrapper.dart';
 import '../../../../core/utils/responsive_breakpoints.dart';
 import '../../../../core/models/tmdb_details.dart';
 import '../tmdb_details_controller.dart';
+import 'hero_details_widgets.dart';
 
 import 'package:zorox/l10n/generated/app_localizations.dart';
 
@@ -635,17 +636,19 @@ class _MovieSeasonsListState extends ConsumerState<MovieSeasonsList> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                ListView.separated(
+                // Phone: the range's episodes side by side, as the other
+                // details pages show them.
+                HorizontalEpisodeRow(
+                  // A new row for a new range: it opens at its start.
+                  key: ValueKey('tmdb-episodes-$_selectedRangeIndex'),
                   padding: EdgeInsets.zero,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
                   itemCount: displayedEpisodes.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final ep = displayedEpisodes[index];
+                    final name = (ep['name'] as String?) ?? 'Episode';
                     final imageUrl = AppImageFallbacks.tmdbStill(
                       ep['still_path'] as String?,
-                      label: (ep['name'] as String?) ?? 'Episode',
+                      label: name,
                     );
                     final voteAverage =
                         (ep['vote_average'] as num?)?.toDouble() ?? 0.0;
@@ -655,8 +658,18 @@ class _MovieSeasonsListState extends ConsumerState<MovieSeasonsList> {
                     final runtimeText = hours > 0
                         ? '${hours}h ${minutes}m'
                         : '${minutes}m';
+                    final fill = Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest;
 
-                    return CardsWrapper(
+                    return EpisodeRowCard(
+                      number: ep['episode_number'] as int?,
+                      title: name,
+                      meta: [
+                        if (voteAverage > 0)
+                          '★ ${voteAverage.toStringAsFixed(1)}',
+                        if (runtime > 0) runtimeText,
+                      ].join(' · '),
                       // Tapping an episode used to open the Nuvio sources
                       // sheet directly. That handed one of the two plugin
                       // systems a route into playback that the other never
@@ -670,95 +683,23 @@ class _MovieSeasonsListState extends ConsumerState<MovieSeasonsList> {
                               AppLocalizations.of(context)!.selectSourceToPlay,
                             );
                       },
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: CachedNetworkImage(
-                                imageUrl: imageUrl ?? '',
-                                width: 120,
-                                height: 68,
-                                // Skip memCacheWidth — source w500 already
-                                // matches 120 dp × ~3 DPR ~ 360 px target.
-                                fit: BoxFit.cover,
-                                errorWidget: (_, _, _) =>
-                                    ThumbnailErrorPlaceholder(
-                                      label:
-                                          (ep['name'] as String?) ?? 'Episode',
-                                      iconSize: 24,
-                                    ),
-                              ),
+                      thumbnail: imageUrl == null || imageUrl.isEmpty
+                          ? ColoredBox(color: fill)
+                          : CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, _, _) =>
+                                  ThumbnailErrorPlaceholder(
+                                    label: name,
+                                    iconSize: 24,
+                                  ),
+                              placeholder: (context, url) =>
+                                  ColoredBox(color: fill),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "${ep['episode_number']}. ${ep['name']}",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      _buildTmdbLogo(context),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        voteAverage.toStringAsFixed(1),
-                                        style: TextStyle(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .onSurface,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      if (runtime > 0)
-                                        Text(
-                                          runtimeText,
-                                          style: TextStyle(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .onSurface
-                                                .withValues(alpha: 0.7),
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    (ep['overview'] as String?) ?? '',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface
-                                          .withValues(alpha: 0.7),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     );
                   },
                 ),
+                const SizedBox(height: 24),
               ],
             );
           },

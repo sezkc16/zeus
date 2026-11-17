@@ -26,7 +26,14 @@ void main() {
     testWidgets("on $layout, a movie's Play shows once its add-on has a link, "
         'beside the search over every add-on', (tester) async {
       await openStremioPage(tester, kBridgeMovie, size: size);
-      expect(find.text('Play', skipOffstage: false), findsOneWidget);
+      // A phone's Play is the round button on the banner, named by its
+      // tooltip; the large layout's is the full-width one.
+      expect(
+        size.width < 600
+            ? find.byTooltip('Play')
+            : find.text('Play', skipOffstage: false),
+        findsOneWidget,
+      );
       expect(
         find.text('Search Stremio add-ons', skipOffstage: false),
         findsOneWidget,

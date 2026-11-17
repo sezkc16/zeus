@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -21,6 +23,9 @@ import '../download_launcher.dart';
 import 'download_progress_dialog.dart';
 import 'download_management_dialog.dart';
 import 'episode_card.dart';
+import 'hero_details_widgets.dart';
+import '../../../home/presentation/widgets/home_provider_chip.dart'
+    show cleanPluginName;
 import '../../../../shared/focus/app_focus.dart';
 
 import 'package:zorox/core/providers/device_info_provider.dart';
@@ -96,11 +101,93 @@ class DetailsSeasonListWrapper extends ConsumerWidget {
   }
 }
 
+/// What Play reads: "Play" or "Resume", and for a show the episode it starts
+/// ("Play E1", "Resume S2 E3"). The full-width button's text and the round
+/// one's tooltip are this same string.
+String detailsPlayLabel(
+  AppLocalizations l10n, {
+  required bool resuming,
+  required bool isMovie,
+  required bool singleSeason,
+  Episode? target,
+}) {
+  final verb = resuming ? l10n.resume : l10n.play;
+  if (target == null || isMovie) return verb;
+  return singleSeason
+      ? l10n.playEpisodeOnly(verb, target.episode)
+      : l10n.playEpisode(verb, target.season, target.episode);
+}
+
+/// The phone page's round Play button on the banner's edge. It is the
+/// full-width Play of [DetailsActionButtons] in another shape: the same
+/// label, the same press, the same spinner while links resolve.
+class DetailsHeroPlayButton extends ConsumerWidget {
+  const DetailsHeroPlayButton({
+    super.key,
+    required this.item,
+    required this.details,
+    required this.itemUrl,
+  });
+
+  final MultimediaItem item;
+  final MultimediaItem? details;
+  final String itemUrl;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyRepo = ref.watch(historyRepositoryProvider);
+    final state = ref.watch(
+      detailsControllerProvider(itemUrl).select(
+        (s) => (
+          target: s.targetEpisode,
+          launching: s.isLaunching,
+          isMovie: s.isMovie,
+          singleSeason: s.seasonMap.keys.length <= 1,
+        ),
+      ),
+    );
+    final target = state.target;
+    final pos = target != null
+        ? historyRepo.getEpisodePosition(
+            target.url,
+            mainUrl: item.url,
+            season: target.season,
+            episode: target.episode,
+          )
+        : historyRepo.getPosition(item.url);
+    final label = detailsPlayLabel(
+      AppLocalizations.of(context)!,
+      resuming: pos > 5000,
+      isMovie: state.isMovie,
+      singleSeason: state.singleSeason,
+      target: target,
+    );
+    final playable =
+        details != null &&
+        details!.episodes != null &&
+        details!.episodes!.isNotEmpty;
+    return DetailsPlayFab(
+      label: label,
+      loading: state.launching,
+      onPressed: playable
+          ? () => ref
+                .read(detailsControllerProvider(item.url).notifier)
+                .handlePlayPress(context, details!)
+          : null,
+    );
+  }
+}
+
 class DetailsActionButtons extends HookConsumerWidget {
   final MultimediaItem item;
   final MultimediaItem? details;
   final String itemUrl;
   final bool vertical;
+
+  /// False on the phone page, where Play is the round button on the banner
+  /// ([DetailsHeroPlayButton]): what is left here is the watched-so-far bar
+  /// and Download, and nothing at all for a title with neither.
+  final bool showPlay;
 
   const DetailsActionButtons({
     super.key,
@@ -108,6 +195,7 @@ class DetailsActionButtons extends HookConsumerWidget {
     required this.details,
     required this.itemUrl,
     this.vertical = false,
+    this.showPlay = true,
   });
 
   @override
@@ -158,18 +246,13 @@ class DetailsActionButtons extends HookConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final bool isResuming = pos > 5000;
 
-    String playLabel = isResuming ? l10n.resume : l10n.play;
-    if (targetEpisode != null && !isMovie) {
-      if (isSingleSeason) {
-        playLabel = l10n.playEpisodeOnly(playLabel, targetEpisode.episode);
-      } else {
-        playLabel = l10n.playEpisode(
-          playLabel,
-          targetEpisode.season,
-          targetEpisode.episode,
-        );
-      }
-    }
+    final playLabel = detailsPlayLabel(
+      l10n,
+      resuming: isResuming,
+      isMovie: isMovie,
+      singleSeason: isSingleSeason,
+      target: targetEpisode,
+    );
 
     final playBtn = CustomButton(
       isPrimary: true,
@@ -387,6 +470,15 @@ class DetailsActionButtons extends HookConsumerWidget {
             ),
           ],
         ),
+      );
+    }
+
+    if (!showPlay) {
+      final hasProgress = pos > 0 && dur > 0 && !isLivestream;
+      if (!hasProgress && !showDownload) return const SizedBox.shrink();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [progressWidget, if (showDownload) downloadBtn],
       );
     }
 
@@ -888,7 +980,15 @@ class DetailsChip extends StatelessWidget {
 class DetailsProviderChip extends ConsumerWidget {
   final String providerName;
 
-  const DetailsProviderChip({super.key, required this.providerName});
+  /// On the phone page's banner: a small outlined tag with the plugin's
+  /// clean name ("ANIKOTO", not "ANIKOTOPROVIDER") and no icon.
+  final bool hero;
+
+  const DetailsProviderChip({
+    super.key,
+    required this.providerName,
+    this.hero = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -910,6 +1010,13 @@ class DetailsProviderChip extends ConsumerWidget {
       }
     } catch (e) {
       if (kDebugMode) debugPrint('DetailsProviderChip.build: $e');
+    }
+
+    if (hero) {
+      return DetailsSourceTag(
+        label: cleanPluginName(displayName),
+        debug: isDebug,
+      );
     }
 
     return Container(
@@ -1091,6 +1198,267 @@ class DetailsDesktopEpisodeColumn extends ConsumerWidget {
                   ),
                 );
               }),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+/// The info strip's columns for a plugin title, in the order they are
+/// shown: Year, Episodes, Runtime, Status, Rating. Only what the title
+/// really carries; the strip shows the first four.
+///
+/// Returned with the fields they stand for, so the page's meta row can
+/// leave out what the strip already says and keep what did not fit.
+List<({String field, DetailsInfoColumn column})> detailsInfoColumns(
+  AppLocalizations l10n,
+  MultimediaItem item, {
+  required bool isMovie,
+  required bool isLoading,
+  int? episodeCount,
+}) {
+  final showsStatus =
+      !isLoading &&
+      (item.contentType == MultimediaContentType.series ||
+          item.contentType == MultimediaContentType.anime) &&
+      (item.status == ShowStatus.ongoing ||
+          item.status == ShowStatus.completed);
+  final all = <({String field, DetailsInfoColumn column})>[
+    if (item.year != null)
+      (
+        field: 'year',
+        column: DetailsInfoColumn(value: '${item.year}', label: 'Year'),
+      ),
+    if (!isMovie && episodeCount != null && episodeCount > 0)
+      (
+        field: 'episodes',
+        column: DetailsInfoColumn(value: '$episodeCount', label: l10n.episodes),
+      ),
+    if (item.duration != null)
+      (
+        field: 'duration',
+        column: DetailsInfoColumn(
+          value: '${item.duration}m',
+          label: 'Runtime',
+        ),
+      ),
+    if (showsStatus)
+      (
+        field: 'status',
+        column: DetailsInfoColumn(
+          value: item.status == ShowStatus.completed
+              ? l10n.showStatusCompleted
+              : l10n.showStatusOngoing,
+          label: l10n.status,
+        ),
+      ),
+    if (item.score != null)
+      (
+        field: 'score',
+        column: DetailsInfoColumn(
+          value: item.score!.toStringAsFixed(1),
+          label: 'Rating',
+        ),
+      ),
+  ];
+  return all.take(DetailsInfoStrip.maxColumns).toList();
+}
+
+/// The phone page's episodes: the "Episodes" header with the Sub/Dub
+/// switch, the range picker and the sort button, then the selected season's
+/// episodes as one horizontal row.
+///
+/// The row holds every episode of the season and builds only those on
+/// screen. It opens at the episode Play would start, the range picker
+/// scrolls it to a range rather than cutting the list to it, and the
+/// picker follows as the row is swiped.
+class DetailsEpisodeRowSection extends ConsumerStatefulWidget {
+  const DetailsEpisodeRowSection({
+    super.key,
+    required this.parentItem,
+    required this.itemUrl,
+    required this.isMovie,
+    this.horizontalPadding = 16,
+  });
+
+  final MultimediaItem parentItem;
+  final String itemUrl;
+  final bool isMovie;
+  final double horizontalPadding;
+
+  static const int batchSize = 20;
+
+  @override
+  ConsumerState<DetailsEpisodeRowSection> createState() =>
+      _DetailsEpisodeRowSectionState();
+}
+
+class _DetailsEpisodeRowSectionState
+    extends ConsumerState<DetailsEpisodeRowSection> {
+  GlobalKey<HorizontalEpisodeRowState> _rowKey = GlobalKey();
+
+  /// What the row was last built for: a new season, language or order is a
+  /// new row, opened at its own start.
+  Object? _rowIdentity;
+
+  /// The range the row itself reported by being swiped to: the picker
+  /// changing to it must not scroll the row again.
+  int? _rangeFromScroll;
+
+  /// Whether the row has opened at the episode Play would start.
+  bool _openedAtTarget = false;
+
+  List<Episode> _episodesOf(DetailsState state) {
+    var episodes = state.seasonMap[state.selectedSeason] ?? const <Episode>[];
+    final hasDub = episodes.any((e) => e.dubStatus == DubStatus.dubbed);
+    final hasSub = episodes.any((e) => e.dubStatus == DubStatus.subbed);
+    if (hasDub && hasSub && state.selectedDubStatus != DubStatus.none) {
+      episodes = episodes
+          .where((e) => e.dubStatus == state.selectedDubStatus)
+          .toList();
+    }
+    return episodes;
+  }
+
+  /// Where the episode at [index] of the ascending list sits in the row.
+  int _position(int index, int count, bool ascending) =>
+      ascending ? index : count - 1 - index;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.isMovie) return const SizedBox.shrink();
+
+    final state = ref.watch(detailsControllerProvider(widget.itemUrl));
+    final episodes = _episodesOf(state);
+    if (episodes.isEmpty) return const SizedBox.shrink();
+
+    final count = episodes.length;
+    final ascending = state.isAscending;
+    const batch = DetailsEpisodeRowSection.batchSize;
+    final controller = ref.read(
+      detailsControllerProvider(widget.itemUrl).notifier,
+    );
+
+    // A new row for a new list: it opens at the episode Play would start
+    // when that one is in it, else at its start.
+    final identity = (
+      state.selectedSeason,
+      state.selectedDubStatus,
+      ascending,
+      count,
+    );
+    var initialPosition = 0;
+    if (identity != _rowIdentity) {
+      _rowIdentity = identity;
+      _rowKey = GlobalKey();
+      final target = state.targetEpisode;
+      final targetIndex = target == null
+          ? -1
+          : episodes.indexWhere(
+              (e) =>
+                  e.url == target.url &&
+                  e.season == target.season &&
+                  e.episode == target.episode,
+            );
+      // Once only: after the page has opened at that episode, a new order
+      // or season keeps to the range the picker shows.
+      final int startIndex;
+      if (!_openedAtTarget && targetIndex >= 0) {
+        _openedAtTarget = true;
+        startIndex = targetIndex;
+        initialPosition = _position(startIndex, count, ascending);
+      } else {
+        startIndex = math.min(state.selectedRangeIndex * batch, count - 1);
+        final last = math.min(startIndex + batch - 1, count - 1);
+        initialPosition = ascending ? startIndex : count - 1 - last;
+      }
+      final range = startIndex ~/ batch;
+      if (range != state.selectedRangeIndex) {
+        _rangeFromScroll = range;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) controller.setRangeIndex(range);
+        });
+      }
+    }
+
+    // The range picker: scroll the row to the range it names.
+    ref.listen(
+      detailsControllerProvider(widget.itemUrl)
+          .select((s) => s.selectedRangeIndex),
+      (previous, next) {
+        if (next == _rangeFromScroll) {
+          _rangeFromScroll = null;
+          return;
+        }
+        _rangeFromScroll = null;
+        final now = ref.read(detailsControllerProvider(widget.itemUrl));
+        final total = _episodesOf(now).length;
+        if (total == 0) return;
+        final first = (next * batch).clamp(0, total - 1);
+        final last = (first + batch - 1).clamp(0, total - 1);
+        _rowKey.currentState?.scrollToIndex(
+          now.isAscending ? first : total - 1 - last,
+        );
+      },
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            widget.horizontalPadding,
+            0,
+            widget.horizontalPadding,
+            LayoutConstants.spacingMd,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  AppLocalizations.of(context)!.episodes,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(width: 8),
+              DetailsEpisodeFilterBar(
+                itemUrl: widget.itemUrl,
+                totalEpisodes: count,
+                batchSize: batch,
+              ),
+            ],
+          ),
+        ),
+        HorizontalEpisodeRow(
+          key: _rowKey,
+          itemCount: count,
+          initialIndex: initialPosition,
+          padding: EdgeInsets.symmetric(horizontal: widget.horizontalPadding),
+          onFirstVisibleChanged: (position) {
+            final index = _position(position, count, ascending);
+            final range = index ~/ batch;
+            final current = ref
+                .read(detailsControllerProvider(widget.itemUrl))
+                .selectedRangeIndex;
+            if (range != current) {
+              _rangeFromScroll = range;
+              controller.setRangeIndex(range);
+            }
+          },
+          itemBuilder: (context, position) {
+            final episode = episodes[_position(position, count, ascending)];
+            return EpisodeCard.row(
+              key: ValueKey(
+                'ep-row-${episode.season}-${episode.episode}-${episode.url}',
+              ),
+              episode: episode,
+              parentItem: widget.parentItem,
             );
           },
         ),

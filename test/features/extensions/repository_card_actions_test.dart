@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zorox/core/cloudstream/cloudstream_repository.dart';
 import 'package:zorox/core/extensions/base_provider.dart';
 import 'package:zorox/core/extensions/extension_manager.dart';
 import 'package:zorox/core/extensions/models/extension_plugin.dart';
@@ -106,6 +107,8 @@ Future<_Recorder> _openB(
       overrides: [
         extensionsControllerProvider.overrideWith(() => controller),
         extensionManagerProvider.overrideWith(() => _Manager()),
+        // The real store never finishes loading in the harness (spinner).
+        cloudStreamRepositoryProvider.overrideWith(() => _LoadedCloudStream()),
       ],
       child: const MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -115,7 +118,7 @@ Future<_Recorder> _openB(
     ),
   );
   await tester.pumpAndSettle();
-  await tester.tap(find.text('Repositories'));
+  await tester.tap(find.byKey(const ValueKey('plugins-segment-add')));
   await tester.pumpAndSettle();
   await tester.tap(find.text(expand));
   await tester.pumpAndSettle();
@@ -137,6 +140,11 @@ Finder _installHere(String name) => find.descendant(
 String? _focusedTooltip() => FocusManager.instance.primaryFocus?.context
     ?.findAncestorWidgetOfExactType<IconButton>()
     ?.tooltip;
+
+class _LoadedCloudStream extends CloudStreamRepository {
+  @override
+  CloudStreamState build() => const CloudStreamState(isLoading: false);
+}
 
 void main() {
   testWidgets('Download All installs what is missing, and updates only what '
@@ -262,7 +270,7 @@ void main() {
       expect(_installHere('Charlie'), findsNothing);
 
       // Nor on the Installed tab.
-      await tester.tap(find.text('Installed'));
+      await tester.tap(find.byKey(const ValueKey('plugins-segment-installed')));
       await tester.pumpAndSettle();
       expect(find.byTooltip('Install from this repository'), findsNothing);
     });

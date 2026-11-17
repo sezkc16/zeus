@@ -1,6 +1,5 @@
 import 'package:flutter/services.dart';
 import '../../../core/cloudstream/cloudstream_provider.dart';
-import '../../cloudstream/presentation/cloudstream_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -42,7 +41,7 @@ import '../../../../core/providers/device_info_provider.dart';
 import 'dart:async';
 
 import 'widgets/dashboard_header_bar.dart';
-import 'widgets/home_source_selector.dart';
+import 'widgets/home_provider_chip.dart';
 import '../../../core/services/notification_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -235,75 +234,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ),
 
-          // 2. Provider / Extension Pill Selector (after Search button, using matching search button design).
-          // The preview's header has no provider pill at all — and with no
-          // provider the fork's "None" pill is exactly the fork-ism the
-          // user rejected — so the pill only renders while a provider is
-          // active. Adding a provider still goes through the Home banner.
-          Consumer(
-            builder: (context, ref, _) {
-              final activeProvider = ref.watch(activeProviderProvider);
-              if (activeProvider == null) return const SizedBox.shrink();
-              final isDebug = activeProvider.isDebug;
-              return Padding(
-                padding: const EdgeInsets.only(
-                  right: LayoutConstants.spacingMd,
-                ),
-                child: CardsWrapper(
-                  onTap: () => _showProviderSelector(context, ref),
-                  borderRadius: BorderRadius.circular(50),
-                  child: Container(
-                    height: 36,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.onSurface
-                          .withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.extension,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          activeProvider.name,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (isDebug) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              l10n.debug,
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
+          // 2. Provider chip (v5): the one way to choose which plugin's
+          // home page Home shows. Visible whenever a plugin is installed —
+          // the active provider's name, or "Select" when none is active
+          // (the key-free feed). Hidden with no plugin installed; the
+          // "Add a plugin" banner below the rows covers that case.
+          HomeProviderChip(
+            onTap: () => _showProviderSelector(context, ref),
           ),
 
           // 3. Settings gear — Settings is no longer a bottom-nav tab
@@ -338,24 +275,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  /// The source pills at the top of Home (v4): "For You" + one pill per
-  /// installed plugin. Mobile sits below the transparent AppBar, so it
-  /// clears the status bar + toolbar; widescreen's header is outside the
-  /// scroll view, so it needs only a little breathing room.
-  Widget _buildSourceSelector(BuildContext context, {required bool isWidescreen}) {
-    final topPadding = isWidescreen
-        ? 8.0
-        : MediaQuery.paddingOf(context).top + kToolbarHeight + 8;
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: EdgeInsets.only(top: topPadding, bottom: 12),
-        child: const HomeSourceSelector(),
-      ),
-    );
-  }
-
   /// Shows the fallback toast once per fallback: the plugin's home failed
-  /// and Home is showing the key-free For You feed instead.
+  /// and Home is showing the key-free default feed instead.
   void _maybeShowFallbackToast(String? fellBackFrom, AppLocalizations l10n) {
     if (fellBackFrom == null) {
       _lastFallbackShown = null;
@@ -367,7 +288,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       if (!mounted) return;
       ref
           .read(notificationServiceProvider)
-          .showInfo(l10n.homeFallbackToForYou(fellBackFrom));
+          .showInfo(l10n.homeFallbackToDefault(fellBackFrom));
     });
   }
 
@@ -418,7 +339,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           CustomScrollView(
             controller: _scrollController,
             slivers: [
-              _buildSourceSelector(context, isWidescreen: isWidescreen),
               SliverToBoxAdapter(child: _buildCarouselShimmer(context)),
               SliverToBoxAdapter(child: _buildListShimmer(context)),
               SliverToBoxAdapter(child: _buildListShimmer(context)),
@@ -442,7 +362,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           child: CustomScrollView(
             controller: _scrollController,
             slivers: [
-              _buildSourceSelector(context, isWidescreen: isWidescreen),
               if (data.containsKey('Trending'))
                 SliverToBoxAdapter(
                   child: ExploreCarousel(
@@ -1153,7 +1072,7 @@ class _ProviderSelectorDialogState extends State<_ProviderSelectorDialog> {
                               (cloudStream != null && cloudStream.plugin.providers.length > 1);
                           String pluginTag = '';
                           if (cloudStream != null) {
-                            pluginTag = cloudStream.pluginName;
+                            pluginTag = cleanPluginName(cloudStream.pluginName);
                           } else if (isSubprovider) {
                             final parentPackageName = p.packageName.substring(
                               0,
@@ -1212,10 +1131,6 @@ class _ProviderSelectorDialogState extends State<_ProviderSelectorDialog> {
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
-                                    ],
-                                    if (cloudStream != null) ...[
-                                      const SizedBox(width: 8),
-                                      const CloudStreamBadge(),
                                     ],
                                     if (isDebug) ...[
                                       const SizedBox(width: 8),

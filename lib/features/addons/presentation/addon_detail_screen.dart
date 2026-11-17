@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:collection/collection.dart';
 import 'package:dpad/dpad.dart';
@@ -6,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../core/addons/data/addon_client.dart';
+import '../../../core/addons/data/builtin_addons.dart';
 import '../../../core/addons/data/addon_repository.dart';
 import '../../../core/addons/data/addon_stream_service.dart';
 import '../../../core/network/clearance/clearance.dart';
@@ -19,6 +22,7 @@ import '../../../core/models/tmdb_details.dart';
 import '../../../core/storage/episode_watch_repository.dart';
 import '../../../core/storage/history_repository.dart';
 import '../../details/data/tmdb_details_provider.dart';
+import '../../details/presentation/widgets/hero_details_widgets.dart';
 import '../../details/presentation/widgets/movie_cast_list.dart';
 import '../../details/presentation/widgets/movie_production_companies.dart';
 import '../../details/presentation/widgets/movie_trailers_carousel.dart';
@@ -32,6 +36,7 @@ import 'widgets/addon_play_button.dart';
 import 'widgets/stremio_sources_card.dart';
 import '../../../shared/focus/app_focus.dart';
 import '../../../shared/widgets/check_line.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 /// Detail page for an add-on catalog entry, styled to match the TMDB Details Screen.
 /// Metadata comes from a `meta` add-on, playback from `stream` add-ons.
@@ -52,10 +57,15 @@ class AddonDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
+  /// A Cinemeta title (what Browse lists) belongs to no plugin, so its
+  /// sources come from everything installed: plugins, Nuvio providers and
+  /// Stremio add-ons together. Any other add-on's title keeps the add-on
+  /// list it always had.
+  bool get _mergedSources => widget.addonUrl == BuiltInAddons.cinemetaUrl;
+
   int? _selectedSeason;
   int _selectedRangeIndex = 0;
   bool _isAscending = true;
-  bool _isDescriptionExpanded = false;
 
   final ScrollController _scrollController = ScrollController();
   final ValueNotifier<bool> _showAppBarTitle = ValueNotifier<bool>(false);
@@ -546,17 +556,20 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
     );
   }
 
+  /// The phone page, in the "Hero" layout: a full-bleed banner with the
+  /// add-on's tag, the title and the round Play button on it, an info strip,
+  /// the sources card, a short synopsis and the episodes as a row.
   Widget _buildMobileLayout(BuildContext context, AddonMeta meta) {
     final theme = Theme.of(context);
     final backdropImageUrl = meta.background ?? meta.poster ?? '';
     final title = meta.name;
-    final overview = meta.description ?? '';
-    final logoUrl = meta.logo;
+    final overview = (meta.description ?? '').trim();
     final year = meta.releaseInfo ?? '';
     final rating = meta.imdbRating ?? '';
     final runtime = meta.runtime ?? '';
     final hasEpisodes = meta.videos.isNotEmpty;
     final seasons = meta.seasons;
+    final l10n = AppLocalizations.of(context)!;
 
     final tmdbAsync = meta.moviedbId != null
         ? ref.watch(
@@ -580,326 +593,200 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
         : meta.trailers;
 
     final mq = MediaQuery.sizeOf(context);
-    final isLandscape = mq.width > mq.height;
-    final double expandedHeaderHeight = isLandscape
-        ? (mq.height * 0.80).clamp(220.0, 400.0)
-        : 550.0;
+    final bannerHeight = detailsHeroBannerHeight(mq);
 
-    return CustomScrollView(
-      controller: _scrollController,
-      slivers: [
-        SliverAppBar(
-          expandedHeight: expandedHeaderHeight,
-          pinned: true,
-          backgroundColor: theme.scaffoldBackgroundColor,
-          leading: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: CircleAvatar(
-              backgroundColor: theme.colorScheme.onSurface.withValues(
-                alpha: 0.1,
-              ),
-              radius: 18,
-              child: IconButton(
-                icon: Icon(
-                  Icons.arrow_back,
-                  color: theme.colorScheme.onSurface,
-                  size: 20,
-                ),
-                padding: EdgeInsets.zero,
-                onPressed: () => Navigator.of(context).maybePop(),
-              ),
-            ),
-          ),
-          title: ValueListenableBuilder<double>(
-            valueListenable: _titleOpacity,
-            builder: (context, opacity, child) {
-              if (opacity <= 0) return const SizedBox.shrink();
-              return Opacity(
-                opacity: opacity,
-                child: Text(
-                  title.toUpperCase(),
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurface,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              );
-            },
-          ),
-          centerTitle: false,
-          flexibleSpace: FlexibleSpaceBar(
-            background: ValueListenableBuilder<double>(
-              valueListenable: _scrollOffset,
-              builder: (context, offset, child) {
-                final contentOffset = -offset * 0.4;
-                final parallaxOffset = -offset * 0.1;
-
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (backdropImageUrl.isNotEmpty)
-                      Transform.translate(
-                        offset: Offset(0, parallaxOffset),
-                        child: CachedNetworkImage(
-                          imageUrl: backdropImageUrl,
-                          fit: BoxFit.cover,
-                          memCacheWidth:
-                              (MediaQuery.sizeOf(context).width *
-                                      MediaQuery.devicePixelRatioOf(context))
-                                  .round(),
-                          placeholder: (context, url) => Container(
-                            color: theme.colorScheme.surfaceContainerHighest,
-                          ),
-                          errorWidget: (_, _, _) => ThumbnailErrorPlaceholder(
-                            label: title,
-                            isBackdrop: true,
-                          ),
-                        ),
-                      ),
-                    // 1. Scrim
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.65),
-                          ],
-                          stops: const [0.4, 1.0],
-                        ),
-                      ),
-                    ),
-                    // 2. Blend-into-page gradient
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            theme.scaffoldBackgroundColor.withValues(
-                              alpha: 0.0,
-                            ),
-                            theme.scaffoldBackgroundColor.withValues(
-                              alpha: 0.15,
-                            ),
-                            theme.scaffoldBackgroundColor.withValues(
-                              alpha: 0.45,
-                            ),
-                            theme.scaffoldBackgroundColor.withValues(
-                              alpha: 0.8,
-                            ),
-                            theme.scaffoldBackgroundColor,
-                          ],
-                          stops: const [0.0, 0.5, 0.75, 0.9, 1.0],
-                        ),
-                      ),
-                    ),
-                    // 3. Logo/Title and Genres on header
-                    Positioned(
-                      left: 20,
-                      right: 20,
-                      bottom: 20,
-                      child: ValueListenableBuilder<double>(
-                        valueListenable: _contentOpacity,
-                        builder: (context, opacity, child) {
-                          return Transform.translate(
-                            offset: Offset(0, contentOffset),
-                            child: Opacity(
-                              opacity: opacity,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  if (logoUrl != null && logoUrl.isNotEmpty)
-                                    _buildLogoWidget(
-                                      logoUrl,
-                                      title,
-                                      theme.colorScheme.onSurface,
-                                      isDesktop: false,
-                                    )
-                                  else
-                                    Text(
-                                      title.toUpperCase(),
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: theme.colorScheme.onSurface,
-                                        fontSize: 36,
-                                        fontFamily: 'RobotoCondensed',
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 1.0,
-                                      ),
-                                    ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    meta.genres.isNotEmpty
-                                        ? meta.genres.take(3).join(' • ')
-                                        : (meta.isShow ? 'TV Series' : 'Movie'),
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: theme.colorScheme.onSurface
-                                          .withValues(alpha: 0.7),
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 24),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
+    // What the title really has, in the order the strip shows it. The strip
+    // takes the first four; the rest stays in the meta row under it.
+    final facts = <({IconData icon, Color? color, DetailsInfoColumn column})>[
+      if (year.isNotEmpty)
+        (
+          icon: Icons.calendar_today_rounded,
+          color: null,
+          column: DetailsInfoColumn(value: year, label: 'Year'),
+        ),
+      if (seasons.length > 1)
+        (
+          icon: Icons.layers_rounded,
+          color: null,
+          column: DetailsInfoColumn(
+            value: '${seasons.length}',
+            label: l10n.seasons,
           ),
         ),
+      if (meta.isShow && hasEpisodes)
+        (
+          icon: Icons.video_library_outlined,
+          color: null,
+          column: DetailsInfoColumn(
+            value: '${meta.videos.length}',
+            label: l10n.episodes,
+          ),
+        ),
+      if (runtime.isNotEmpty)
+        (
+          icon: Icons.timer_outlined,
+          color: null,
+          column: DetailsInfoColumn(value: runtime, label: 'Runtime'),
+        ),
+      if (rating.isNotEmpty)
+        (
+          icon: Icons.star_rounded,
+          color: Colors.amber,
+          column: DetailsInfoColumn(value: rating, label: 'Rating'),
+        ),
+    ];
+    final inStrip = facts.take(DetailsInfoStrip.maxColumns).toList();
+    final leftOver = facts.skip(DetailsInfoStrip.maxColumns).toList();
 
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildPlayButton(context, meta),
-                _buildSourcesCard(context, meta),
-                const SizedBox(height: 16),
+    Widget padded(Widget child) =>
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: child);
 
-                // Metadata Row: [ADD-ON] [MOVIE/SERIES] Year Rating Runtime Seasons
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    _buildTopBadge(
-                      context,
-                      meta.addonName.isNotEmpty
-                          ? meta.addonName.toUpperCase()
-                          : 'ADD-ON',
-                    ),
-                    _buildTopBadge(context, meta.isShow ? 'SERIES' : 'MOVIE'),
-                    if (year.isNotEmpty)
-                      _buildIconInfo(
-                        context,
-                        Icons.calendar_today_rounded,
-                        year,
-                      ),
-                    if (rating.isNotEmpty)
-                      _buildIconInfo(
-                        context,
-                        Icons.star_rounded,
-                        rating,
-                        iconColor: Colors.amber,
-                      ),
-                    if (runtime.isNotEmpty)
-                      _buildIconInfo(context, Icons.timer_outlined, runtime),
-                    if (seasons.isNotEmpty && seasons.length > 1)
-                      _buildIconInfo(
-                        context,
-                        Icons.layers_rounded,
-                        '${seasons.length} Seasons',
-                      ),
-                  ],
+    return Stack(
+      children: [
+        CustomScrollView(
+          controller: _scrollController,
+          slivers: [
+            SliverToBoxAdapter(
+              child: DetailsHeroBanner(
+                height: bannerHeight,
+                title: title,
+                subtitle: meta.genres.isNotEmpty
+                    ? meta.genres.take(3).join(' • ')
+                    : (meta.isShow ? 'TV Series' : 'Movie'),
+                sourceTag: DetailsSourceTag(
+                  label: meta.addonName.isNotEmpty ? meta.addonName : 'ADD-ON',
                 ),
-
-                const SizedBox(height: 16),
-
-                // Synopsis with Expansion
-                if (overview.isNotEmpty) ...[
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 300),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          overview,
-                          maxLines: _isDescriptionExpanded ? null : 3,
-                          overflow: _isDescriptionExpanded
-                              ? TextOverflow.visible
-                              : TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurface.withValues(
-                              alpha: 0.8,
-                            ),
-                            fontSize: 15,
-                            height: 1.5,
-                          ),
+                playFab: _buildPlayFab(context, meta),
+                image: backdropImageUrl.isEmpty
+                    ? ThumbnailErrorPlaceholder(label: title, isBackdrop: true)
+                    : CachedNetworkImage(
+                        imageUrl: backdropImageUrl,
+                        fit: BoxFit.cover,
+                        alignment: Alignment.topCenter,
+                        memCacheWidth:
+                            (math.max(mq.width, bannerHeight * 16 / 9) *
+                                    MediaQuery.devicePixelRatioOf(context))
+                                .round(),
+                        placeholder: (context, url) => Container(
+                          color: theme.colorScheme.surfaceContainerHighest,
                         ),
-                        if (overview.length > 150)
-                          GestureDetector(
-                            onTap: () => setState(
-                              () => _isDescriptionExpanded =
-                                  !_isDescriptionExpanded,
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 4.0),
-                              child: Row(
-                                children: [
-                                  Text(
-                                    _isDescriptionExpanded
-                                        ? 'Show Less'
-                                        : 'Show More',
-                                    style: TextStyle(
-                                      color: theme.colorScheme.onSurface,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Icon(
-                                    _isDescriptionExpanded
-                                        ? Icons.keyboard_arrow_up
-                                        : Icons.keyboard_arrow_down,
-                                    color: theme.colorScheme.onSurface,
-                                    size: 18,
-                                  ),
-                                ],
-                              ),
-                            ),
+                        errorWidget: (_, _, _) => ThumbnailErrorPlaceholder(
+                          label: title,
+                          isBackdrop: true,
+                        ),
+                      ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 12),
+                  if (inStrip.isNotEmpty) ...[
+                    padded(
+                      DetailsInfoStrip(
+                        columns: [for (final f in inStrip) f.column],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  padded(_buildSourcesCard(context, meta)),
+                  const SizedBox(height: 12),
+
+                  // Meta row: MOVIE/SERIES and whatever the strip had no
+                  // room for.
+                  padded(
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _buildTopBadge(
+                          context,
+                          meta.isShow ? 'SERIES' : 'MOVIE',
+                        ),
+                        for (final f in leftOver)
+                          _buildIconInfo(
+                            context,
+                            f.icon,
+                            f.column.label == l10n.seasons
+                                ? '${f.column.value} Seasons'
+                                : f.column.value,
+                            iconColor: f.color,
                           ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-                ],
+                  const SizedBox(height: 12),
 
-                // Episodes Section (shown whenever episodes are available)
-                if (hasEpisodes) ...[
-                  _buildSeasonsAndEpisodesSection(context, meta),
-                  const SizedBox(height: 24),
-                ],
+                  if (overview.isNotEmpty) ...[
+                    padded(ExpandableSynopsis(text: overview)),
+                    const SizedBox(height: 20),
+                  ],
 
-                // Cast Section
-                if (cast.isNotEmpty) ...[
-                  MovieCastList(cast: cast),
-                  const SizedBox(height: 24),
-                ],
+                  // Episodes (shown whenever episodes are available)
+                  if (hasEpisodes) ...[
+                    _buildEpisodeRowSection(context, meta),
+                    const SizedBox(height: 24),
+                  ],
 
-                // Production Section
-                if (productionCompanies.isNotEmpty) ...[
-                  MovieProductionCompanies(
-                    productionCompanies: productionCompanies,
-                  ),
-                  const SizedBox(height: 24),
-                ],
+                  if (cast.isNotEmpty) ...[
+                    padded(MovieCastList(cast: cast)),
+                    const SizedBox(height: 24),
+                  ],
 
-                // Trailers Section
-                if (trailers.isNotEmpty) ...[
-                  MovieTrailersCarousel(trailers: trailers),
-                  const SizedBox(height: 24),
-                ],
+                  if (productionCompanies.isNotEmpty) ...[
+                    padded(
+                      MovieProductionCompanies(
+                        productionCompanies: productionCompanies,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
-                // Details Table
-                _buildDetailsTable(context, meta, tmdb: tmdb),
-                const SizedBox(height: 80),
-              ],
+                  if (trailers.isNotEmpty) ...[
+                    padded(MovieTrailersCarousel(trailers: trailers)),
+                    const SizedBox(height: 24),
+                  ],
+
+                  padded(_buildDetailsTable(context, meta, tmdb: tmdb)),
+                  const SizedBox(height: 100),
+                ],
+              ),
             ),
+          ],
+        ),
+        DetailsHeroTopBar(
+          leading: DetailsHeroTopBar.button(
+            key: const ValueKey('details-back'),
+            icon: Icons.arrow_back,
+            onPressed: () => Navigator.of(context).maybePop(),
           ),
         ),
       ],
     );
+  }
+
+  /// The round Play button on the phone page's banner: [AddonPlayButton] in
+  /// its other shape, so it is there exactly when the full-width Play was -
+  /// once the add-on that described the title has a link that plays here.
+  Widget? _buildPlayFab(BuildContext context, AddonMeta meta) {
+    final addon = ownStreamAddon(
+      enabled: ref.watch(addonRepositoryProvider).enabled,
+      meta: meta,
+      routeAddonUrl: widget.addonUrl,
+    );
+    if (addon == null) return null;
+    final target = addonPlayTarget(
+      meta,
+      history: ref.watch(historyRepositoryProvider),
+      watched: ref.watch(episodeWatchRepositoryProvider),
+      lastWatched: ref
+          .watch(watchHistoryProvider)
+          .firstWhereOrNull((h) => h.item.url == meta.id),
+    );
+    if (meta.isShow && target == null) return null;
+    return AddonPlayButton(meta: meta, addon: addon, target: target, fab: true);
   }
 
   /// [meta] as the item this page hands on, naming the install that
@@ -998,6 +885,7 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
         ),
         episode: firstVideo?.toEpisode(),
         playlist: meta.videos,
+        merged: _mergedSources,
       ),
     );
   }
@@ -1151,51 +1039,7 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            height: 42,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: seasons.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final season = seasons[index];
-                final isSelected = season == activeSeason;
-                return DpadFocusable(
-                  onSelect: () {
-                    setState(() {
-                      _selectedSeason = season;
-                      _selectedRangeIndex = 0;
-                    });
-                  },
-                  child: const SizedBox.shrink(),
-                  builder: (context, state, _) {
-                    final isFocused = showFocusIndicator(context, state.focused);
-                    return Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isFocused
-                              ? theme.colorScheme.primary
-                              : Colors.transparent,
-                          width: 2,
-                        ),
-                      ),
-                      child: ChoiceChip(
-                        label: Text('Season $season'),
-                        selected: isSelected,
-                        onSelected: (_) {
-                          setState(() {
-                            _selectedSeason = season;
-                            _selectedRangeIndex = 0;
-                          });
-                        },
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
+          _buildSeasonChips(theme, seasons, activeSeason),
           const SizedBox(height: 20),
         ],
 
@@ -1213,94 +1057,15 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
             ),
             const SizedBox(width: 14),
             if (batchCount > 1) ...[
-              Focus(
-                child: Builder(
-                  builder: (context) {
-                    final isFocused = showFocusIndicator(
-                      context,
-                      Focus.of(context).hasFocus,
-                    );
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainer,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isFocused ? Colors.white : Colors.transparent,
-                          width: 2,
-                        ),
-                      ),
-                      child: Center(
-                        child: DropdownButton<int>(
-                          value: _selectedRangeIndex,
-                          dropdownColor: theme.colorScheme.surfaceContainerHigh,
-                          underline: const SizedBox(),
-                          elevation: 4,
-                          borderRadius: BorderRadius.circular(12),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                          icon: Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            size: 20,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                          items: List.generate(batchCount, (index) {
-                            final rangeStart = index * batchSize + 1;
-                            final rangeEnd = ((index + 1) * batchSize).clamp(
-                              1,
-                              totalEpisodes,
-                            );
-                            return DropdownMenuItem(
-                              value: index,
-                              child: Text('$rangeStart-$rangeEnd'),
-                            );
-                          }),
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() {
-                                _selectedRangeIndex = val;
-                              });
-                            }
-                          },
-                        ),
-                      ),
-                    );
-                  },
-                ),
+              _buildRangeDropdown(
+                theme,
+                batchCount: batchCount,
+                batchSize: batchSize,
+                totalEpisodes: totalEpisodes,
               ),
               const SizedBox(width: 8),
             ],
-            Material(
-              color: Colors.transparent,
-              child: Ink(
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainer,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () {
-                    setState(() {
-                      _isAscending = !_isAscending;
-                    });
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    child: Icon(
-                      Icons.swap_vert_rounded,
-                      size: 22,
-                      color: _isAscending
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            _buildSortButton(theme),
           ],
         ),
 
@@ -1369,6 +1134,325 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
     );
   }
 
+  /// The season chips of a title with more than one season.
+  Widget _buildSeasonChips(
+    ThemeData theme,
+    List<int> seasons,
+    int activeSeason,
+  ) {
+    return SizedBox(
+      height: 42,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: seasons.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final season = seasons[index];
+          final isSelected = season == activeSeason;
+          return DpadFocusable(
+            onSelect: () {
+              setState(() {
+                _selectedSeason = season;
+                _selectedRangeIndex = 0;
+              });
+            },
+            child: const SizedBox.shrink(),
+            builder: (context, state, _) {
+              final isFocused = showFocusIndicator(context, state.focused);
+              return Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isFocused
+                        ? theme.colorScheme.primary
+                        : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
+                child: ChoiceChip(
+                  label: Text('Season $season'),
+                  selected: isSelected,
+                  onSelected: (_) {
+                    setState(() {
+                      _selectedSeason = season;
+                      _selectedRangeIndex = 0;
+                    });
+                  },
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  /// The episode range picker ("1-20", "21-40"...). [onChanged] is told
+  /// after the range is taken: the phone page's row scrolls to it.
+  Widget _buildRangeDropdown(
+    ThemeData theme, {
+    required int batchCount,
+    required int batchSize,
+    required int totalEpisodes,
+    ValueChanged<int>? onChanged,
+  }) {
+    return Focus(
+      child: Builder(
+        builder: (context) {
+          final isFocused = showFocusIndicator(
+            context,
+            Focus.of(context).hasFocus,
+          );
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isFocused ? Colors.white : Colors.transparent,
+                width: 2,
+              ),
+            ),
+            child: Center(
+              child: DropdownButton<int>(
+                value: _selectedRangeIndex,
+                dropdownColor: theme.colorScheme.surfaceContainerHigh,
+                underline: const SizedBox(),
+                elevation: 4,
+                borderRadius: BorderRadius.circular(12),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                icon: Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 20,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                items: List.generate(batchCount, (index) {
+                  final rangeStart = index * batchSize + 1;
+                  final rangeEnd = ((index + 1) * batchSize).clamp(
+                    1,
+                    totalEpisodes,
+                  );
+                  return DropdownMenuItem(
+                    value: index,
+                    child: Text('$rangeStart-$rangeEnd'),
+                  );
+                }),
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() {
+                      _selectedRangeIndex = val;
+                    });
+                    onChanged?.call(val);
+                  }
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Flips the episodes' order.
+  Widget _buildSortButton(ThemeData theme) {
+    return Material(
+      color: Colors.transparent,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () {
+            setState(() {
+              _isAscending = !_isAscending;
+            });
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 8,
+            ),
+            child: Icon(
+              Icons.swap_vert_rounded,
+              size: 22,
+              color: _isAscending
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The phone page's episodes row: what it was last built for, and its key.
+  Object? _episodeRowIdentity;
+  GlobalKey<HorizontalEpisodeRowState> _episodeRowKey = GlobalKey();
+  bool _openedAtTarget = false;
+
+  /// The phone page's episodes: the season chips, the "Episodes" header with
+  /// the range picker and the sort button, and the season's episodes as one
+  /// horizontal row. The row holds the whole season and builds only what is
+  /// on screen; it opens at the episode to resume, and the range picker
+  /// scrolls it rather than cutting the list.
+  Widget _buildEpisodeRowSection(BuildContext context, AddonMeta meta) {
+    const double side = 20;
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
+    final seasons = meta.seasons;
+    final activeSeason =
+        _selectedSeason ?? (seasons.isEmpty ? 1 : seasons.first);
+    final episodes = meta.episodesForSeason(activeSeason);
+    final item = _itemOf(meta);
+
+    const int batchSize = 20;
+    final int total = episodes.length;
+    final int batchCount = (total / batchSize).ceil();
+    if (_selectedRangeIndex >= batchCount) {
+      _selectedRangeIndex = 0;
+    }
+    final ascending = _isAscending;
+
+    AddonStreamRequest requestFor(AddonVideo video) => AddonStreamRequest(
+      type: meta.streamRequestType,
+      contentId: meta.id,
+      videoId: video.id,
+      season: video.season,
+      episode: video.episode,
+      imdbId: meta.imdbId,
+      tmdbId: meta.moviedbId,
+      title: meta.name,
+      year: meta.year,
+    );
+
+    final own = ownStreamAddon(
+      enabled: ref.watch(addonRepositoryProvider).enabled,
+      meta: meta,
+      routeAddonUrl: widget.addonUrl,
+    );
+
+    // Where the row shows the first card of a range.
+    int positionOfRange(int range) {
+      final first = (range * batchSize).clamp(0, total - 1);
+      final last = (first + batchSize - 1).clamp(0, total - 1);
+      return ascending ? first : total - 1 - last;
+    }
+
+    var initialPosition = 0;
+    final identity = (activeSeason, ascending, total);
+    if (identity != _episodeRowIdentity && total > 0) {
+      _episodeRowIdentity = identity;
+      _episodeRowKey = GlobalKey();
+      final target = _openedAtTarget
+          ? null
+          : addonPlayTarget(
+              meta,
+              history: ref.read(historyRepositoryProvider),
+              watched: ref.read(episodeWatchRepositoryProvider),
+              lastWatched: ref
+                  .read(watchHistoryProvider)
+                  .firstWhereOrNull((h) => h.item.url == meta.id),
+            );
+      final targetIndex = target == null
+          ? -1
+          : episodes.indexWhere((e) => e.id == target.id);
+      if (targetIndex >= 0) {
+        _openedAtTarget = true;
+        _selectedRangeIndex = targetIndex ~/ batchSize;
+        initialPosition = ascending ? targetIndex : total - 1 - targetIndex;
+      } else {
+        initialPosition = positionOfRange(_selectedRangeIndex);
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (seasons.length > 1) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: side),
+            child: _buildSeasonChips(theme, seasons, activeSeason),
+          ),
+          const SizedBox(height: 16),
+        ],
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: side),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.episodes,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              if (batchCount > 1) ...[
+                SizedBox(
+                  height: 40,
+                  child: _buildRangeDropdown(
+                    theme,
+                    batchCount: batchCount,
+                    batchSize: batchSize,
+                    totalEpisodes: total,
+                    onChanged: (range) => _episodeRowKey.currentState
+                        ?.scrollToIndex(positionOfRange(range)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              _buildSortButton(theme),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (total == 0)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: side, vertical: 16),
+            child: Text(
+              'No episodes listed for this title.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          )
+        else
+          HorizontalEpisodeRow(
+            key: _episodeRowKey,
+            itemCount: total,
+            initialIndex: initialPosition,
+            padding: const EdgeInsets.symmetric(horizontal: side),
+            onFirstVisibleChanged: (position) {
+              final index = ascending ? position : total - 1 - position;
+              final range = index ~/ batchSize;
+              if (range != _selectedRangeIndex) {
+                setState(() => _selectedRangeIndex = range);
+              }
+            },
+            itemBuilder: (context, position) {
+              final video =
+                  episodes[ascending ? position : total - 1 - position];
+              return _buildEpisodeCard(
+                context,
+                meta,
+                video,
+                own: own,
+                item: item,
+                request: requestFor(video),
+                rowStyle: true,
+              );
+            },
+          ),
+      ],
+    );
+  }
+
   /// An episode's card: a tap plays it from [own] when the title's add-on
   /// serves its links, else opens every add-on's list for it, as a long
   /// press always does (Stremio direct play).
@@ -1379,6 +1463,7 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
     required ManagedAddon? own,
     required MultimediaItem item,
     required AddonStreamRequest request,
+    bool rowStyle = false,
   }) {
     void search() => AddonSourcesSheet.open(
       context,
@@ -1386,12 +1471,14 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
       request: request,
       episode: video.toEpisode(),
       playlist: meta.videos,
+      merged: _mergedSources,
     );
     return AddonEpisodeCard(
       key: ValueKey(video.id),
       video: video,
       showUrl: meta.id,
       loading: _askingFor == video.id,
+      rowStyle: rowStyle,
       onTap: own == null
           ? search
           : () => _playEpisode(meta, video, own, request),
@@ -1428,6 +1515,7 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
         request: request,
         episode: video.toEpisode(),
         playlist: meta.videos,
+        merged: _mergedSources,
       );
       return;
     }

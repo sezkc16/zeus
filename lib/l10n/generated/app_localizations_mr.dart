@@ -48,6 +48,39 @@ class AppLocalizationsMr extends AppLocalizations {
   String get exploreByCategory => 'Explore by category';
 
   @override
+  String get browsePopularMovies => 'Popular Movies';
+
+  @override
+  String get browsePopularSeries => 'Popular Series';
+
+  @override
+  String get browseFeaturedMovies => 'Featured Movies';
+
+  @override
+  String get browseFeaturedSeries => 'Featured Series';
+
+  @override
+  String get browseNewMovies => 'New Movies';
+
+  @override
+  String get browseNewSeries => 'New Series';
+
+  @override
+  String get browseActionMovies => 'Action Movies';
+
+  @override
+  String get browseComedyMovies => 'Comedy Movies';
+
+  @override
+  String get browseDramaSeries => 'Drama Series';
+
+  @override
+  String get browseAnimation => 'Animation';
+
+  @override
+  String get browseRowLoadFailed => 'Couldn\'t load this row';
+
+  @override
   String get browseSettingsSubtitle =>
       'Theme, player, accounts, extensions & more';
 
@@ -542,11 +575,20 @@ class AppLocalizationsMr extends AppLocalizations {
   String get builtInPlayer => 'बिल्ट-इन प्लेअर';
 
   @override
-  String get homeForYou => 'For You';
+  String get homeProviderSelect => 'Select';
 
   @override
-  String homeFallbackToForYou(String name) {
-    return 'Couldn\'t load $name — showing For You instead';
+  String get sourcesNoneFound => 'No sources found — install a plugin or addon';
+
+  @override
+  String get sourcesOpenPlugins => 'Open Plugins';
+
+  @override
+  String get sourcesAskingAll => 'Asking your plugins and add-ons…';
+
+  @override
+  String homeFallbackToDefault(String name) {
+    return 'Couldn\'t load $name — showing the default feed instead';
   }
 
   @override
@@ -787,7 +829,17 @@ class AppLocalizationsMr extends AppLocalizations {
 
   @override
   String get extensionsSubtitle =>
-      'CloudStream repos (.cs3), TojiX, Nuvio & Stremio';
+      'Zeus Repo, CloudStream (.cs3), Nuvio & Stremio';
+
+  @override
+  String get pluginsSegmentInstalled => 'Installed';
+
+  @override
+  String get pluginsSegmentAdd => 'Add Plugins';
+
+  @override
+  String get pluginsEmptyInstalledHint =>
+      'Open Add Plugins to add a repository and install extensions.';
 
   @override
   String get noZoroxReposYet => 'No SkyStream repos yet';

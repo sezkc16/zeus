@@ -30,6 +30,50 @@
   "@exploreByCategory": {
     "description": "Subtitle under the Browse title: what the screen holds."
   },
+  "browsePopularMovies": "Popular Movies",
+  "@browsePopularMovies": {
+    "description": "Browse tab row title: Cinemeta's movie/top catalog."
+  },
+  "browsePopularSeries": "Popular Series",
+  "@browsePopularSeries": {
+    "description": "Browse tab row title: Cinemeta's series/top catalog."
+  },
+  "browseFeaturedMovies": "Featured Movies",
+  "@browseFeaturedMovies": {
+    "description": "Browse tab row title: Cinemeta's movie/imdbRating catalog, which Cinemeta names Featured."
+  },
+  "browseFeaturedSeries": "Featured Series",
+  "@browseFeaturedSeries": {
+    "description": "Browse tab row title: Cinemeta's series/imdbRating catalog, which Cinemeta names Featured."
+  },
+  "browseNewMovies": "New Movies",
+  "@browseNewMovies": {
+    "description": "Browse tab row title: Cinemeta's movie/year catalog for the current year."
+  },
+  "browseNewSeries": "New Series",
+  "@browseNewSeries": {
+    "description": "Browse tab row title: Cinemeta's series/year catalog for the current year."
+  },
+  "browseActionMovies": "Action Movies",
+  "@browseActionMovies": {
+    "description": "Browse tab row title: Cinemeta's movie/top catalog, genre Action."
+  },
+  "browseComedyMovies": "Comedy Movies",
+  "@browseComedyMovies": {
+    "description": "Browse tab row title: Cinemeta's movie/top catalog, genre Comedy."
+  },
+  "browseDramaSeries": "Drama Series",
+  "@browseDramaSeries": {
+    "description": "Browse tab row title: Cinemeta's series/top catalog, genre Drama."
+  },
+  "browseAnimation": "Animation",
+  "@browseAnimation": {
+    "description": "Browse tab row title: Cinemeta's movie/top catalog, genre Animation."
+  },
+  "browseRowLoadFailed": "Couldn't load this row",
+  "@browseRowLoadFailed": {
+    "description": "Browse tab: shown under a row's title when its Cinemeta catalog request failed, next to a Retry button."
+  },
   "browseSettingsSubtitle": "Theme, player, accounts, extensions & more",
   "@browseSettingsSubtitle": {
     "description": "Subtitle of the Settings row on the Browse screen's APP card."
@@ -311,13 +355,25 @@
     "description": "The built-in player using the mpv engine, in the Default Player picker and its Settings row. The mirror of internalPlayer (VLC)."
   },
   "builtInPlayer": "Built-in player",
-  "homeForYou": "For You",
-  "@homeForYou": {
-    "description": "The first pill in the Home source selector: the key-free AniList feed, as opposed to one installed plugin's own home page."
+  "homeProviderSelect": "Select",
+  "@homeProviderSelect": {
+    "description": "Label of the Home header's provider chip when plugins are installed but none is active. Tapping it opens the Select Provider dialog."
   },
-  "homeFallbackToForYou": "Couldn't load {name} — showing For You instead",
-  "@homeFallbackToForYou": {
-    "description": "Toast when a plugin's home page fails to load and Home falls back to the key-free For You feed. {name} is the plugin's name.",
+  "sourcesNoneFound": "No sources found — install a plugin or addon",
+  "@sourcesNoneFound": {
+    "description": "Empty state of the sources list for a title opened from Browse, when no installed plugin, Nuvio provider or Stremio add-on returned a link."
+  },
+  "sourcesOpenPlugins": "Open Plugins",
+  "@sourcesOpenPlugins": {
+    "description": "Button in the empty sources state that opens the Plugins tab."
+  },
+  "sourcesAskingAll": "Asking your plugins and add-ons…",
+  "@sourcesAskingAll": {
+    "description": "Loading line of the sources list for a title opened from Browse, while installed plugins, Nuvio providers and Stremio add-ons are being asked."
+  },
+  "homeFallbackToDefault": "Couldn't load {name} — showing the default feed instead",
+  "@homeFallbackToDefault": {
+    "description": "Toast when a plugin's home page fails to load and Home falls back to the key-free default feed. {name} is the plugin's name.",
     "placeholders": {
       "name": {
         "type": "String"
@@ -421,7 +477,10 @@
   "@add": {
     "description": "Short action label for a confirm button, e.g. adding a repository."
   },
-  "extensionsSubtitle": "CloudStream repos (.cs3), TojiX, Nuvio & Stremio",
+  "extensionsSubtitle": "Zeus Repo, CloudStream (.cs3), Nuvio & Stremio",
+  "pluginsSegmentInstalled": "Installed",
+  "pluginsSegmentAdd": "Add Plugins",
+  "pluginsEmptyInstalledHint": "Open Add Plugins to add a repository and install extensions.",
   "@extensionsSubtitle": {
     "description": "Subtitle under the Extensions title: which plugin sources the screen lists."
   },

@@ -9,6 +9,7 @@ import '../../../../core/storage/history_repository.dart';
 import '../../../../core/utils/layout_constants.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/custom_widgets.dart';
+import '../../../details/presentation/widgets/hero_details_widgets.dart';
 import '../../../details/presentation/widgets/source_section_card.dart';
 import '../../../library/presentation/history_provider.dart';
 import '../addon_direct_play.dart';
@@ -28,6 +29,7 @@ class AddonPlayButton extends ConsumerStatefulWidget {
     required this.addon,
     required this.target,
     this.compact = false,
+    this.fab = false,
   });
 
   final AddonMeta meta;
@@ -40,6 +42,10 @@ class AddonPlayButton extends ConsumerStatefulWidget {
 
   /// In a desktop hero's column: capped, as the sources card's action is.
   final bool compact;
+
+  /// On the phone page's banner: the round Play button, with the label as
+  /// its tooltip. The same press, the same links.
+  final bool fab;
 
   @override
   ConsumerState<AddonPlayButton> createState() => _AddonPlayButtonState();
@@ -170,6 +176,15 @@ class _AddonPlayButtonState extends ConsumerState<AddonPlayButton> {
       label = meta.seasons.length <= 1
           ? l10n.playEpisodeOnly(label, target.episode ?? 1)
           : l10n.playEpisode(label, target.season ?? 1, target.episode ?? 1);
+    }
+
+    if (widget.fab) {
+      return DetailsPlayFab(
+        label: label,
+        loading: _launching,
+        focusNode: _focus,
+        onPressed: () => _play(links),
+      );
     }
 
     final button = CustomButton(

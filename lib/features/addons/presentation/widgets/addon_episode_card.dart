@@ -10,6 +10,7 @@ import '../../../../core/utils/layout_constants.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/cards_wrapper.dart';
 import '../../../../shared/widgets/thumbnail_error_placeholder.dart';
+import '../../../details/presentation/widgets/hero_details_widgets.dart';
 import '../../../library/presentation/history_provider.dart';
 
 /// A Stremio show's episode, drawn as a CloudStream title's is (`EpisodeCard`):
@@ -24,6 +25,7 @@ class AddonEpisodeCard extends ConsumerWidget {
     required this.onTap,
     this.onLongPress,
     this.loading = false,
+    this.rowStyle = false,
   });
 
   final AddonVideo video;
@@ -36,6 +38,10 @@ class AddonEpisodeCard extends ConsumerWidget {
 
   /// Its links are being asked for: a spinner stands in for the play icon.
   final bool loading;
+
+  /// Drawn for the phone page's horizontal episode row: a thumbnail with
+  /// its state on it and two lines under it.
+  final bool rowStyle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -90,6 +96,37 @@ class AddonEpisodeCard extends ConsumerWidget {
         (last.season ?? 1) == episode.season &&
         (last.episode ?? 1) == episode.episode) {
       badge = l10n.lastWatched.toUpperCase();
+    }
+
+    if (rowStyle) {
+      final thumbnail = video.thumbnail;
+      final fill = theme.colorScheme.surfaceContainerHighest;
+      return EpisodeRowCard(
+        number: video.episode,
+        title: video.title,
+        meta: when,
+        metaAccent: upcoming,
+        progress: watched ? 1.0 : progress,
+        watched: watched,
+        badge: badge,
+        upcoming: upcoming,
+        loading: loading,
+        onTap: onTap,
+        onLongPress: onLongPress,
+        thumbnail: thumbnail == null || thumbnail.isEmpty
+            ? ColoredBox(color: fill)
+            : CachedNetworkImage(
+                imageUrl: thumbnail,
+                fit: BoxFit.cover,
+                memCacheWidth:
+                    (kEpisodeRowCardWidth *
+                            MediaQuery.devicePixelRatioOf(context))
+                        .round(),
+                errorWidget: (context, url, error) =>
+                    const ThumbnailErrorPlaceholder(),
+                placeholder: (context, url) => ColoredBox(color: fill),
+              ),
+      );
     }
 
     final dark = theme.brightness == Brightness.dark;

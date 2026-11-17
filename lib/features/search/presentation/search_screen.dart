@@ -4,17 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/domain/entity/multimedia_item.dart';
 import '../../../core/extensions/extension_manager.dart';
 import '../../../core/router/app_router.dart';
-import '../../../core/utils/image_fallbacks.dart';
 import '../../../core/utils/layout_constants.dart';
 import '../../../core/utils/responsive_breakpoints.dart';
-import '../../../shared/widgets/multimedia_card.dart';
 import 'search_history_provider.dart';
 import 'search_provider.dart';
 import 'search_category.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../core/cloudstream/cloudstream_provider.dart';
+import '../../home/presentation/widgets/home_provider_chip.dart'
+    show cleanPluginName;
+import 'search_source_grid_screen.dart';
+import 'search_sources.dart';
 import 'widgets/search_category_chips.dart';
+import 'widgets/search_source_row.dart';
 import 'widgets/search_header_bar.dart';
 import 'widgets/search_suggestion_row.dart';
 import 'widgets/bouncy_entry_animation.dart';
@@ -364,85 +369,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _buildMobileLayout(BuildContext context) {
     final searchResultsAsync = ref.watch(searchResultsProvider);
-    final filter = ref.watch(searchFilterProvider);
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final isLive = filter == SearchFilter.live;
 
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: PopupMenuButton<SearchFilter>(
-              tooltip: 'Search scope',
-              onSelected: (value) {
-                ref.read(searchFilterProvider.notifier).set(value);
-                // Sync current text to search query instantly on scope switch
-                final text = _controller.text.trim();
-                ref.read(searchQueryProvider.notifier).set(text);
-              },
-              offset: const Offset(0, 48),
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: SearchFilter.content,
-                  child: Row(
-                    children: [
-                      const Text('🍿', style: TextStyle(fontSize: 18)),
-                      const SizedBox(width: 12),
-                      const Expanded(child: Text('Non Livestreams')),
-                      if (!isLive)
-                        Icon(
-                          Icons.check,
-                          size: 18,
-                          color: theme.colorScheme.primary,
-                        ),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: SearchFilter.live,
-                  child: Row(
-                    children: [
-                      const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: Center(child: LiveTvIndicator(isActive: true)),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(child: Text('Livestreams')),
-                      if (isLive)
-                        Icon(
-                          Icons.check,
-                          size: 18,
-                          color: theme.colorScheme.primary,
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(
-                    alpha: 0.3,
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: isLive
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: Center(child: LiveTvIndicator(isActive: true)),
-                      )
-                    : const Text('🍿', style: TextStyle(fontSize: 18)),
-              ),
-            ),
-          ),
-        ],
+        // v5: the round scope button (🍿 Non Livestreams / Livestreams)
+        // that sat here is gone; phone Search always searches titles.
         title: GestureDetector(
           onTap: () => _focusNode.requestFocus(),
           behavior: HitTestBehavior.opaque,
@@ -643,6 +577,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
+  /// The icon of the plugin [providerId] names, when it publishes one.
+  String? _sourceIcon(String providerId) {
+    final provider = ref
+        .read(extensionManagerProvider.notifier)
+        .getProvider(providerId);
+    return provider is CloudStreamProvider
+        ? provider.plugin.info.iconUrl
+        : null;
+  }
+
   Widget _buildResultsList(BuildContext context) {
     final searchResultsAsync = ref.watch(searchResultsProvider);
     final category = ref.watch(searchCategoryProvider);
@@ -670,58 +614,58 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           return const Center(child: AppLoadingIndicator());
         }
 
-        // The preview's flat grid: every category-filtered result from
-        // every provider in one poster grid (3 columns on mobile, 5 on
-        // widescreen), not a vertical list of per-provider horizontal
-        // rows. The provider grouping is gone with the rows — the grid
-        // keeps each card's provider only for its hero tag and its tap
-        // target, so a result still opens through its own source.
-        final flat = [
-          for (final entry in sections)
-            for (final item in entry.$2) (entry.$1, item),
-        ];
+        // One section per source (v5, design A "Rows"): each source that
+        // answered gets its own row under its own name; plugins' rows
+        // first, in the order they answered, then the Stremio add-ons'
+        // and Nuvio's. A source with nothing (or an error) has no row.
+        final ordered = orderSearchSections(sections);
+
+        void open(
+          BuildContext context,
+          ProviderSearchResult from,
+          MultimediaItem item,
+        ) {
+          final source = from.source;
+          if (source != null) {
+            unawaited(source.open(context, item));
+            return;
+          }
+          DetailsRoute(
+            $extra: DetailsRouteExtra(item: item),
+          ).push<void>(context);
+        }
 
         // RepaintBoundary isolates list repaints from the rest of the
         // screen (app bar, background) so each incremental result update
         // only repaints the list — not the entire scaffold.
         return RepaintBoundary(
-          child: GridView.builder(
+          child: ListView.builder(
             controller: _resultsScrollController,
-            padding: EdgeInsets.fromLTRB(
-              16,
-              8,
-              16,
-              LayoutConstants.shellBottomContentPadding(context),
+            padding: EdgeInsets.only(
+              bottom: LayoutConstants.shellBottomContentPadding(context),
             ),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: context.isTabletOrLarger ? 5 : 3,
-              childAspectRatio: 2 / 3.4,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-            ),
-            itemCount: flat.length,
+            itemCount: ordered.length,
             itemBuilder: (context, index) {
-              final pResult = flat[index].$1;
-              final item = flat[index].$2;
-              return MultimediaCard(
-                key: ValueKey(item.url),
-                imageUrl: AppImageFallbacks.poster(
-                  item.posterUrl,
-                  label: item.title,
+              final pResult = ordered[index].$1;
+              final items = ordered[index].$2;
+              final name = cleanPluginName(pResult.providerName);
+              return SearchSourceRow(
+                key: ValueKey('search-section-${pResult.providerId}'),
+                sourceId: pResult.providerId,
+                name: name,
+                iconUrl: _sourceIcon(pResult.providerId),
+                results: items,
+                firstCardFocusNode: index == 0 ? _firstResultFocusNode : null,
+                onOpen: (item) => open(context, pResult, item),
+                onViewAll: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) => SearchSourceGridScreen(
+                      title: '$name · ${items.length}',
+                      results: items,
+                      onOpen: (context, item) => open(context, pResult, item),
+                    ),
+                  ),
                 ),
-                title: item.title,
-                heroTag: 'search_${pResult.providerId}_${item.url}_$index',
-                focusNode: index == 0 ? _firstResultFocusNode : null,
-                onTap: () {
-                  final source = pResult.source;
-                  if (source != null) {
-                    unawaited(source.open(context, item));
-                    return;
-                  }
-                  DetailsRoute(
-                    $extra: DetailsRouteExtra(item: item),
-                  ).push<void>(context);
-                },
               );
             },
           ),
@@ -916,4 +860,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
     );
   }
+}
+
+/// The sections in the order Search shows them: plugins' first, in the
+/// order they answered, then the Stremio add-ons' and Nuvio's.
+@visibleForTesting
+List<(ProviderSearchResult, List<MultimediaItem>)> orderSearchSections(
+  List<(ProviderSearchResult, List<MultimediaItem>)> sections,
+) {
+  bool isPlugin((ProviderSearchResult, List<MultimediaItem>) entry) =>
+      entry.$1.kind == SearchSourceKind.zorox ||
+      entry.$1.kind == SearchSourceKind.cloudstream;
+  return [...sections.where(isPlugin), ...sections.where((e) => !isPlugin(e))];
 }

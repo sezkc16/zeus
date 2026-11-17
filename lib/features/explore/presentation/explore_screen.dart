@@ -13,7 +13,6 @@ import 'anilist_explore_screen.dart';
 import 'view_all_screen.dart';
 import 'widgets/explore_carousel.dart';
 import 'widgets/explore_header_bar.dart';
-import 'widgets/hover_border_gradient.dart';
 import 'widgets/media_horizontal_list.dart';
 import 'widgets/unified_filter_dialog.dart';
 import '../data/explore_filter_provider.dart';
@@ -24,7 +23,6 @@ import '../../../../core/providers/device_info_provider.dart';
 import '../../../../shared/widgets/shimmer_placeholder.dart';
 import '../../../../core/domain/entity/multimedia_item.dart';
 import '../../addons/presentation/addons_screen.dart';
-import 'widgets/explore_mode_selector_dialog.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../core/router/app_router.dart';
 import '../../browse/presentation/browse_category_grid.dart';
@@ -160,69 +158,8 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
             ),
             centerTitle: false,
             actions: [
-              // Explore Mode Selector (Movies / Anime / Stremio Add-ons)
-              Padding(
-                padding: const EdgeInsets.only(
-                  right: LayoutConstants.spacingMd,
-                ),
-                child: CardsWrapper(
-                  onTap: () => showExploreModeSelectorDialog(context, ref),
-                  borderRadius: BorderRadius.circular(50),
-                  child: Consumer(
-                    builder: (context, ref, _) {
-                      final mode = ref.watch(exploreModeProvider);
-                      final l10n = AppLocalizations.of(context)!;
-                      final onSurfaceColor = Theme.of(context)
-                          .colorScheme
-                          .onSurface;
-
-                      Widget iconWidget;
-                      String tooltipMsg;
-
-                      switch (mode) {
-                        case ExploreModeType.movies:
-                          iconWidget = Icon(
-                            Icons.movie_outlined,
-                            color: onSurfaceColor,
-                            size: 18,
-                          );
-                          tooltipMsg = l10n.exploreMovies;
-                          break;
-                        case ExploreModeType.anime:
-                          iconWidget = SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CustomPaint(
-                              painter: AnimeLogoPainter(color: onSurfaceColor),
-                            ),
-                          );
-                          tooltipMsg = l10n.exploreAnime;
-                          break;
-                        case ExploreModeType.stremio:
-                          iconWidget = Icon(
-                            Icons.extension_outlined,
-                            color: onSurfaceColor,
-                            size: 18,
-                          );
-                          tooltipMsg = 'Stremio Add-ons';
-                          break;
-                      }
-
-                      return Tooltip(
-                        message: tooltipMsg,
-                        child: CircleAvatar(
-                          backgroundColor: onSurfaceColor.withValues(
-                            alpha: 0.1,
-                          ),
-                          radius: 18,
-                          child: iconWidget,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-
+              // v5: the Explore Source picker is gone — Explore has one
+              // source, Stremio add-ons.
               Padding(
                 padding: const EdgeInsets.only(
                   right: LayoutConstants.spacingMd,

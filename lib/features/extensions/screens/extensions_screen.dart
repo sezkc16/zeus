@@ -12,6 +12,7 @@ import '../../../core/extensions/extension_manager.dart';
 import '../../../core/widgets/app_snack_bar.dart';
 import '../providers/extensions_controller.dart';
 import '../widgets/cloudstream_plugin_section.dart';
+import '../widgets/installed_other_sources.dart';
 import 'plugin_settings_dialog.dart';
 import '../../../shared/widgets/cards_wrapper.dart';
 import '../../../shared/widgets/loading_indicator.dart';
@@ -27,6 +28,26 @@ bool _installedFrom(ExtensionPlugin installed, String repositoryUrl) {
   final from = installed.repositoryUrl;
   return from != null && ExtensionsController.sameAddress(from, repositoryUrl);
 }
+
+/// The two halves of the Plugins tab: what is installed, and everything
+/// for adding more (Add Repository, the repository sections, More Sources).
+enum PluginsSegment { installed, add }
+
+/// Which segment the Plugins tab shows. Kept alive (not autoDispose) so the
+/// choice is remembered while the app is open — leaving the tab and coming
+/// back, or a rebuild of the screen, lands on the same segment. In memory
+/// only: a fresh launch starts on Installed again.
+class PluginsSegmentNotifier extends Notifier<PluginsSegment> {
+  @override
+  PluginsSegment build() => PluginsSegment.installed;
+
+  void select(PluginsSegment segment) => state = segment;
+}
+
+final pluginsSegmentProvider =
+    NotifierProvider<PluginsSegmentNotifier, PluginsSegment>(
+      PluginsSegmentNotifier.new,
+    );
 
 class ExtensionsScreen extends ConsumerStatefulWidget {
   final bool isEmbedded;
@@ -143,21 +164,28 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
 
     final state = ref.watch(extensionsControllerProvider);
 
-    // One scroll, not the fork's Installed / Repositories tabs — the design
-    // preview's Plugins screen: Installed Extensions card at the top, then
-    // Add Repository, Repositories, and More Sources, in that order.
+    final segment = ref.watch(pluginsSegmentProvider);
+
+    // v5: two segments under the title — "Installed" (left) and
+    // "Add Plugins" (right). Everything the single scroll used to show is
+    // still here, under one of the two: the installed lists under
+    // Installed; the Add Repository card, the repository sections (Zeus,
+    // Zeus (SkyStream), CloudStream) and More Sources (Nuvio, Stremio)
+    // under Add Plugins. The subtitle and the segment row stay pinned; the
+    // list below them scrolls, with the shell's bottom clearance in both
+    // segments so nothing hides under the floating nav pill.
     final body = Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 800),
-        child: ListView(
-          padding: EdgeInsets.only(
-            bottom: LayoutConstants.shellBottomContentPadding(context),
-            top: LayoutConstants.spacingMd,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: LayoutConstants.spacingMd,
+              padding: const EdgeInsets.fromLTRB(
+                LayoutConstants.spacingMd,
+                LayoutConstants.spacingMd,
+                LayoutConstants.spacingMd,
+                0,
               ),
               child: Text(
                 l10n.extensionsSubtitle,
@@ -166,11 +194,38 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: LayoutConstants.spacingMd),
-            ..._installedWidgets(context, ref, state),
-            _buildAddRepositoryCard(context, ref),
-            ..._repositoryWidgets(context, ref, state),
-            _buildMoreSourcesCard(context),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                LayoutConstants.spacingMd,
+                LayoutConstants.spacingMd,
+                LayoutConstants.spacingMd,
+                LayoutConstants.spacingSm,
+              ),
+              child: _PluginsSegmentRow(
+                selected: segment,
+                installedLabel: l10n.pluginsSegmentInstalled,
+                addLabel: l10n.pluginsSegmentAdd,
+                onSelected: (s) =>
+                    ref.read(pluginsSegmentProvider.notifier).select(s),
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                // One list per segment, so each starts at its own top.
+                key: ValueKey('plugins-list-${segment.name}'),
+                padding: EdgeInsets.only(
+                  bottom: LayoutConstants.shellBottomContentPadding(context),
+                  top: LayoutConstants.spacingSm,
+                ),
+                children: segment == PluginsSegment.installed
+                    ? _installedWidgets(context, ref, state)
+                    : [
+                        _buildAddRepositoryCard(context, ref),
+                        ..._repositoryWidgets(context, ref, state),
+                        _buildMoreSourcesCard(context),
+                      ],
+              ),
+            ),
           ],
         ),
       ),
@@ -236,9 +291,14 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
         .toList();
     final hasInstalledOnly = installedOnlyPlugins.isNotEmpty;
 
-    if (state.installedPlugins.isEmpty && csInstalled.isEmpty) {
-      // No "Browse Repositories" button: this is one scroll now, and the
-      // Add Repository card sits right below this card.
+    // Installed Stremio add-ons and Nuvio repositories count as installed
+    // too (v5) — they are listed at the end of this segment.
+    final hasOtherSources = InstalledOtherSources.hasAny(ref);
+    if (state.installedPlugins.isEmpty &&
+        csInstalled.isEmpty &&
+        !hasOtherSources) {
+      // Nothing installed: say so, and offer the way to the other
+      // segment, where the Add Repository card and the repositories are.
       return [
         Padding(
           padding: const EdgeInsets.all(LayoutConstants.spacingLg),
@@ -263,11 +323,20 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
                   ),
                   const SizedBox(height: LayoutConstants.spacingSm),
                   Text(
-                    l10n.browseRepositoriesToInstall,
+                    l10n.pluginsEmptyInstalledHint,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: LayoutConstants.spacingMd),
+                  FilledButton.icon(
+                    key: const ValueKey('plugins-empty-add-button'),
+                    onPressed: () => ref
+                        .read(pluginsSegmentProvider.notifier)
+                        .select(PluginsSegment.add),
+                    icon: const Icon(Icons.add_rounded),
+                    label: Text(l10n.pluginsSegmentAdd),
                   ),
                 ],
               ),
@@ -288,6 +357,7 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
           hasRepos: state.repositories.isNotEmpty,
         ),
       if (csInstalled.isNotEmpty) const CloudStreamInstalledSection(),
+      if (hasOtherSources) const InstalledOtherSources(),
     ];
   }
 
@@ -317,7 +387,7 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
       return [const Center(child: AppLoadingIndicator())];
     }
     // Three separate sections, so a repository lands in the section it
-    // belongs to. The owner's own repo (TojiX repo.json, .cs3) has its
+    // belongs to. The owner's own repo (Zeus Repo repo.json, .cs3) has its
     // own "Zeus" section first ([ZeusRepositorySection]); Zeus's own
     // extension system (.sky manifests) takes the "Zeus (SkyStream)"
     // section next; CloudStream's store (repo.json) takes the
@@ -1464,6 +1534,115 @@ class _FocusableCardState extends State<_FocusableCard> {
           ),
           clipBehavior: Clip.antiAlias,
           child: Material(color: Colors.transparent, child: widget.child),
+        ),
+      ),
+    );
+  }
+}
+
+/// The Plugins tab's two-segment row: "Installed" on the left, "Add
+/// Plugins" on the right. The selected segment is filled with the accent
+/// (text onPrimary); the other sits on a subtle surface tint.
+class _PluginsSegmentRow extends StatelessWidget {
+  const _PluginsSegmentRow({
+    required this.selected,
+    required this.installedLabel,
+    required this.addLabel,
+    required this.onSelected,
+  });
+
+  final PluginsSegment selected;
+  final String installedLabel;
+  final String addLabel;
+  final ValueChanged<PluginsSegment> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.onSurface.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Row(
+          children: [
+            Expanded(
+              child: _PluginsSegmentButton(
+                key: const ValueKey('plugins-segment-installed'),
+                label: installedLabel,
+                icon: Icons.check_circle_outline_rounded,
+                selected: selected == PluginsSegment.installed,
+                onTap: () => onSelected(PluginsSegment.installed),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: _PluginsSegmentButton(
+                key: const ValueKey('plugins-segment-add'),
+                label: addLabel,
+                icon: Icons.add_circle_outline_rounded,
+                selected: selected == PluginsSegment.add,
+                onTap: () => onSelected(PluginsSegment.add),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PluginsSegmentButton extends StatelessWidget {
+  const _PluginsSegmentButton({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final foreground = selected ? scheme.onPrimary : scheme.onSurfaceVariant;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected ? scheme.primary : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            height: 40,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 18, color: foreground),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: foreground,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

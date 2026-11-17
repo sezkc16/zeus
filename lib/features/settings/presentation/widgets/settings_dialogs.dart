@@ -113,7 +113,8 @@ void showDefaultHomeScreenDialog(
   final l10n = AppLocalizations.of(context)!;
   final options = <Map<String, String>>[
     {'label': l10n.home, 'route': '/home'},
-    {'label': l10n.explore, 'route': '/explore'},
+    // v5: no '/explore' option — Explore is not a tab in Zeus (the router
+    // already sends a saved '/explore' to Home).
     {'label': l10n.search, 'route': '/search'},
     {'label': l10n.library, 'route': '/library'},
   ];

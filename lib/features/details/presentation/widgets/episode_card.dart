@@ -20,6 +20,7 @@ import '../download_launcher.dart';
 import '../downloaded_file_provider.dart';
 import 'download_progress_dialog.dart';
 import 'download_management_dialog.dart';
+import 'hero_details_widgets.dart';
 import 'premium_details_widgets.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/focus/app_focus.dart';
@@ -54,12 +55,24 @@ class EpisodeCard extends HookConsumerWidget {
   final MultimediaItem parentItem;
   final double? width;
 
+  /// Drawn for the phone page's horizontal episode row: a thumbnail with its
+  /// state and the download button on it, and two lines under it. The same
+  /// episode, the same actions; only the shape differs.
+  final bool rowStyle;
+
   const EpisodeCard({
     super.key,
     required this.episode,
     required this.parentItem,
     this.width,
-  });
+  }) : rowStyle = false;
+
+  const EpisodeCard.row({
+    super.key,
+    required this.episode,
+    required this.parentItem,
+  }) : width = null,
+       rowStyle = true;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -224,6 +237,40 @@ class EpisodeCard extends HookConsumerWidget {
     final selectKeyDown = useRef(false);
     final longPressTriggered = useRef(false);
     final showFocus = showFocusIndicator(context, isFocused.value);
+
+    if (rowStyle) {
+      return Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        onFocusChange: (f) => isFocused.value = f,
+        child: EpisodeRowCard(
+          number: episode.episode,
+          title: episode.name,
+          meta: meta,
+          metaAccent: upcoming,
+          progress: displayedProgress,
+          watched: isWatched,
+          badge: statusBadge,
+          selectionMode: isSelectionMode,
+          selected: isSelected,
+          upcoming: upcoming,
+          focused: showFocus,
+          focusNode: bodyFocusNode,
+          onTap: handleEpisodeTap,
+          onLongPress: updateSelection,
+          thumbnail: _rowThumbnail(context),
+          action: _rowDownloadAction(
+            context,
+            downloaded: downloadedFile != null,
+            isDownloading: isDownloading,
+            progress: downloadProgress,
+            paused: downloadProgressData?.status == TaskStatus.paused,
+            focusNode: downloadFocusNode,
+            onPressed: triggerDownload,
+          ),
+        ),
+      );
+    }
 
     return Focus(
       // Passive observer for the card as a whole. `hasFocus` stays true while
@@ -454,6 +501,79 @@ class EpisodeCard extends HookConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _rowThumbnail(BuildContext context) {
+    final fill = Theme.of(context).colorScheme.surfaceContainerHighest;
+    final url = episode.posterUrl;
+    if (url == null || url.isEmpty) return ColoredBox(color: fill);
+    return CachedNetworkImage(
+      imageUrl: url,
+      // A CloudStream extension's artwork can need its headers.
+      httpHeaders: artworkHeaders(parentItem),
+      fit: BoxFit.cover,
+      // The card is 160 dp wide: decode for that, not at source size.
+      memCacheWidth:
+          (kEpisodeRowCardWidth * MediaQuery.devicePixelRatioOf(context))
+              .round(),
+      errorWidget: (context, url, error) => const ThumbnailErrorPlaceholder(),
+      placeholder: (context, url) => ColoredBox(color: fill),
+    );
+  }
+
+  /// The row card's download button, on the thumbnail's corner: the same
+  /// three states as the list card's trailing one.
+  Widget _rowDownloadAction(
+    BuildContext context, {
+    required bool downloaded,
+    required bool isDownloading,
+    required double progress,
+    required bool paused,
+    required FocusNode focusNode,
+    required VoidCallback onPressed,
+  }) {
+    final l10n = AppLocalizations.of(context)!;
+    final Widget icon;
+    final String tooltip;
+    if (downloaded) {
+      icon = const Icon(
+        Icons.download_done_sharp,
+        color: Colors.green,
+        size: 18,
+      );
+      tooltip = l10n.downloaded;
+    } else if (isDownloading) {
+      icon = paused
+          ? const Icon(Icons.pause_rounded, size: 16, color: Colors.white)
+          : SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                value: progress > 0 ? progress : null,
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            );
+      tooltip = paused
+          ? l10n.paused
+          : progress > 0
+          ? '${(progress * 100).toInt()}%'
+          : l10n.starting;
+    } else {
+      icon = const Icon(
+        Icons.file_download_outlined,
+        size: 18,
+        color: Colors.white,
+      );
+      tooltip = l10n.download;
+    }
+    return EpisodeRowCard.cornerButton(
+      key: const ValueKey('episode-row-download'),
+      tooltip: tooltip,
+      focusNode: focusNode,
+      onPressed: onPressed,
+      child: icon,
     );
   }
 

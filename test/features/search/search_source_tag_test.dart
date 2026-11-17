@@ -8,7 +8,7 @@ import 'package:zorox/l10n/generated/app_localizations.dart';
 void main() {
   testWidgets('names each system', (tester) async {
     for (final (kind, label) in [
-      (SearchSourceKind.zorox, 'ZoroX'),
+      (SearchSourceKind.zorox, 'Zeus'),
       (SearchSourceKind.cloudstream, 'CloudStream'),
       (SearchSourceKind.stremio, 'Stremio'),
       (SearchSourceKind.nuvio, 'Nuvio'),

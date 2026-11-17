@@ -147,11 +147,18 @@ void main() {
     );
   });
 
-  testWidgets('a phone lays them one under another', (tester) async {
+  testWidgets('a phone lays them side by side too, as one scrolling row', (
+    tester,
+  ) async {
     await openStremioPage(tester, kBridgeShow, size: const Size(430, 932));
+    // The row's cards read "number · name".
+    final one = find.text('1 · One', skipOffstage: false);
+    final two = find.text('2 · Two', skipOffstage: false);
+    expect(tester.getTopLeft(two).dy, tester.getTopLeft(one).dy);
+    expect(tester.getTopLeft(two).dx, greaterThan(tester.getTopLeft(one).dx));
     expect(
-      tester.getTopLeft(_card('2. TWO')).dy,
-      greaterThan(tester.getTopLeft(_card('1. ONE')).dy),
+      find.byKey(const ValueKey('details-episode-row'), skipOffstage: false),
+      findsOneWidget,
     );
   });
 }

@@ -22,12 +22,17 @@ class AddonCatalogScreen extends ConsumerStatefulWidget {
   final String catalogId;
   final String title;
 
+  /// The `genre` extra the first page is asked with - a genre, or a year for
+  /// a catalog such as Cinemeta's `year`. Null starts unfiltered.
+  final String? initialGenre;
+
   const AddonCatalogScreen({
     super.key,
     required this.addonUrl,
     required this.type,
     required this.catalogId,
     required this.title,
+    this.initialGenre,
   });
 
   @override
@@ -49,6 +54,7 @@ class _AddonCatalogScreenState extends ConsumerState<AddonCatalogScreen> {
   @override
   void initState() {
     super.initState();
+    _genre = widget.initialGenre;
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_loadMore()));
   }
@@ -89,6 +95,11 @@ class _AddonCatalogScreenState extends ConsumerState<AddonCatalogScreen> {
     return null;
   }
 
+  /// Whether the catalog only answers with a `genre` - Cinemeta's `year`
+  /// catalog does. Such a catalog has no unfiltered "All" list.
+  bool get _genreRequired =>
+      _catalog?.extra.any((e) => e.name == 'genre' && e.isRequired) ?? false;
+
   Future<void> _loadMore() async {
     final addon = _addon;
     if (addon == null) {
@@ -96,6 +107,13 @@ class _AddonCatalogScreenState extends ConsumerState<AddonCatalogScreen> {
       return;
     }
     if (_loading || _exhausted) return;
+
+    // Opened without a genre on a catalog that needs one: start on its
+    // first option rather than send a request the add-on cannot answer.
+    if (_genre == null && _genreRequired) {
+      final options = _catalog?.genres ?? const <String>[];
+      if (options.isNotEmpty) _genre = options.first;
+    }
 
     setState(() {
       _loading = true;
@@ -163,14 +181,15 @@ class _AddonCatalogScreenState extends ConsumerState<AddonCatalogScreen> {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8, top: 6),
-                    child: ChoiceChip(
-                      label: const Text('All'),
-                      selected: _genre == null,
-                      onSelected: (_) => unawaited(_applyGenre(null)),
+                  if (!_genreRequired)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8, top: 6),
+                      child: ChoiceChip(
+                        label: const Text('All'),
+                        selected: _genre == null,
+                        onSelected: (_) => unawaited(_applyGenre(null)),
+                      ),
                     ),
-                  ),
                   for (final genre in genres)
                     Padding(
                       padding: const EdgeInsets.only(right: 8, top: 6),

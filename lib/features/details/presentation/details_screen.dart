@@ -12,10 +12,7 @@ import '../../../core/utils/image_fallbacks.dart';
 import '../../../core/utils/image_utils.dart';
 
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:zorox/core/utils/layout_constants.dart';
 import 'package:zorox/core/utils/responsive_breakpoints.dart';
-
-import 'package:zorox/shared/widgets/custom_widgets.dart';
 
 import '../../library/presentation/library_provider.dart';
 import '../../library/presentation/library_state.dart';
@@ -23,8 +20,8 @@ import '../../library/presentation/library_state.dart';
 import 'details_controller.dart';
 import "widgets/details_layout_widgets.dart";
 import "widgets/details_desktop_hero.dart";
+import "widgets/hero_details_widgets.dart";
 import "widgets/premium_details_widgets.dart";
-import "../../../shared/widgets/expandable_text.dart";
 import "../../../shared/widgets/loading_indicator.dart";
 import "../../../shared/widgets/check_line.dart";
 import "../../../core/extensions/extension_manager.dart";
@@ -144,130 +141,48 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
       );
     }
 
-    // ── Mobile: SliverAppBar-based layout (unchanged) ──
+    // ── Mobile: "Hero" layout ──
+    // A full-bleed banner carrying the source tag, the title and the round
+    // Play button; the back and bookmark buttons float over it and stay put
+    // as the page scrolls.
     return Scaffold(
       bottomNavigationBar: selectedEpisodeCount == 0
           ? null
           : _buildEpisodeSelectionBar(context, selectedEpisodeCount),
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            expandedHeight: LayoutConstants.detailsExpandedHeightMobile,
-            stretch: true,
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            flexibleSpace: FlexibleSpaceBar(
-              stretchModes: const [
-                StretchMode.zoomBackground,
-                StretchMode.blurBackground,
-              ],
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Hero(
-                    tag: 'banner_${item.url}',
-                    child: CachedNetworkImage(
-                      imageUrl:
-                          AppImageFallbacks.optional(item.bannerUrl) ??
-                          AppImageFallbacks.poster(
-                            item.posterUrl,
-                            label: item.title,
-                          ) ??
-                          '',
-                      httpHeaders: artworkHeaders(item),
-                      fit: BoxFit.cover,
-                      alignment: Alignment.topCenter,
-                      // Bound decoded bitmap; plugin backdrops are often at
-                      // source resolution. Without this, 4K-source posters
-                      // burn ~33 MB per detail page.
-                      //
-                      // The box is the window width by the sliver's expanded
-                      // extent — the same constant handed to `expandedHeight`
-                      // above, which is what FlexibleSpaceBar lays the
-                      // background out at (`settings.maxExtent`). Not read
-                      // from a LayoutBuilder here on purpose: with
-                      // StretchMode.zoomBackground the background grows with
-                      // an overscroll bounce, so constraints here change every
-                      // frame of the stretch and the decode bound would churn
-                      // the image cache with them.
-                      memCacheWidth: ImageUtils.coverDecodeWidth(
-                        context,
-                        width: MediaQuery.sizeOf(context).width,
-                        height: LayoutConstants.detailsExpandedHeightMobile,
-                        sourceAspectRatio: ImageUtils.backdropAspectRatio,
-                      ),
-                      placeholder: (context, url) =>
-                          Container(color: Theme.of(context).dividerColor),
-                      errorWidget: (_, _, _) => ThumbnailErrorPlaceholder(
-                        label: item.title,
-                        isBackdrop: true,
-                      ),
-                    ),
-                  ),
-                  // 1. Legibility Scrim: Fixed dark-tinted overlay at the bottom of the backdrop
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.65),
-                        ],
-                        stops: const [0.5, 1.0],
-                      ),
-                    ),
-                  ),
-                  // 2. Blend-into-page transition: Theme-aware eased fade to surface
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Theme.of(context).scaffoldBackgroundColor
-                              .withValues(alpha: 0.0),
-                          Theme.of(context).scaffoldBackgroundColor
-                              .withValues(alpha: 0.15),
-                          Theme.of(context).scaffoldBackgroundColor
-                              .withValues(alpha: 0.45),
-                          Theme.of(context).scaffoldBackgroundColor
-                              .withValues(alpha: 0.8),
-                          Theme.of(context).scaffoldBackgroundColor,
-                        ],
-                        stops: const [0.0, 0.5, 0.75, 0.9, 1.0],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+      body: Stack(
+        children: [
+          CustomScrollView(
+            slivers: _buildMobileSlivers(
+              context,
+              item,
+              details,
+              detailsAsync,
+              isMovie,
+              l10n,
             ),
-            // Mobile: back/bookmark excluded from D-pad traversal.
-            // Users navigate back via hardware Back key on TV remotes.
+          ),
+          // Mobile: back/bookmark excluded from D-pad traversal.
+          // Users navigate back via hardware Back key on TV remotes.
+          DetailsHeroTopBar(
             leading: Focus(
               descendantsAreTraversable: false,
-              child: CustomButton(
-                shape: const CircleBorder(),
-                backgroundColor: Colors.black45,
+              child: DetailsHeroTopBar.button(
+                key: const ValueKey('details-back'),
+                icon: Icons.arrow_back_rounded,
                 onPressed: () => context.pop(),
-                child: const Icon(
-                  Icons.arrow_back_rounded,
-                  color: Colors.white,
-                ),
               ),
             ),
             actions: [
               Focus(
                 descendantsAreTraversable: false,
-                child: IconButton(
-                  icon: Icon(
-                    isBookmarked
-                        ? Icons.bookmark_rounded
-                        : Icons.bookmark_border_rounded,
-                    color: isBookmarked
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.white,
-                  ),
+                child: DetailsHeroTopBar.button(
+                  key: const ValueKey('details-bookmark'),
+                  icon: isBookmarked
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_border_rounded,
+                  iconColor: isBookmarked
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.white,
                   onPressed: () {
                     if (isBookmarked) {
                       libraryNotifier.removeItem(item.url);
@@ -275,24 +190,45 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                       libraryNotifier.addItem(item);
                     }
                   },
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.black45,
-                    foregroundColor: Colors.white,
-                  ),
                 ),
               ),
-              const SizedBox(width: 8),
             ],
           ),
-          ..._buildMobileSlivers(
-            context,
-            item,
-            details,
-            detailsAsync,
-            isMovie,
-            l10n,
-          ),
         ],
+      ),
+    );
+  }
+
+  /// The banner's artwork: the backdrop, else the poster.
+  Widget _buildHeroImage(BuildContext context, MultimediaItem item) {
+    final height = detailsHeroBannerHeight(MediaQuery.sizeOf(context));
+    final url =
+        AppImageFallbacks.optional(item.bannerUrl) ??
+        AppImageFallbacks.poster(item.posterUrl, label: item.title) ??
+        '';
+    if (url.isEmpty) {
+      return ThumbnailErrorPlaceholder(label: item.title, isBackdrop: true);
+    }
+    return Hero(
+      tag: 'banner_${item.url}',
+      child: CachedNetworkImage(
+        imageUrl: url,
+        httpHeaders: artworkHeaders(item),
+        fit: BoxFit.cover,
+        alignment: Alignment.topCenter,
+        // Bound decoded bitmap; plugin backdrops are often at source
+        // resolution. Without this, 4K-source posters burn ~33 MB per
+        // detail page. The box is the window width by the banner's height.
+        memCacheWidth: ImageUtils.coverDecodeWidth(
+          context,
+          width: MediaQuery.sizeOf(context).width,
+          height: height,
+          sourceAspectRatio: ImageUtils.backdropAspectRatio,
+        ),
+        placeholder: (context, url) =>
+            Container(color: Theme.of(context).dividerColor),
+        errorWidget: (_, _, _) =>
+            ThumbnailErrorPlaceholder(label: item.title, isBackdrop: true),
       ),
     );
   }
@@ -598,112 +534,91 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
     bool isMovie,
     AppLocalizations l10n,
   ) {
+    final theme = Theme.of(context);
+    final isLoading = detailsState is AsyncLoading;
+    final provider = item.provider;
+    final infoColumns = detailsInfoColumns(
+      l10n,
+      item,
+      isMovie: isMovie,
+      isLoading: isLoading,
+      episodeCount: details?.episodes?.length,
+    );
+    final description = item.description?.trim();
+
     return [
       SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Hero(
-                    tag: 'poster_${item.url}',
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: CachedNetworkImage(
-                        imageUrl:
-                            AppImageFallbacks.poster(
-                              item.posterUrl,
-                              label: item.title,
-                            ) ??
-                            '',
-                        httpHeaders: artworkHeaders(item),
-                        width: 100,
-                        height: 150,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, _, _) =>
-                            ThumbnailErrorPlaceholder(label: item.title),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onLongPress: () =>
-                              _copyAnimeTitle(context, item.title),
-                          child: item.logoUrl != null
-                              ? CachedNetworkImage(
-                                  imageUrl: item.logoUrl!,
-                                  httpHeaders: artworkHeaders(item),
-                                  height: 50,
-                                  fit: BoxFit.contain,
-                                  alignment: Alignment.centerLeft,
-                                  errorWidget: (_, _, _) => Text(
-                                    item.title,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .headlineSmall
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                )
-                              : Text(
-                                  item.title,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineMedium
-                                      ?.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                        ),
-                        const SizedBox(height: 8),
-                        MetadataBar(
-                          item: item,
-                          isLoading: detailsState is AsyncLoading,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              // Nothing to play yet: CloudStream hides Play there too.
-              if (item.comingSoon)
-                const ComingSoonLabel()
-              else
-                DetailsActionButtons(
+        child: DetailsHeroBanner(
+          height: detailsHeroBannerHeight(MediaQuery.sizeOf(context)),
+          image: _buildHeroImage(context, item),
+          title: item.title,
+          onTitleLongPress: () => _copyAnimeTitle(context, item.title),
+          sourceTag: provider != null && provider.isNotEmpty
+              ? DetailsProviderChip(providerName: provider, hero: true)
+              : null,
+          // Nothing to play yet: CloudStream hides Play there too.
+          playFab: item.comingSoon
+              ? null
+              : DetailsHeroPlayButton(
                   item: widget.item,
                   details: details,
                   itemUrl: widget.item.url,
                 ),
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (item.comingSoon) ...[
+                const ComingSoonLabel(),
+                const SizedBox(height: 12),
+              ],
+              if (infoColumns.isNotEmpty) ...[
+                DetailsInfoStrip(
+                  columns: [for (final c in infoColumns) c.column],
+                ),
+                const SizedBox(height: 12),
+              ],
+              // Play is the round button on the banner; what stays here is
+              // the watched-so-far bar and Download.
+              if (!item.comingSoon)
+                DetailsActionButtons(
+                  item: widget.item,
+                  details: details,
+                  itemUrl: widget.item.url,
+                  showPlay: false,
+                ),
               if (nextAiringAhead(item)) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 NextAiringWidget(nextAiring: item.nextAiring!),
               ],
-              const SizedBox(height: 24),
-              Text(
-                l10n.synopsis,
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w600),
+              const SizedBox(height: 12),
+              // Type, age rating and whatever the strip had no room for.
+              MetadataBar(
+                item: item,
+                isLoading: isLoading,
+                hide: {
+                  'provider',
+                  'year',
+                  'status',
+                  'duration',
+                  for (final c in infoColumns) c.field,
+                },
               ),
-              const SizedBox(height: 8),
-              ExpandableText(
-                text: item.description ?? l10n.noDescription,
-                maxLines: 4,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(context).textTheme.bodyMedium?.color,
-                  height: 1.5,
-                ),
+              const SizedBox(height: 12),
+              ExpandableSynopsis(
+                text: description == null || description.isEmpty
+                    ? l10n.noDescription
+                    : description,
               ),
               if (item.tags != null && item.tags!.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 TagsRow(tags: item.tags!),
               ],
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
               if (detailsState is AsyncLoading)
                 Column(
                   mainAxisSize: MainAxisSize.min,
@@ -715,8 +630,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
               else if (detailsState is AsyncError)
                 Container(
                   padding: const EdgeInsets.all(16),
-                  color: Theme.of(context).colorScheme.error
-                      .withValues(alpha: 0.1),
+                  color: theme.colorScheme.error.withValues(alpha: 0.1),
                   child: Text(
                     AppLocalizations.of(context)!
                         .errorPrefix(detailsState.error.toString()),
@@ -728,9 +642,8 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           ),
         ),
       ),
-      SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        sliver: SliverDetailsEpisodeList(
+      SliverToBoxAdapter(
+        child: DetailsEpisodeRowSection(
           parentItem: item,
           itemUrl: widget.item.url,
           isMovie: isMovie,

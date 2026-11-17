@@ -20,10 +20,10 @@ import 'package:zorox/features/search/data/search_history_store.dart';
 import 'package:zorox/features/search/presentation/search_history_provider.dart';
 import 'package:zorox/features/search/presentation/search_provider.dart';
 import 'package:zorox/features/search/presentation/search_screen.dart';
+import 'package:zorox/features/search/presentation/widgets/search_source_row.dart';
 import 'package:zorox/features/search/presentation/widgets/search_suggestion_row.dart';
 import 'package:zorox/features/settings/presentation/general_settings_provider.dart';
 import 'package:zorox/shared/widgets/cards_wrapper.dart';
-import 'package:zorox/shared/widgets/multimedia_card.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
 
 class _FakeStore implements SearchHistoryStore {
@@ -298,31 +298,34 @@ void main() {
           results: Stream.value(
             SearchAggregateState(
               results: [
-                ProviderSearchResult(
-                  providerId: 'p.a',
-                  providerName: 'A',
-                  results: [
-                    for (var i = 0; i < 20; i++)
+                // v5 (design A): one row per source, so it takes many
+                // sources to scroll the first row out of the tree.
+                for (var p = 0; p < 20; p++)
+                  ProviderSearchResult(
+                    providerId: 'p.$p',
+                    providerName: 'P$p',
+                    results: [
                       MultimediaItem(
-                        title: 'Film $i',
-                        url: 'u/$i',
+                        title: 'Film $p',
+                        url: 'u/$p',
                         posterUrl: '',
                       ),
-                  ],
-                ),
+                    ],
+                  ),
               ],
             ),
           ),
         );
         final firstResult = tester
-            .widget<MultimediaCard>(find.byType(MultimediaCard).first)
+            .widget<SearchPosterTile>(find.byType(SearchPosterTile).first)
             .focusNode!;
-        // The flat results grid (v3): one GridView, not a per-provider
-        // horizontal row — the focus-wait reads its controller the same
-        // way, to tell whether the first result is scrolled away.
+        // The results list (v5): a vertical list of per-source rows — the
+        // focus-wait reads its controller to tell whether the first
+        // result is scrolled away.
         final grid = tester
-            .widget<GridView>(
-              find.byWidgetPredicate((w) => w is GridView),
+            .widgetList<ListView>(find.byType(ListView))
+            .firstWhere(
+              (w) => w.scrollDirection == Axis.vertical && w.controller != null,
             )
             .controller!;
         grid.jumpTo(grid.position.maxScrollExtent);
@@ -480,7 +483,7 @@ void main() {
                     )
                     .focusNode!
               : tester
-                    .widget<MultimediaCard>(find.byType(MultimediaCard).first)
+                    .widget<SearchPosterTile>(find.byType(SearchPosterTile).first)
                     .focusNode!;
           node.requestFocus();
           await tester.pump();
@@ -550,7 +553,7 @@ void main() {
         ),
       );
       final firstResult = tester
-          .widget<MultimediaCard>(find.byType(MultimediaCard).first)
+          .widget<SearchPosterTile>(find.byType(SearchPosterTile).first)
           .focusNode!;
       await tester.enterText(find.byType(TextField), 'du');
       await tester.pump(const Duration(milliseconds: 500));

@@ -8,10 +8,10 @@ import 'package:zorox/core/domain/entity/multimedia_item.dart';
 import 'package:zorox/core/providers/device_info_provider.dart';
 import 'package:zorox/core/storage/history_repository.dart';
 import 'package:zorox/core/storage/storage_service.dart';
-import 'package:zorox/core/utils/layout_constants.dart';
 import 'package:zorox/features/details/presentation/details_controller.dart';
 import 'package:zorox/features/details/presentation/details_screen.dart';
 import 'package:zorox/features/details/presentation/downloaded_file_provider.dart';
+import 'package:zorox/features/details/presentation/widgets/hero_details_widgets.dart';
 import 'package:zorox/features/library/presentation/library_provider.dart';
 import 'package:zorox/features/library/presentation/library_state.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
@@ -22,7 +22,7 @@ const String _kBanner = 'https://fake.test/banner.jpg';
 /// A large phone in portrait: 590x1200 logical at a raster scale of 3, which
 /// is the mobile branch (`isTabletOrLarger` is false below 600 dp) with enough
 /// room that the test font's wide glyphs do not overflow the metadata row.
-/// The mobile SliverAppBar hero is the one this screen paints — a television
+/// The mobile banner is the one this screen paints — a television
 /// is `isTabletOrLarger` and takes the desktop hero instead.
 const double _phoneDevicePixelRatio = 3.0;
 const double _phoneLogicalWidth = 590;
@@ -161,18 +161,24 @@ CachedNetworkImage _hero(WidgetTester tester) =>
 
 void main() {
   group('the details hero bounds its decode to what cover paints', () {
-    testWidgets('at the sliver box, not at the window width', (tester) async {
+    testWidgets('at the banner box, not at the window width', (tester) async {
       await _pumpDetails(tester);
 
-      // A 16:9 backdrop behind a 590x400 dp hero is scaled by the HEIGHT and
-      // cropped at the sides, so 590 dp of window width is not the width that
-      // has to be sharp: 400 * 16/9 = 711.1 dp is, and at 3x that is 2133 px.
+      // A 16:9 backdrop behind the 590x440 dp banner is scaled by the HEIGHT
+      // and cropped at the sides, so 590 dp of window width is not the width
+      // that has to be sharp: 440 * 16/9 = 782.2 dp is, and at 3x that is
+      // 2347 px.
       const boxWidth = _phoneLogicalWidth;
-      const boxHeight = LayoutConstants.detailsExpandedHeightMobile;
-      const expected = 2133; // (400 * 16 / 9 * 3).round()
+      final boxHeight = detailsHeroBannerHeight(const Size(590, 1200));
+      const expected = 2347; // (440 * 16 / 9 * 3).round()
 
       expect(tester.getSize(find.byType(DetailsScreen)).width, boxWidth);
-      expect(boxHeight, 400);
+      expect(boxHeight, 440);
+      expect(
+        tester.getSize(find.byKey(const ValueKey('details-hero-banner'))).height,
+        // A movie's page has the round Play button hanging off the banner.
+        boxHeight + kDetailsPlayFabOverhang,
+      );
       expect(_hero(tester).memCacheWidth, expected);
       expect(
         _hero(tester).memCacheWidth,
@@ -186,10 +192,10 @@ void main() {
     ) async {
       await _pumpDetails(tester, clampDensity: true);
 
-      expect(_hero(tester).memCacheWidth, 2133);
+      expect(_hero(tester).memCacheWidth, 2347);
       expect(
         _hero(tester).memCacheWidth,
-        isNot(711),
+        isNot(782),
         reason: 'took the shimmed devicePixelRatio of 1.0 off MediaQuery',
       );
     });

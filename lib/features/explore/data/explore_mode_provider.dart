@@ -1,75 +1,46 @@
-import 'package:collection/collection.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import '../../../core/config/tmdb_config.dart';
 
 part 'explore_mode_provider.g.dart';
 
 const String _kExploreModeKey = 'explore_mode_type';
 
+/// Explore's sources. Only [stremio] is offered (v5): the TMDB "Movies &
+/// Shows" and AniList "Anime" sources were removed from Explore. The two
+/// names stay so the code that still branches on them compiles; the mode
+/// is never one of them.
 enum ExploreModeType { movies, anime, stremio }
 
-// App-wide user state that persists to SharedPreferences. Disposing it would
-// snap the mode back to `movies` and re-read prefs asynchronously; the
-// keepAlive `genres` provider watching it is the only reason that never
-// happened.
+/// Explore's source: always Stremio add-ons (the built-in Cinemeta and any
+/// add-on the person installed). There is nothing to pick any more, so a
+/// preference saved by an older build for TMDB or AniList is rewritten to
+/// Stremio add-ons rather than left pointing at a removed source.
 @Riverpod(keepAlive: true)
 class ExploreMode extends _$ExploreMode {
   @override
   ExploreModeType build() {
-    _loadPersistedMode();
-    // Without a TMDB key the Movies & Shows mode can only show its
-    // key prompt, so start on a source that works key-free. The
-    // persisted mode still wins once it loads (below).
-    return TmdbConfig.apiKey.isEmpty
-        ? ExploreModeType.stremio
-        : ExploreModeType.movies;
+    _migrateSavedMode();
+    return ExploreModeType.stremio;
   }
 
-  Future<void> _loadPersistedMode() async {
+  Future<void> _migrateSavedMode() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedMode = prefs.getString(_kExploreModeKey);
-      if (savedMode != null) {
-        final matched = ExploreModeType.values.firstWhereOrNull(
-          (e) => e.name == savedMode,
-        );
-        if (matched != null && state != matched) {
-          state = _usableMode(matched);
-        }
-      } else {
-        // Backward compatibility for old boolean key
-        final oldBool = prefs.getBool('explore_mode_is_anime');
-        if (oldBool == true && state != ExploreModeType.anime) {
-          state = ExploreModeType.anime;
-        }
+      final saved = prefs.getString(_kExploreModeKey);
+      if (saved != null && saved != ExploreModeType.stremio.name) {
+        await prefs.setString(_kExploreModeKey, ExploreModeType.stremio.name);
+      }
+      // The older boolean key only ever meant "anime".
+      if (prefs.containsKey('explore_mode_is_anime')) {
+        await prefs.remove('explore_mode_is_anime');
       }
     } catch (_) {}
   }
 
-  /// A saved Movies & Shows mode is only usable with a TMDB key; without
-  /// one it falls back to Stremio Add-ons, which needs no key. The
-  /// fallback is in-memory only — the saved preference is left alone so
-  /// Movies & Shows comes back as soon as a key is saved.
-  static ExploreModeType _usableMode(ExploreModeType mode) =>
-      mode == ExploreModeType.movies && TmdbConfig.apiKey.isEmpty
-          ? ExploreModeType.stremio
-          : mode;
-
+  /// Kept for callers; whatever is asked for, the source is Stremio add-ons.
   void setMode(ExploreModeType mode) {
-    state = mode;
-    _persistMode(mode);
+    state = ExploreModeType.stremio;
   }
 
-  void setAnimeMode(bool isAnime) {
-    setMode(isAnime ? ExploreModeType.anime : ExploreModeType.movies);
-  }
-
-  Future<void> _persistMode(ExploreModeType mode) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kExploreModeKey, mode.name);
-    } catch (_) {}
-  }
+  void setAnimeMode(bool isAnime) => setMode(ExploreModeType.stremio);
 }

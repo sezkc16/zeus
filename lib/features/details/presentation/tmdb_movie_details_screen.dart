@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +21,7 @@ import 'widgets/tmdb_details_desktop_hero.dart';
 import 'widgets/provider_search_section.dart';
 import 'widgets/nuvio_sources_card.dart';
 import 'widgets/tmdb_details_stats_section.dart';
+import 'widgets/hero_details_widgets.dart';
 import 'widgets/movie_cast_list.dart';
 import '../data/lightweight_details_provider.dart';
 import 'widgets/movie_trailers_carousel.dart';
@@ -53,7 +56,6 @@ class TmdbMovieDetailsScreen extends ConsumerStatefulWidget {
 class _TmdbMovieDetailsScreenState
     extends ConsumerState<TmdbMovieDetailsScreen> {
   AppLocalizations get l10n => AppLocalizations.of(context)!;
-  bool _isDescriptionExpanded = false;
   late ScrollController _scrollController;
   final ValueNotifier<bool> _showAppBarTitle = ValueNotifier<bool>(false);
   final ValueNotifier<double> _titleOpacity = ValueNotifier<double>(0.0);
@@ -330,12 +332,19 @@ class _TmdbMovieDetailsScreenState
     );
   }
 
+  /// The phone page, in the "Hero" layout: a full-bleed banner with the
+  /// catalogue's tag and the title on it, an info strip, the two source
+  /// cards, a short synopsis, then everything else as before.
+  ///
+  /// No round Play button here: this page never had a Play. Its titles are
+  /// played from the source cards, which are peers by design.
   Widget _buildMobileLayout(TmdbDetails data, bool isHeavyLoading) {
     final isMovie = widget.mediaType == 'movie';
+    final theme = Theme.of(context);
 
     final backdropImageUrl = data.backdropImageUrl;
     final title = data.title;
-    final overview = data.overview;
+    final overview = data.overview.trim();
 
     final tagline = data.tagline;
     final runtime = data.runtime;
@@ -355,517 +364,322 @@ class _TmdbMovieDetailsScreenState
 
     final certification = data.certification;
     final director = data.director;
-    final logoUrl = data.logoUrl;
 
-    // The expanded hero is designed for portrait. In landscape phones
-    // (~360 dp tall) a 550 dp expanded header overflows the entire screen,
-    // forcing the user to scroll past nothing-but-AppBar before reaching
-    // any content. Clamp by orientation: portrait keeps the original
-    // 550 dp; landscape uses ~80% of available height, bounded so the
-    // hero stays meaningful on tiny screens and doesn't dominate on tall
-    // foldables.
     final mq = MediaQuery.sizeOf(context);
-    final isLandscape = mq.width > mq.height;
-    final double expandedHeaderHeight = isLandscape
-        ? (mq.height * 0.80).clamp(220.0, 400.0)
-        : 550.0;
+    final bannerHeight = detailsHeroBannerHeight(mq);
 
-    return CustomScrollView(
-      controller: _scrollController,
-      slivers: [
-        SliverAppBar(
-          expandedHeight: expandedHeaderHeight,
-          pinned: true,
-          backgroundColor: Theme.of(context)
-              .scaffoldBackgroundColor, // Theme aware
-          leading: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: CircleAvatar(
-              backgroundColor: Theme.of(context).colorScheme.onSurface
-                  .withValues(alpha: 0.1),
-              radius: 18,
-              child: IconButton(
-                icon: Icon(
-                  Icons.arrow_back,
-                  color: Theme.of(context).colorScheme.onSurface,
-                  size: 20,
-                ),
-                padding: EdgeInsets.zero,
-                onPressed: () => context.pop(),
-              ),
-            ),
+    // What the title really has, in the order the strip shows it. The strip
+    // takes the first four; the rest stays in the meta row under it.
+    final facts = <({IconData icon, Color? color, DetailsInfoColumn column})>[
+      if (year.isNotEmpty)
+        (
+          icon: Icons.calendar_today_rounded,
+          color: null,
+          column: DetailsInfoColumn(value: year, label: 'Year'),
+        ),
+      if (!isMovie && data.seasons.isNotEmpty)
+        (
+          icon: Icons.layers_rounded,
+          color: null,
+          column: DetailsInfoColumn(
+            value: '${data.seasons.length}',
+            label: l10n.seasons,
           ),
-          title: ValueListenableBuilder<double>(
-            valueListenable: _titleOpacity,
-            builder: (context, opacity, child) {
-              if (opacity <= 0) return const SizedBox.shrink();
-              return Opacity(
-                opacity: opacity,
-                child: Text(
-                  title.toUpperCase(),
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              );
-            },
-          ),
-          centerTitle: false,
-          flexibleSpace: FlexibleSpaceBar(
-            background: ValueListenableBuilder<double>(
-              valueListenable: _scrollOffset,
-              builder: (context, offset, child) {
-                final contentOffset = -offset * 0.4;
-                final parallaxOffset = -offset * 0.1;
+        ),
+      if (runtime > 0)
+        (
+          icon: Icons.timer_outlined,
+          color: null,
+          column: DetailsInfoColumn(value: durationText, label: 'Runtime'),
+        ),
+      if (data.voteAverage > 0)
+        (
+          icon: Icons.star_rounded,
+          color: theme.colorScheme.primary,
+          column: DetailsInfoColumn(value: rating, label: 'Rating'),
+        ),
+      if (status.isNotEmpty)
+        (
+          icon: Icons.info_outline_rounded,
+          color: null,
+          column: DetailsInfoColumn(value: status, label: l10n.status),
+        ),
+    ];
+    final inStrip = facts.take(DetailsInfoStrip.maxColumns).toList();
+    final leftOver = facts.skip(DetailsInfoStrip.maxColumns).toList();
 
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Transform.translate(
-                      offset: Offset(0, parallaxOffset),
-                      child: CachedNetworkImage(
+    return Stack(
+      children: [
+        CustomScrollView(
+          controller: _scrollController,
+          slivers: [
+            SliverToBoxAdapter(
+              child: DetailsHeroBanner(
+                height: bannerHeight,
+                title: title,
+                subtitle: genres.isNotEmpty
+                    ? genres.take(3).join(' • ')
+                    : (isMovie ? 'Movie' : 'TV Show'),
+                sourceTag: DetailsSourceTag(
+                  label: widget.source == 'anilist' ? 'AniList' : 'TMDB',
+                ),
+                image: backdropImageUrl.isEmpty
+                    ? ThumbnailErrorPlaceholder(label: title, isBackdrop: true)
+                    : CachedNetworkImage(
                         imageUrl: backdropImageUrl,
                         fit: BoxFit.cover,
-                        // Bound the decoded bitmap to display pixels. After
-                        // H29, TV / desktop fetches `original`-size backdrops
-                        // (~3840 px on 4K) — decoding at source would cost
-                        // ~33 MB per image and starve the image cache.
+                        alignment: Alignment.topCenter,
+                        // Bound the decoded bitmap to what cover paints:
+                        // `original`-size backdrops decoded at source would
+                        // cost ~33 MB each and starve the image cache.
                         memCacheWidth:
-                            (MediaQuery.sizeOf(context).width *
+                            (math.max(mq.width, bannerHeight * 16 / 9) *
                                     MediaQuery.devicePixelRatioOf(context))
                                 .round(),
                         placeholder: (context, url) => Container(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest,
+                          color: theme.colorScheme.surfaceContainerHighest,
                         ),
                         errorWidget: (_, _, _) => ThumbnailErrorPlaceholder(
                           label: title,
                           isBackdrop: true,
                         ),
                       ),
-                    ),
-                    // 1. Legibility Scrim: Fixed dark-tinted overlay at the bottom of the backdrop
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.65),
-                          ],
-                          stops: const [0.4, 1.0],
-                        ),
+              ),
+            ),
+
+            // Info strip, sources, metadata, synopsis, cast, production,
+            // trailers, seasons, details
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (inStrip.isNotEmpty) ...[
+                      DetailsInfoStrip(
+                        columns: [for (final f in inStrip) f.column],
                       ),
+                      const SizedBox(height: LayoutConstants.spacingMd),
+                    ],
+                    // The two source systems, as peers and in the same order
+                    // the desktop hero uses: ZoroX providers, then Nuvio. One
+                    // spacing unit above, between and below, so neither card
+                    // reads as the page's primary action.
+                    ProviderSearchSection(
+                      query: title,
+                      parentMediaType: isMovie ? 'movie' : 'tv',
+                      tmdbId: data.tmdbId,
+                      imdbId: data.imdbId,
                     ),
-                    // 2. Blend-into-page transition: Theme-aware eased fade to surface
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Theme.of(context).scaffoldBackgroundColor
-                                .withValues(alpha: 0.0),
-                            Theme.of(context).scaffoldBackgroundColor
-                                .withValues(alpha: 0.15),
-                            Theme.of(context).scaffoldBackgroundColor
-                                .withValues(alpha: 0.45),
-                            Theme.of(context).scaffoldBackgroundColor
-                                .withValues(alpha: 0.8),
-                            Theme.of(context).scaffoldBackgroundColor,
-                          ],
-                          stops: const [0.0, 0.5, 0.75, 0.9, 1.0],
-                        ),
-                      ),
+                    const SizedBox(height: LayoutConstants.spacingMd),
+                    NuvioSourcesCard(
+                      isMovie: isMovie,
+                      onOpen: () => _openPluginSources(data, isMovie),
                     ),
-                    Positioned(
-                      left: 20,
-                      right: 20,
-                      bottom: 20,
-                      child: ValueListenableBuilder<double>(
-                        valueListenable: _contentOpacity,
-                        builder: (context, opacity, child) {
-                          return Transform.translate(
-                            offset: Offset(0, contentOffset),
-                            child: Opacity(
-                              opacity: opacity,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  if (logoUrl != null) ...[
-                                    if (logoUrl.toLowerCase().endsWith('.svg'))
-                                      SvgPicture.network(
-                                        logoUrl,
-                                        width: 280,
-                                        height: 120,
-                                        fit: BoxFit.contain,
-                                        placeholderBuilder: (_) => Text(
-                                          title.toUpperCase(),
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .onSurface,
-                                            fontSize: 40,
-                                            fontFamily: 'RobotoCondensed',
-                                            fontWeight: FontWeight.w900,
-                                            letterSpacing: 1.0,
-                                          ),
-                                        ),
-                                      )
-                                    else
-                                      CachedNetworkImage(
-                                        imageUrl: logoUrl,
-                                        width: 280,
-                                        height: 120,
-                                        fit: BoxFit.contain,
-                                        alignment: Alignment.center,
-                                        errorWidget: (_, _, _) => Text(
-                                          title.toUpperCase(),
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .onSurface,
-                                            fontSize: 40,
-                                            fontFamily: 'RobotoCondensed',
-                                            fontWeight: FontWeight.w900,
-                                            letterSpacing: 1.0,
-                                          ),
-                                        ),
-                                      ),
-                                  ] else
-                                    Text(
-                                      title.toUpperCase(),
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurface,
-                                        fontSize: 40,
-                                        fontFamily: 'RobotoCondensed',
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 1.0,
-                                      ),
-                                    ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    genres.isNotEmpty
-                                        ? genres.take(3).join(' • ')
-                                        : (isMovie ? 'Movie' : 'TV Show'),
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface
-                                          .withValues(alpha: 0.7),
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
+                    // No spacer here: the card already carries a 16 dp foot
+                    // inside its own padding, and the block below brings its
+                    // own 8.
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final historyRepo = ref.watch(
+                          historyRepositoryProvider,
+                        );
+                        final pos = historyRepo.getPosition(data.id.toString());
+                        final dur = historyRepo.getDuration(data.id.toString());
+
+                        if (pos > 0 && dur > 0) {
+                          final progress = (pos / dur).clamp(0.0, 1.0);
+                          final theme = Theme.of(context);
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 24.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: double.infinity,
+                                  height: 6,
+                                  clipBehavior: Clip.antiAlias,
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                  child: LinearProgressIndicator(
+                                    value: progress,
+                                    backgroundColor: Colors.transparent,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      theme.colorScheme.primary,
                                     ),
                                   ),
-                                  const SizedBox(height: 24),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        ),
-
-        // 2. Metadata, Synopsis, Cast, Production, Trailers, Details
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // The two source systems, as peers and in the same order the
-                // desktop hero uses: ZoroX providers, then Nuvio. One
-                // spacing unit above, between and below, so neither card
-                // reads as the page's primary action.
-                ProviderSearchSection(
-                  query: title,
-                  parentMediaType: isMovie ? 'movie' : 'tv',
-                  tmdbId: data.tmdbId,
-                  imdbId: data.imdbId,
-                ),
-                const SizedBox(height: LayoutConstants.spacingMd),
-                NuvioSourcesCard(
-                  isMovie: isMovie,
-                  onOpen: () => _openPluginSources(data, isMovie),
-                ),
-                // No spacer here: the card already carries a 16 dp foot inside
-                // its own padding, and the block below brings its own 8. A
-                // third gap stacked all three into ~40 dp, which is why the
-                // space under Nuvio read as bigger than the 16 between the two
-                // cards.
-                Consumer(
-                  builder: (context, ref, _) {
-                    final historyRepo = ref.watch(historyRepositoryProvider);
-                    final pos = historyRepo.getPosition(data.id.toString());
-                    final dur = historyRepo.getDuration(data.id.toString());
-
-                    if (pos > 0 && dur > 0) {
-                      final progress = (pos / dur).clamp(0.0, 1.0);
-                      final theme = Theme.of(context);
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 24.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: double.infinity,
-                              height: 6,
-                              clipBehavior: Clip.antiAlias,
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.onSurface.withValues(
-                                  alpha: 0.1,
                                 ),
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                              child: LinearProgressIndicator(
-                                value: progress,
-                                backgroundColor: Colors.transparent,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  theme.colorScheme.primary,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              l10n.percentWatched((progress * 100).toInt()),
-                              style: TextStyle(
-                                color: theme.colorScheme.primary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-                const SizedBox(height: 8),
-
-                // Metadata Row: [TMDB] MOVIE/TV  2026  1H 56M  [PG-13]
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    _buildTmdbLogo(),
-                    _buildTopBadge(
-                      context,
-                      widget.source == 'anilist'
-                          ? (isMovie ? "MOVIE" : "ANIME")
-                          : (isMovie
-                                ? l10n.movie.toUpperCase()
-                                : l10n.tvShow.toUpperCase()),
-                    ),
-                    _buildIconInfo(context, Icons.calendar_today_rounded, year),
-                    _buildIconInfo(
-                      context,
-                      Icons.star_rounded,
-                      rating,
-                      iconColor: const Color(0xFF01B4E4),
-                    ),
-                    if (runtime > 0)
-                      _buildIconInfo(
-                        context,
-                        Icons.timer_outlined,
-                        durationText,
-                      ),
-                    if (certification.isNotEmpty)
-                      _buildBorderedInfo(context, certification),
-                    if (!isMovie && data.seasons.isNotEmpty)
-                      _buildIconInfo(
-                        context,
-                        Icons.layers_rounded,
-                        l10n.seasonsCount(data.seasons.length),
-                      ),
-                  ],
-                ),
-
-                const SizedBox(height: 12),
-
-                // Director / Creator
-                RichText(
-                  text: TextSpan(
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurface,
-                      fontSize: 15,
-                    ),
-                    children: [
-                      TextSpan(
-                        text: isMovie
-                            ? "${l10n.director}: "
-                            : "${l10n.creator}: ",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface
-                              .withValues(alpha: 0.7),
-                        ),
-                      ),
-                      TextSpan(text: director),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Synopsis with Expansion
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 300),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        overview,
-                        maxLines: _isDescriptionExpanded ? null : 3,
-                        overflow: _isDescriptionExpanded
-                            ? TextOverflow.visible
-                            : TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface
-                              .withValues(alpha: 0.8),
-                          fontSize: 15,
-                          height: 1.5,
-                        ),
-                      ),
-                      if (overview.length > 150)
-                        GestureDetector(
-                          onTap: () => setState(
-                            () => _isDescriptionExpanded =
-                                !_isDescriptionExpanded,
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 4.0),
-                            child: Row(
-                              children: [
+                                const SizedBox(height: 8),
                                 Text(
-                                  _isDescriptionExpanded
-                                      ? l10n.showLess
-                                      : l10n.showMore,
+                                  l10n.percentWatched((progress * 100).toInt()),
                                   style: TextStyle(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface,
+                                    color: theme.colorScheme.primary,
+                                    fontSize: 13,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                Icon(
-                                  _isDescriptionExpanded
-                                      ? Icons.keyboard_arrow_up
-                                      : Icons.keyboard_arrow_down,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface,
-                                  size: 18,
-                                ),
                               ],
                             ),
-                          ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Meta row: MOVIE/TV, the age rating, and whatever the
+                    // strip had no room for.
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _buildTopBadge(
+                          context,
+                          widget.source == 'anilist'
+                              ? (isMovie ? "MOVIE" : "ANIME")
+                              : (isMovie
+                                    ? l10n.movie.toUpperCase()
+                                    : l10n.tvShow.toUpperCase()),
                         ),
+                        if (certification.isNotEmpty)
+                          _buildBorderedInfo(context, certification),
+                        for (final f in leftOver)
+                          _buildIconInfo(
+                            context,
+                            f.icon,
+                            f.column.value,
+                            iconColor: f.color,
+                          ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Director / Creator
+                    RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface,
+                          fontSize: 15,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: isMovie
+                                ? "${l10n.director}: "
+                                : "${l10n.creator}: ",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.7,
+                              ),
+                            ),
+                          ),
+                          TextSpan(text: director),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    if (overview.isNotEmpty) ExpandableSynopsis(text: overview),
+
+                    const SizedBox(height: 28),
+
+                    // Cast Section
+                    if (isHeavyLoading || cast.isNotEmpty) ...[
+                      MovieCastList(cast: cast, isLoading: isHeavyLoading),
                     ],
-                  ),
+
+                    // Production Section
+                    if (isHeavyLoading || productionCompanies.isNotEmpty) ...[
+                      MovieProductionCompanies(
+                        productionCompanies: productionCompanies,
+                        isLoading: isHeavyLoading,
+                      ),
+                    ],
+
+                    // Trailers Section
+                    if (isHeavyLoading || trailers.isNotEmpty) ...[
+                      MovieTrailersCarousel(
+                        trailers: trailers,
+                        isLoading: isHeavyLoading,
+                      ),
+                    ],
+
+                    if (!isMovie &&
+                        (isHeavyLoading || data.seasons.isNotEmpty)) ...[
+                      MovieSeasonsList(
+                        movieId: widget.movieId,
+                        seasons: data.seasons,
+                        source: widget.source,
+                        title: data.title,
+                        posterUrl: data.posterUrl,
+                        bannerUrl: data.bannerUrl,
+                        overview: data.overview,
+                        releaseDateFull: data.releaseDateFull,
+                        imdbId: data.imdbId,
+                      ),
+                    ],
+
+                    // Movie Details Table
+                    Text(
+                      isMovie
+                          ? l10n.movieDetails.toUpperCase()
+                          : l10n.showDetails.toUpperCase(),
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (tagline.isNotEmpty)
+                      _buildDetailRow(l10n.tagline, "\"$tagline\""),
+                    _buildDetailRow(l10n.status, status),
+                    _buildDetailRow(
+                      isMovie ? l10n.releaseDate : l10n.firstAirDate,
+                      () {
+                        final parsed = DateTime.tryParse(releaseDate);
+                        if (parsed != null) {
+                          return DateFormat('MMMM d, yyyy').format(parsed);
+                        }
+                        return releaseDate.isNotEmpty
+                            ? releaseDate
+                            : l10n.unknown;
+                      }(),
+                    ),
+                    if (budget > 0)
+                      _buildDetailRow(
+                        l10n.budgetLabel,
+                        NumberFormat.currency(
+                          symbol: '\$',
+                          decimalDigits: 0,
+                        ).format(budget),
+                      ),
+                    _buildDetailRow(l10n.originCountry, data.originCountry),
+                    _buildDetailRow(
+                      l10n.originalLanguage,
+                      data.originalLanguage,
+                    ),
+
+                    // Safe Area padding
+                    const SizedBox(height: 72),
+                  ],
                 ),
-
-                const SizedBox(height: 32),
-
-                // Cast Section
-                if (isHeavyLoading || cast.isNotEmpty) ...[
-                  MovieCastList(cast: cast, isLoading: isHeavyLoading),
-                ],
-
-                // Production Section
-                if (isHeavyLoading || productionCompanies.isNotEmpty) ...[
-                  MovieProductionCompanies(
-                    productionCompanies: productionCompanies,
-                    isLoading: isHeavyLoading,
-                  ),
-                ],
-
-                // Trailers Section
-                if (isHeavyLoading || trailers.isNotEmpty) ...[
-                  MovieTrailersCarousel(
-                    trailers: trailers,
-                    isLoading: isHeavyLoading,
-                  ),
-                ],
-
-                if (!isMovie &&
-                    (isHeavyLoading || data.seasons.isNotEmpty)) ...[
-                  MovieSeasonsList(
-                    movieId: widget.movieId,
-                    seasons: data.seasons,
-                    source: widget.source,
-                    title: data.title,
-                    posterUrl: data.posterUrl,
-                    bannerUrl: data.bannerUrl,
-                    overview: data.overview,
-                    releaseDateFull: data.releaseDateFull,
-                    imdbId: data.imdbId,
-                  ),
-                ],
-
-                // Movie Details Table
-                Text(
-                  isMovie
-                      ? l10n.movieDetails.toUpperCase()
-                      : l10n.showDetails.toUpperCase(),
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (tagline.isNotEmpty)
-                  _buildDetailRow(l10n.tagline, "\"$tagline\""),
-                _buildDetailRow(l10n.status, status),
-                _buildDetailRow(
-                  isMovie ? l10n.releaseDate : l10n.firstAirDate,
-                  () {
-                    final parsed = DateTime.tryParse(releaseDate);
-                    if (parsed != null) {
-                      return DateFormat('MMMM d, yyyy').format(parsed);
-                    }
-                    return releaseDate.isNotEmpty ? releaseDate : l10n.unknown;
-                  }(),
-                ),
-                if (budget > 0)
-                  _buildDetailRow(
-                    l10n.budgetLabel,
-                    NumberFormat.currency(
-                      symbol: '\$',
-                      decimalDigits: 0,
-                    ).format(budget),
-                  ),
-                _buildDetailRow(l10n.originCountry, data.originCountry),
-                _buildDetailRow(l10n.originalLanguage, data.originalLanguage),
-
-                const SizedBox(height: 32),
-
-                // Safe Area padding
-
-                // Safe Area padding
-                const SizedBox(height: 40),
-              ],
+              ),
             ),
+          ],
+        ),
+        DetailsHeroTopBar(
+          leading: DetailsHeroTopBar.button(
+            key: const ValueKey('details-back'),
+            icon: Icons.arrow_back,
+            onPressed: () => context.pop(),
           ),
         ),
       ],

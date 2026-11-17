@@ -215,6 +215,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // v5: the repository sections live under the "Add Plugins" segment.
+      await tester.tap(find.byKey(const ValueKey('plugins-segment-add')));
+      await tester.pumpAndSettle();
+
       expect(find.text('Zeus Repo'), findsOneWidget);
       expect(find.text('Zeus (SkyStream)'), findsOneWidget);
       expect(find.text('TojiX Repo'), findsNothing);

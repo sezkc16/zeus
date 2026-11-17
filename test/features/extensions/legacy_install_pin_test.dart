@@ -16,6 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zorox/core/cloudstream/cloudstream_repository.dart';
 import 'package:zorox/core/extensions/base_provider.dart';
 import 'package:zorox/core/extensions/extension_manager.dart';
 import 'package:zorox/core/extensions/models/extension_plugin.dart';
@@ -119,6 +120,11 @@ class _Disk extends PluginStorageService {
     ];
     return pinned;
   }
+}
+
+class _LoadedCloudStream extends CloudStreamRepository {
+  @override
+  CloudStreamState build() => const CloudStreamState(isLoading: false);
 }
 
 void main() {
@@ -321,6 +327,8 @@ void main() {
             _FakeSettingsRepository(),
           ),
           extensionManagerProvider.overrideWith(_Manager.new),
+          // The real store never finishes loading in the harness (spinner).
+          cloudStreamRepositoryProvider.overrideWith(() => _LoadedCloudStream()),
         ],
         child: const MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -330,7 +338,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Repositories'));
+    await tester.tap(find.byKey(const ValueKey('plugins-segment-add')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Repo B'));
     await tester.pumpAndSettle();

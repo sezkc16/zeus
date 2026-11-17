@@ -365,21 +365,9 @@ class SettingsScreen extends ConsumerWidget {
           subtitle: 'Updates & support channel',
           onTap: () => _showCommunityComingSoon(context, ref, 'Telegram'),
         ),
-        // GPL-3.0 asks an interactive program to show its legal notices. The
-        // page lists ZoroX's licence beside every dependency's. The row's
-        // subtitle IS the notice (not a dependency list) — the GPL wants
-        // it visible here, and the licences test reads it off this row.
-        SettingsTile(
-          emoji: '📄',
-          title: l10n.openSourceLicences,
-          subtitle: l10n.openSourceLicencesSubtitle,
-          onTap: () => showLicensePage(
-            context: context,
-            applicationName: 'Zeus',
-            applicationVersion: versionAsync.value,
-            applicationLegalese: l10n.appLegalese,
-          ),
-        ),
+        // v5: the "Open-source licences" row was removed from About at the
+        // user's request (2026-11-17). The LICENSE file and the licence
+        // texts registered with Flutter stay in the app bundle.
         SettingsTile(
           emoji: '🏷️',
           title: l10n.version,

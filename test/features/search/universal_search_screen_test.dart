@@ -38,6 +38,7 @@ import 'package:zorox/features/search/presentation/search_provider.dart';
 import 'package:zorox/features/search/presentation/search_screen.dart';
 import 'package:zorox/features/search/presentation/search_sources.dart';
 import 'package:zorox/features/search/presentation/widgets/search_result_section.dart';
+import 'package:zorox/features/search/presentation/widgets/search_source_row.dart';
 import 'package:zorox/features/settings/presentation/general_settings_provider.dart';
 import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
 import 'package:zorox/features/sources/presentation/plugin_sources_sheet.dart';
@@ -285,7 +286,7 @@ void main() {
     ) async {
       tvSize(tester);
       for (final (kind, id, label) in [
-        (SearchSourceKind.zorox, 'p.a', 'ZoroX'),
+        (SearchSourceKind.zorox, 'p.a', 'Zeus'),
         (SearchSourceKind.stremio, 'stremio:x', 'Stremio'),
         (SearchSourceKind.nuvio, 'nuvio', 'Nuvio'),
       ]) {
@@ -591,13 +592,13 @@ void main() {
         overrides: _nuvioOverrides(tmdb),
       );
 
-      /// The section holding the focus.
+      /// The source row (v5, design A) holding the focus.
       String? focusedSection() => FocusManager.instance.primaryFocus?.context
-          ?.findAncestorWidgetOfExactType<SearchResultSection>()
-          ?.providerName;
+          ?.findAncestorWidgetOfExactType<SearchSourceRow>()
+          ?.name;
 
       tester
-          .widget<MultimediaCard>(find.byType(MultimediaCard).first)
+          .widget<SearchPosterTile>(find.byType(SearchPosterTile).first)
           .focusNode!
           .requestFocus();
       await tester.pump();
@@ -615,7 +616,7 @@ void main() {
       expect(find.byType(PluginSourcesSheet), findsOneWidget);
       final focused = FocusManager.instance.primaryFocus?.context;
       expect(
-        focused?.findAncestorWidgetOfExactType<SearchResultSection>(),
+        focused?.findAncestorWidgetOfExactType<SearchSourceRow>(),
         isNull,
         reason: 'the remote\'s focus stayed behind the dialog',
       );

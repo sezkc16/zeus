@@ -612,11 +612,16 @@ class AddonCatalogRoute extends GoRouteData with $AddonCatalogRoute {
     required this.type,
     required this.catalogId,
     required this.title,
+    this.genre,
   });
   final String addonUrl;
   final String type;
   final String catalogId;
   final String title;
+
+  /// The catalog's `genre` extra the grid opens on - a genre, or a year for
+  /// Cinemeta's `year` catalog. Null opens it unfiltered.
+  final String? genre;
 
   @override
   Widget build(BuildContext context, GoRouterState state) {
@@ -625,6 +630,7 @@ class AddonCatalogRoute extends GoRouteData with $AddonCatalogRoute {
       type: type,
       catalogId: catalogId,
       title: title,
+      initialGenre: genre,
     );
   }
 

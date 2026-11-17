@@ -249,6 +249,72 @@ abstract class AppLocalizations {
   /// **'Explore by category'**
   String get exploreByCategory;
 
+  /// Browse tab row title: Cinemeta's movie/top catalog.
+  ///
+  /// In en, this message translates to:
+  /// **'Popular Movies'**
+  String get browsePopularMovies;
+
+  /// Browse tab row title: Cinemeta's series/top catalog.
+  ///
+  /// In en, this message translates to:
+  /// **'Popular Series'**
+  String get browsePopularSeries;
+
+  /// Browse tab row title: Cinemeta's movie/imdbRating catalog, which Cinemeta names Featured.
+  ///
+  /// In en, this message translates to:
+  /// **'Featured Movies'**
+  String get browseFeaturedMovies;
+
+  /// Browse tab row title: Cinemeta's series/imdbRating catalog, which Cinemeta names Featured.
+  ///
+  /// In en, this message translates to:
+  /// **'Featured Series'**
+  String get browseFeaturedSeries;
+
+  /// Browse tab row title: Cinemeta's movie/year catalog for the current year.
+  ///
+  /// In en, this message translates to:
+  /// **'New Movies'**
+  String get browseNewMovies;
+
+  /// Browse tab row title: Cinemeta's series/year catalog for the current year.
+  ///
+  /// In en, this message translates to:
+  /// **'New Series'**
+  String get browseNewSeries;
+
+  /// Browse tab row title: Cinemeta's movie/top catalog, genre Action.
+  ///
+  /// In en, this message translates to:
+  /// **'Action Movies'**
+  String get browseActionMovies;
+
+  /// Browse tab row title: Cinemeta's movie/top catalog, genre Comedy.
+  ///
+  /// In en, this message translates to:
+  /// **'Comedy Movies'**
+  String get browseComedyMovies;
+
+  /// Browse tab row title: Cinemeta's series/top catalog, genre Drama.
+  ///
+  /// In en, this message translates to:
+  /// **'Drama Series'**
+  String get browseDramaSeries;
+
+  /// Browse tab row title: Cinemeta's movie/top catalog, genre Animation.
+  ///
+  /// In en, this message translates to:
+  /// **'Animation'**
+  String get browseAnimation;
+
+  /// Browse tab: shown under a row's title when its Cinemeta catalog request failed, next to a Retry button.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load this row'**
+  String get browseRowLoadFailed;
+
   /// Subtitle of the Settings row on the Browse screen's APP card.
   ///
   /// In en, this message translates to:
@@ -1161,17 +1227,35 @@ abstract class AppLocalizations {
   /// **'Built-in player'**
   String get builtInPlayer;
 
-  /// The first pill in the Home source selector: the key-free AniList feed, as opposed to one installed plugin's own home page.
+  /// Label of the Home header's provider chip when plugins are installed but none is active. Tapping it opens the Select Provider dialog.
   ///
   /// In en, this message translates to:
-  /// **'For You'**
-  String get homeForYou;
+  /// **'Select'**
+  String get homeProviderSelect;
 
-  /// Toast when a plugin's home page fails to load and Home falls back to the key-free For You feed. {name} is the plugin's name.
+  /// Empty state of the sources list for a title opened from Browse, when no installed plugin, Nuvio provider or Stremio add-on returned a link.
   ///
   /// In en, this message translates to:
-  /// **'Couldn\'t load {name} — showing For You instead'**
-  String homeFallbackToForYou(String name);
+  /// **'No sources found — install a plugin or addon'**
+  String get sourcesNoneFound;
+
+  /// Button in the empty sources state that opens the Plugins tab.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Plugins'**
+  String get sourcesOpenPlugins;
+
+  /// Loading line of the sources list for a title opened from Browse, while installed plugins, Nuvio providers and Stremio add-ons are being asked.
+  ///
+  /// In en, this message translates to:
+  /// **'Asking your plugins and add-ons…'**
+  String get sourcesAskingAll;
+
+  /// Toast when a plugin's home page fails to load and Home falls back to the key-free default feed. {name} is the plugin's name.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load {name} — showing the default feed instead'**
+  String homeFallbackToDefault(String name);
 
   /// No description provided for @customNotSet.
   ///
@@ -1614,8 +1698,26 @@ abstract class AppLocalizations {
   /// Subtitle under the Extensions title: which plugin sources the screen lists.
   ///
   /// In en, this message translates to:
-  /// **'CloudStream repos (.cs3), TojiX, Nuvio & Stremio'**
+  /// **'Zeus Repo, CloudStream (.cs3), Nuvio & Stremio'**
   String get extensionsSubtitle;
+
+  /// No description provided for @pluginsSegmentInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed'**
+  String get pluginsSegmentInstalled;
+
+  /// No description provided for @pluginsSegmentAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Plugins'**
+  String get pluginsSegmentAdd;
+
+  /// No description provided for @pluginsEmptyInstalledHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Add Plugins to add a repository and install extensions.'**
+  String get pluginsEmptyInstalledHint;
 
   /// Empty state of the Extensions > Repositories section: no repository added yet.
   ///

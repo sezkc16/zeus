@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_bottom_nav/liquid_glass_bottom_nav.dart';
@@ -89,8 +90,82 @@ class CustomBottomNavBar extends StatelessWidget {
     return math.min(real, math.max(0.0, needed));
   }
 
+  /// v5: the frost behind the glass. The package hardcodes its own blur at
+  /// sigma 1 (`LiquidGlassSettings(blur: 1)`, not a parameter), so list
+  /// text scrolling under the pill stayed readable through it. This layer
+  /// sits directly behind the package's pill — same rect, same shape — and
+  /// blurs the content into unreadable frost before the glass refracts it.
+  static const double frostSigma = 24.0;
+
+  /// The frost's translucent, brightness-adapted tint. Never opaque: the
+  /// pill must keep reading as glass, not as a slab.
+  static const Color frostTintDark = Color(0x66101014); // alpha 0.40
+  static const Color frostTintLight = Color(0x33FFFFFF); // alpha 0.20
+
+  /// Key of the frost's [BackdropFilter] (tests).
+  static const Key frostKey = ValueKey('nav-pill-frost');
+
+  /// The package's pill corner radius (its default, not overridden here).
+  static const double _kPillRadius = 34.0;
+
   @override
   Widget build(BuildContext context) {
+    final bar = _buildBar(context);
+    // The legacy Material fallback is an opaque bar, not a Positioned
+    // glass pill: nothing shows through it, so it gets no frost.
+    if (!impellerSupported) return bar;
+
+    // Mirror the package's own pill geometry (see its build()).
+    final mq = MediaQuery.of(context);
+    final margin = mq.size.width < 360 ? _kBottomMargin / 2 : _kBottomMargin;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // A full-size Positioned + Stack, both direct parent/child pairs: this
+    // widget's Positioned.fill talks to the shell's Stack, and the
+    // package's root Positioned talks to the inner Stack. No Transform,
+    // Padding or Align anywhere between a Stack and its Positioned (that
+    // froze +15..+19). The inner Stack has only positioned children, so
+    // touches outside the pill fall through to the content behind.
+    return Positioned.fill(
+      child: Stack(
+        children: [
+          Positioned(
+            left: margin,
+            right: margin,
+            bottom: mq.padding.bottom + _kBottomMargin,
+            height: _kPillHeight,
+            child: IgnorePointer(
+              child: ClipPath(
+                // The same outline the package clips its glass to
+                // (LiquidRoundedSuperellipse == RoundedSuperellipseBorder).
+                clipper: const ShapeBorderClipper(
+                  shape: RoundedSuperellipseBorder(
+                    borderRadius: BorderRadius.all(
+                      Radius.circular(_kPillRadius),
+                    ),
+                  ),
+                ),
+                child: BackdropFilter(
+                  key: frostKey,
+                  filter: ui.ImageFilter.blur(
+                    sigmaX: frostSigma,
+                    sigmaY: frostSigma,
+                  ),
+                  child: ColoredBox(
+                    color: isDark ? frostTintDark : frostTintLight,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          bar,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBar(BuildContext context) {
     // v20+20 diagnostic: boot-trace marker (once per launch).
     BootTrace.markOnce(
       'custombottomnav-build',
@@ -115,7 +190,7 @@ class CustomBottomNavBar extends StatelessWidget {
         const LiquidGlassNavItem(
           id: 'plugins',
           // Preview tab name (no l10n key for it): the user approved
-          // "Plugins" — the Extensions screen (TojiX repo + providers).
+          // "Plugins" — the Extensions screen (Zeus Repo + providers).
           label: 'Plugins',
           icon: ReiconFilledIcons.puzzle,
         ),
