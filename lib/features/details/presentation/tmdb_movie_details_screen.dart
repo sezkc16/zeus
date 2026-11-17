@@ -676,6 +676,7 @@ class _TmdbMovieDetailsScreenState
           ],
         ),
         DetailsHeroTopBar(
+          scrollOffset: _scrollOffset,
           leading: DetailsHeroTopBar.button(
             key: const ValueKey('details-back'),
             icon: Icons.arrow_back,

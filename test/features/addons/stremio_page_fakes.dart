@@ -56,6 +56,12 @@ class BridgeRepo extends AddonRepository {
   );
 }
 
+/// Nothing installed: no Stremio add-on at all.
+class EmptyRepo extends AddonRepository {
+  @override
+  AddonsState build() => const AddonsState(addons: [], isLoading: false);
+}
+
 /// Answers with [links] (a test may change them between asks), or with
 /// [byVideo]'s links for an episode it names; never, when [hold] is set.
 /// With a [gate], an ask nobody waits on answers once it opens; with
@@ -269,6 +275,8 @@ openStremioPage(
   Set<String> watched = const {},
   Size size = const Size(1920, 1080),
   List<Override> overrides = const [],
+  String addonUrl = kBridgeUrl,
+  bool noAddons = false,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -285,11 +293,13 @@ openStremioPage(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        addonRepositoryProvider.overrideWith(BridgeRepo.new),
+        addonRepositoryProvider.overrideWith(
+          noAddons ? EmptyRepo.new : BridgeRepo.new,
+        ),
         addonMetaProvider(
           meta.type,
           meta.id,
-          preferredAddonUrl: kBridgeUrl,
+          preferredAddonUrl: addonUrl,
         ).overrideWith((ref) async => meta),
         addonStreamServiceProvider.overrideWithValue(service),
         playbackLauncherProvider.overrideWithValue(launcher),
@@ -309,7 +319,7 @@ openStremioPage(
         home: AddonDetailScreen(
           type: meta.type,
           id: meta.id,
-          addonUrl: kBridgeUrl,
+          addonUrl: addonUrl,
         ),
       ),
     ),

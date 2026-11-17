@@ -57,23 +57,21 @@ final mergedSourceServiceProvider = Provider<MergedSourceService>((ref) {
   );
 });
 
-typedef AskAddons =
-    Stream<AddonStreamProgress> Function({
-      required List<ManagedAddon> addons,
-      required AddonStreamRequest request,
-      required bool forceRefresh,
-      required bool personWaiting,
-    });
+typedef AskAddons = Stream<AddonStreamProgress> Function({
+  required List<ManagedAddon> addons,
+  required AddonStreamRequest request,
+  required bool forceRefresh,
+  required bool personWaiting,
+});
 
-typedef AskNuvio =
-    Stream<NuvioProgress> Function({
-      required String id,
-      required String mediaType,
-      int? season,
-      int? episode,
-      required bool personWaiting,
-      required bool fresh,
-    });
+typedef AskNuvio = Stream<NuvioProgress> Function({
+  required String id,
+  required String mediaType,
+  int? season,
+  int? episode,
+  required bool personWaiting,
+  required bool fresh,
+});
 
 /// `addonId` prefixes that say which kind of source a link came from.
 const String kPluginSourcePrefix = 'plugin:';
@@ -136,12 +134,14 @@ class MergedSourceService {
 
     // Nuvio providers are asked by TMDB/IMDb id; a title with neither has
     // nothing to ask them with.
-    final nuvioId = _nuvioId(request);
+    final nuvioId = nuvioIdFor(request);
 
     var addonProgress = const AddonStreamProgress();
     var addonsDone = addons.isEmpty;
     var nuvioProgress = const NuvioProgress();
     var nuvioDone = nuvioId == null;
+    String? addonError;
+    String? nuvioError;
 
     final pluginStreams = <AddonStreamSource>[];
     final pluginSeen = <String>{};
@@ -150,6 +150,7 @@ class MergedSourceService {
         p.packageName: AddonQueryStatus(
           addonName: p.name,
           outcome: AddonQueryOutcome.pending,
+          origin: kOriginPlugin,
         ),
     };
     var pluginsCompleted = 0;
@@ -169,9 +170,70 @@ class MergedSourceService {
           byQuality: true,
         ),
         statuses: [
+          // v8: every kind says where it stands, also when there was
+          // nothing to ask, so a kind is never silently missing.
+          if (plugins.isEmpty)
+            AddonQueryStatus(
+              addonName: 'Plugins',
+              outcome: AddonQueryOutcome.empty,
+              message: title.isEmpty
+                  ? 'this title has no name to search with'
+                  : 'none installed',
+              origin: kOriginPlugin,
+              isNote: true,
+            ),
           ...pluginStatuses.values,
+          if (nuvioId == null)
+            const AddonQueryStatus(
+              addonName: 'Nuvio',
+              outcome: AddonQueryOutcome.empty,
+              message: 'this title has no TMDB or IMDb id',
+              origin: kOriginNuvio,
+              isNote: true,
+            )
+          else if (nuvioError != null)
+            AddonQueryStatus(
+              addonName: 'Nuvio',
+              outcome: AddonQueryOutcome.failed,
+              message: nuvioError,
+              origin: kOriginNuvio,
+              isNote: true,
+            )
+          else if (nuvioDone && nuvioProgress.statuses.isEmpty)
+            AddonQueryStatus(
+              addonName: 'Nuvio',
+              outcome: AddonQueryOutcome.empty,
+              message:
+                  'no provider enabled for '
+                  '${request.type == 'series' ? 'series' : 'movies'}',
+              origin: kOriginNuvio,
+              isNote: true,
+            ),
           for (final s in nuvioProgress.statuses) _nuvioStatus(s),
-          ...addonProgress.statuses,
+          if (addons.isEmpty)
+            const AddonQueryStatus(
+              addonName: 'Stremio',
+              outcome: AddonQueryOutcome.empty,
+              message: 'no stream add-on installed',
+              origin: kOriginStremio,
+              isNote: true,
+            )
+          else if (addonError != null)
+            AddonQueryStatus(
+              addonName: 'Stremio',
+              outcome: AddonQueryOutcome.failed,
+              message: addonError,
+              origin: kOriginStremio,
+              isNote: true,
+            ),
+          for (final s in addonProgress.statuses)
+            AddonQueryStatus(
+              addonName: s.addonName,
+              outcome: s.outcome,
+              linkCount: s.linkCount,
+              message: s.message,
+              origin: kOriginStremio,
+            ),
         ],
         completedCount:
             pluginsCompleted +
@@ -223,6 +285,7 @@ class MergedSourceService {
         outcome: outcome,
         linkCount: added,
         message: message,
+        origin: kOriginPlugin,
       );
       pluginsCompleted++;
       emit();
@@ -242,7 +305,9 @@ class MergedSourceService {
               emit();
             },
             onError: (Object error) {
+              addonError = error.toString();
               if (kDebugMode) debugPrint('[MergedSources] add-ons: $error');
+              emit();
             },
             onDone: () {
               addonsDone = true;
@@ -266,7 +331,9 @@ class MergedSourceService {
               emit();
             },
             onError: (Object error) {
+              nuvioError = error.toString();
               if (kDebugMode) debugPrint('[MergedSources] nuvio: $error');
+              emit();
             },
             onDone: () {
               nuvioDone = true;
@@ -304,12 +371,18 @@ class MergedSourceService {
     return controller.stream;
   }
 
-  static String? _nuvioId(AddonStreamRequest request) {
+  /// The id Nuvio providers are asked with. They are written against a
+  /// numeric TMDB id, so the title's own TMDB id comes first (Cinemeta sends
+  /// one): an IMDb id has to be converted through TMDB's API, which needs a
+  /// key the app may not have, and a provider handed a bare `tt…` answers
+  /// nothing.
+  @visibleForTesting
+  static String? nuvioIdFor(AddonStreamRequest request) {
+    if (request.tmdbId != null) return '${request.tmdbId}';
     final imdb = request.imdbId?.trim();
     if (imdb != null && imdb.startsWith('tt')) return imdb;
     final base = request.contentId.split(':').first.trim();
     if (RegExp(r'^tt\d').hasMatch(base)) return base;
-    if (request.tmdbId != null) return '${request.tmdbId}';
     if (request.contentId.startsWith('tmdb:')) {
       final id = request.contentId.split(':').elementAtOrNull(1);
       if (id != null && id.isNotEmpty) return id;
@@ -330,6 +403,7 @@ class MergedSourceService {
         },
         linkCount: status.linkCount,
         message: status.message,
+        origin: kOriginNuvio,
       );
 
   /// One plugin: search it for the title, open the best match, then load the
@@ -567,5 +641,109 @@ AddonStreamSource nuvioToSource(NuvioStreamResult result, {String? title}) {
             addonName: result.scraperName,
           ),
     ],
+  );
+}
+
+/// The kind of source a merged-list row came from, as its tag says it:
+/// PLUGIN, NUVIO or STREMIO.
+String sourceOriginTag(AddonStreamSource source) {
+  if (source.addonId.startsWith(kPluginSourcePrefix)) return 'PLUGIN';
+  if (source.addonId.startsWith(kNuvioSourcePrefix)) return 'NUVIO';
+  return 'STREMIO';
+}
+
+/// One line of the merged sheet's per-kind summary.
+class OriginSummary {
+  const OriginSummary({
+    required this.origin,
+    required this.text,
+    this.isError = false,
+    this.isPending = false,
+  });
+
+  final String origin;
+
+  /// E.g. "Nuvio: 0 sources", "Plugins: 6 sources (1 failed)",
+  /// "Nuvio: error — …", "Stremio: no stream add-on installed".
+  final String text;
+  final bool isError;
+  final bool isPending;
+}
+
+/// What each kind - plugins, Nuvio, Stremio - has answered so far, one line
+/// per kind and always all three, so none of them is ever silently missing.
+List<OriginSummary> originSummaries(List<AddonQueryStatus> statuses) {
+  const labels = {
+    kOriginPlugin: 'Plugins',
+    kOriginNuvio: 'Nuvio',
+    kOriginStremio: 'Stremio',
+  };
+  return [
+    for (final entry in labels.entries)
+      _originSummary(entry.key, entry.value, [
+        for (final s in statuses)
+          // A re-asked add-on's status carries no kind: it is an add-on.
+          if ((s.origin ?? kOriginStremio) == entry.key) s,
+      ]),
+  ];
+}
+
+OriginSummary _originSummary(
+  String origin,
+  String label,
+  List<AddonQueryStatus> all,
+) {
+  final asked = [
+    for (final s in all)
+      if (!s.isNote) s,
+  ];
+  if (asked.isEmpty) {
+    final note = all.where((s) => s.isNote).firstOrNull;
+    if (note == null) {
+      return OriginSummary(
+        origin: origin,
+        text: '$label: asking…',
+        isPending: true,
+      );
+    }
+    final failed = note.outcome == AddonQueryOutcome.failed;
+    return OriginSummary(
+      origin: origin,
+      text: failed
+          ? '$label: error — ${note.message ?? 'unknown'}'
+          : '$label: ${note.message ?? 'nothing to ask'}',
+      isError: failed,
+    );
+  }
+  final links = asked.fold<int>(0, (sum, s) => sum + s.linkCount);
+  final pending = asked
+      .where((s) => s.outcome == AddonQueryOutcome.pending)
+      .length;
+  final failed = [
+    for (final s in asked)
+      if (s.outcome == AddonQueryOutcome.failed) s,
+  ];
+  final sources = '$links source${links == 1 ? '' : 's'}';
+  if (pending > 0) {
+    return OriginSummary(
+      origin: origin,
+      text:
+          '$label: asking ${asked.length - pending}/${asked.length}… '
+          '$sources so far',
+      isPending: true,
+    );
+  }
+  if (failed.length == asked.length) {
+    return OriginSummary(
+      origin: origin,
+      text: '$label: error — ${failed.first.message ?? 'did not answer'}',
+      isError: true,
+    );
+  }
+  return OriginSummary(
+    origin: origin,
+    text: failed.isEmpty
+        ? '$label: $sources'
+        : '$label: $sources (${failed.length} failed)',
   );
 }

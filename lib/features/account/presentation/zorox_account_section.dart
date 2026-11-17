@@ -55,6 +55,8 @@ class ZoroxAccountSection extends ConsumerWidget {
               title: 'Zeus Account',
               subtitle: account.loggedIn
                   ? 'Logged in as ${account.email}'
+                  : account.sessionExpired
+                  ? 'Session expired — tap to log in again'
                   : 'Back up watch history, plugins & library',
               onTap: () => showDialog<void>(
                 context: context,
@@ -75,9 +77,9 @@ class ZoroxAccountSection extends ConsumerWidget {
             SettingsTile(
               emoji: '🌐',
               title: 'Sync server',
-              subtitle: account.cloudConfigured
-                  ? account.workerUrl
-                  : 'Not set up — cloud sync off',
+              subtitle: account.usingDefaultServer
+                  ? 'Default'
+                  : account.workerUrl,
               isLast: true,
               onTap: () => showDialog<void>(
                 context: context,
@@ -103,8 +105,7 @@ class ZoroxAccountSection extends ConsumerWidget {
       );
     } else {
       notifications.showError(
-        ref.read(zoroxAccountProvider).error ??
-            'Could not sync. Try again.',
+        ref.read(zoroxAccountProvider).error ?? 'Could not sync. Try again.',
         title: 'Zeus Account',
         icon: Icons.cloud_off_rounded,
       );
@@ -222,9 +223,7 @@ class ZoroxAccountSection extends ConsumerWidget {
     } catch (e) {
       failure = e;
     } finally {
-      if (dialogShowing &&
-          dialogContext != null &&
-          dialogContext!.mounted) {
+      if (dialogShowing && dialogContext != null && dialogContext!.mounted) {
         Navigator.of(dialogContext!).pop();
       }
     }
@@ -346,8 +345,7 @@ class ZoroxAccountDialog extends ConsumerStatefulWidget {
   const ZoroxAccountDialog({super.key});
 
   @override
-  ConsumerState<ZoroxAccountDialog> createState() =>
-      _ZoroxAccountDialogState();
+  ConsumerState<ZoroxAccountDialog> createState() => _ZoroxAccountDialogState();
 }
 
 class _ZoroxAccountDialogState extends ConsumerState<ZoroxAccountDialog> {
@@ -447,9 +445,8 @@ class _ZoroxAccountDialogState extends ConsumerState<ZoroxAccountDialog> {
                           ? Icons.visibility_off_rounded
                           : Icons.visibility_rounded,
                     ),
-                    onPressed: () => setState(
-                      () => _passwordVisible = !_passwordVisible,
-                    ),
+                    onPressed: () =>
+                        setState(() => _passwordVisible = !_passwordVisible),
                   ),
                 ),
                 onSubmitted: (_) => _login(),
@@ -566,7 +563,11 @@ class ZoroxWorkerUrlDialog extends ConsumerStatefulWidget {
 
 class _ZoroxWorkerUrlDialogState extends ConsumerState<ZoroxWorkerUrlDialog> {
   late final TextEditingController _controller = TextEditingController(
-    text: ref.read(zoroxAccountProvider).workerUrl,
+    // Only the user's own server is shown for editing; the built-in
+    // default is what an empty field means.
+    text: ref.read(zoroxAccountProvider).usingDefaultServer
+        ? ''
+        : ref.read(zoroxAccountProvider).workerUrl,
   );
 
   @override
@@ -584,9 +585,9 @@ class _ZoroxWorkerUrlDialogState extends ConsumerState<ZoroxWorkerUrlDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
-            'Paste the URL of your deployed zorox-sync Worker. '
-            'It must start with https://. Leave it empty to turn cloud '
-            'sync off — Export/Import still works.',
+            'Zeus Account uses the built-in sync server. To use your own '
+            'instead, paste its URL here (it must start with https://). '
+            'Leave it empty to go back to the default.',
           ),
           const SizedBox(height: 16),
           TextField(
@@ -595,7 +596,7 @@ class _ZoroxWorkerUrlDialogState extends ConsumerState<ZoroxWorkerUrlDialog> {
             autocorrect: false,
             enableSuggestions: false,
             decoration: const InputDecoration(
-              labelText: 'Worker URL',
+              labelText: 'Your own server (optional)',
               hintText: 'https://zorox-sync.<subdomain>.workers.dev',
               prefixIcon: Icon(Icons.cloud_rounded),
               border: OutlineInputBorder(),

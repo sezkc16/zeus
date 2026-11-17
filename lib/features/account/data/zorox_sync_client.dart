@@ -1,22 +1,36 @@
 import 'package:dio/dio.dart';
 
-/// The ZoroX sync Worker URL.
+/// The built-in Zeus sync server (v8, 2.9.19+64).
 ///
-/// Empty means cloud sync is not set up yet: the account screen says so and
-/// offers Export/Import instead. Set it in the app under
-/// Settings -> Accounts -> ZoroX Account -> "Sync server" (stored in the
-/// settings box, see [ZoroxAccountNotifier.setWorkerUrl]); that stored value
-/// wins over this constant, so a deployed Worker URL never needs a rebuild.
+/// Zeus Account works with no setup: this is used whenever the user has not
+/// saved a server of their own under Settings -> Accounts -> Zeus Account ->
+/// "Sync server" (stored in the settings box, see
+/// [ZoroxAccountNotifier.setWorkerUrl]). A saved URL wins over this one, and
+/// clearing it comes back here.
 ///
-/// The URL must start with `https://` — the password goes to the Worker and
+/// The URL must start with `https://` — the password goes to the server and
 /// nowhere else, and plain HTTP would send it in the clear.
-const String kZoroxSyncWorkerUrl = '';
+const String kZoroxSyncWorkerUrl = 'https://zorox-sync.deepace115.workers.dev';
+
+/// The sync server to talk to: the user's saved one, else the built-in
+/// default. Trailing slashes are dropped either way.
+String effectiveSyncServerUrl(String? saved) {
+  final custom = (saved ?? '').trim().replaceAll(RegExp(r'/+$'), '');
+  if (custom.isNotEmpty) return custom;
+  return kZoroxSyncWorkerUrl.replaceAll(RegExp(r'/+$'), '');
+}
 
 /// What the sync server answered with, in the user's words.
 class ZoroxSyncException implements Exception {
-  const ZoroxSyncException(this.message);
+  const ZoroxSyncException(this.message, {this.statusCode});
 
   final String message;
+
+  /// The HTTP status the server answered with, when it answered at all.
+  final int? statusCode;
+
+  /// The server no longer accepts this session (401): log in again.
+  bool get sessionExpired => statusCode == 401;
 
   @override
   String toString() => message;
@@ -57,11 +71,7 @@ class ZoroxSyncClient {
   }
 
   /// Creates the account and returns the session token.
-  Future<String> register(
-    String baseUrl,
-    String email,
-    String password,
-  ) async {
+  Future<String> register(String baseUrl, String email, String password) async {
     final body = await _post(baseUrl, '/register', {
       'email': email,
       'password': password,
@@ -111,7 +121,10 @@ class ZoroxSyncClient {
     } on DioException catch (e) {
       // A 404 here is not an error: it means "no backup saved yet".
       if (e.response?.statusCode == 404) return null;
-      throw ZoroxSyncException(_dioMessage(e));
+      throw ZoroxSyncException(
+        _dioMessage(e),
+        statusCode: e.response?.statusCode,
+      );
     }
   }
 
@@ -143,7 +156,10 @@ class ZoroxSyncClient {
     } on ZoroxSyncException {
       rethrow;
     } on DioException catch (e) {
-      throw ZoroxSyncException(_dioMessage(e));
+      throw ZoroxSyncException(
+        _dioMessage(e),
+        statusCode: e.response?.statusCode,
+      );
     }
   }
 
@@ -170,8 +186,10 @@ class ZoroxSyncClient {
     return switch (e.type) {
       DioExceptionType.connectionTimeout ||
       DioExceptionType.sendTimeout ||
-      DioExceptionType.receiveTimeout => 'The sync server took too long to answer.',
-      DioExceptionType.connectionError => 'Could not reach the sync server. Check your connection.',
+      DioExceptionType.receiveTimeout =>
+        'The sync server took too long to answer.',
+      DioExceptionType.connectionError =>
+        'Could not reach the sync server. Check your connection.',
       _ => 'Could not reach the sync server.',
     };
   }

@@ -638,8 +638,10 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
     final inStrip = facts.take(DetailsInfoStrip.maxColumns).toList();
     final leftOver = facts.skip(DetailsInfoStrip.maxColumns).toList();
 
-    Widget padded(Widget child) =>
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: child);
+    Widget padded(Widget child) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: child,
+    );
 
     return Stack(
       children: [
@@ -731,7 +733,7 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
                   ],
 
                   if (cast.isNotEmpty) ...[
-                    padded(MovieCastList(cast: cast)),
+                    padded(MovieCastList(cast: cast, lookupPhotos: true)),
                     const SizedBox(height: 24),
                   ],
 
@@ -757,6 +759,7 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
           ],
         ),
         DetailsHeroTopBar(
+          scrollOffset: _scrollOffset,
           leading: DetailsHeroTopBar.button(
             key: const ValueKey('details-back'),
             icon: Icons.arrow_back,
@@ -771,6 +774,7 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
   /// its other shape, so it is there exactly when the full-width Play was -
   /// once the add-on that described the title has a link that plays here.
   Widget? _buildPlayFab(BuildContext context, AddonMeta meta) {
+    if (_mergedSources) return _buildMergedPlayFab(context, meta);
     final addon = ownStreamAddon(
       enabled: ref.watch(addonRepositoryProvider).enabled,
       meta: meta,
@@ -787,6 +791,66 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
     );
     if (meta.isShow && target == null) return null;
     return AddonPlayButton(meta: meta, addon: addon, target: target, fab: true);
+  }
+
+  /// A Browse title's Play (v8): always on the banner, whatever is
+  /// installed and before anything was asked. A press opens the list of
+  /// sources from plugins, Nuvio providers and Stremio add-ons; an empty
+  /// list says so there. A show plays the episode to continue with, else
+  /// the first one listed.
+  Widget _buildMergedPlayFab(BuildContext context, AddonMeta meta) {
+    final l10n = AppLocalizations.of(context)!;
+    AddonVideo? target;
+    if (meta.isShow) {
+      target = addonPlayTarget(
+        meta,
+        history: ref.watch(historyRepositoryProvider),
+        watched: ref.watch(episodeWatchRepositoryProvider),
+        lastWatched: ref
+            .watch(watchHistoryProvider)
+            .firstWhereOrNull((h) => h.item.url == meta.id),
+      );
+      if (target == null) {
+        final seasons = meta.seasons;
+        final episodes = meta.episodesForSeason(
+          _selectedSeason ?? (seasons.isEmpty ? 1 : seasons.first),
+        );
+        target = episodes.isNotEmpty ? episodes.first : null;
+      }
+    }
+    var label = l10n.play;
+    if (target != null) {
+      label = meta.seasons.length <= 1
+          ? l10n.playEpisodeOnly(label, target.episode ?? 1)
+          : l10n.playEpisode(label, target.season ?? 1, target.episode ?? 1);
+    }
+    final video = target;
+    return DetailsPlayFab(
+      label: label,
+      onPressed: () => _openSources(meta, video),
+    );
+  }
+
+  /// Opens the sources list for the film, or for [video] of a show.
+  Future<void> _openSources(AddonMeta meta, AddonVideo? video) {
+    return AddonSourcesSheet.open(
+      context,
+      item: _itemOf(meta),
+      request: AddonStreamRequest(
+        type: meta.streamRequestType,
+        contentId: meta.id,
+        videoId: video?.id,
+        season: video?.season,
+        episode: video?.episode,
+        imdbId: meta.imdbId,
+        tmdbId: meta.moviedbId,
+        title: meta.name,
+        year: meta.year,
+      ),
+      episode: video?.toEpisode(),
+      playlist: meta.videos,
+      merged: _mergedSources,
+    );
   }
 
   /// [meta] as the item this page hands on, naming the install that
@@ -860,6 +924,7 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
 
     return StremioSourcesCard(
       compact: compact,
+      merged: _mergedSources,
       // The page's one way to its streams: a remote starts here.
       autofocus: true,
       episode: isEpisode
@@ -880,6 +945,7 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
           season: firstVideo?.season,
           episode: firstVideo?.episode,
           imdbId: meta.imdbId,
+          tmdbId: meta.moviedbId,
           title: meta.name,
           year: meta.year,
         ),
@@ -1272,10 +1338,7 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
             });
           },
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 8,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Icon(
               Icons.swap_vert_rounded,
               size: 22,

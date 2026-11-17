@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// The pieces of the phone details page ("Hero" layout): a full-bleed banner
@@ -286,10 +287,24 @@ class DetailsPlayFab extends StatelessWidget {
 /// The back button and the page's other top actions, floating over the
 /// banner and staying put as the page scrolls under them.
 class DetailsHeroTopBar extends StatelessWidget {
-  const DetailsHeroTopBar({super.key, this.leading, this.actions = const []});
+  const DetailsHeroTopBar({
+    super.key,
+    this.leading,
+    this.actions = const [],
+    this.scrollOffset,
+  });
 
   final Widget? leading;
   final List<Widget> actions;
+
+  /// How far the page under the bar has scrolled. With it, the bar grows a
+  /// backing in the page's colour as the page scrolls (v8), so content
+  /// never shows through the clock and battery or under the back button.
+  /// Nothing is drawn over the banner while the page is at the top.
+  final ValueListenable<double>? scrollOffset;
+
+  /// The scroll distance over which the backing fades in.
+  static const double scrimFadeDistance = 140;
 
   /// A round, dark-backed icon button that reads over any artwork.
   static Widget button({
@@ -313,26 +328,39 @@ class DetailsHeroTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bar = SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          children: [
+            ?leading,
+            const Spacer(),
+            for (final action in actions) ...[action, const SizedBox(width: 4)],
+          ],
+        ),
+      ),
+    );
+    final offset = scrollOffset;
     return Positioned(
       top: 0,
       left: 0,
       right: 0,
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
-            children: [
-              ?leading,
-              const Spacer(),
-              for (final action in actions) ...[
-                action,
-                const SizedBox(width: 4),
-              ],
-            ],
-          ),
-        ),
-      ),
+      child: offset == null
+          ? bar
+          : ValueListenableBuilder<double>(
+              valueListenable: offset,
+              child: bar,
+              builder: (context, value, child) {
+                final shown = (value / scrimFadeDistance).clamp(0.0, 1.0);
+                return ColoredBox(
+                  key: const ValueKey('details-top-scrim'),
+                  color: Theme.of(context).scaffoldBackgroundColor
+                      .withValues(alpha: shown),
+                  child: child,
+                );
+              },
+            ),
     );
   }
 }
@@ -370,7 +398,9 @@ class DetailsInfoStrip extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.35)),
+        border: Border.all(
+          color: colors.outlineVariant.withValues(alpha: 0.35),
+        ),
       ),
       child: IntrinsicHeight(
         child: Row(
@@ -483,7 +513,11 @@ class _ExpandableSynopsisState extends State<ExpandableSynopsis> {
                   borderRadius: BorderRadius.circular(6),
                   onTap: () => setState(() => _expanded = !_expanded),
                   child: Padding(
-                    padding: const EdgeInsets.only(top: 4, bottom: 4, right: 12),
+                    padding: const EdgeInsets.only(
+                      top: 4,
+                      bottom: 4,
+                      right: 12,
+                    ),
                     child: Text(
                       _expanded ? widget.lessLabel : widget.moreLabel,
                       style: theme.textTheme.labelLarge?.copyWith(

@@ -431,7 +431,9 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
     if (url == null || !stream.isDirect) {
       messenger.showSnackBar(
         appSnackBar(
-          content: const Text('Torrent sources stream only — press Play instead.'),
+          content: const Text(
+            'Torrent sources stream only — press Play instead.',
+          ),
         ),
       );
       return;
@@ -783,6 +785,36 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
                     ],
                   ),
                 ),
+
+                // v8: what each kind of source answered, always on show for a
+                // Browse title - "Nuvio: 0 sources" instead of silence.
+                if (widget.merged && _result.statuses.isNotEmpty)
+                  Padding(
+                    key: const ValueKey('sources-origin-status'),
+                    padding: const EdgeInsets.fromLTRB(
+                      kSourceSheetGutter,
+                      0,
+                      kSourceSheetGutter,
+                      6,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final line in originSummaries(_result.statuses))
+                          Text(
+                            line.text,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: line.isError
+                                  ? cs.error
+                                  : cs.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
 
                 if (_debridStatus != null)
                   Padding(
@@ -1169,7 +1201,8 @@ class _SourceRowState extends State<_SourceRow> {
                       children: [
                         QualityBadge(resolution: stream.qualityLabel),
                         SourceTag(
-                          text: 'STREMIO',
+                          key: const ValueKey('source-origin-tag'),
+                          text: sourceOriginTag(stream),
                           container: cs.primaryContainer,
                           onContainer: cs.onPrimaryContainer,
                         ),

@@ -1251,6 +1251,24 @@ abstract class AppLocalizations {
   /// **'No sources found — install a plugin or addon'**
   String get sourcesNoneFound;
 
+  /// Title of the sources card on a title opened from Browse: plugins, Nuvio providers and Stremio add-ons together.
+  ///
+  /// In en, this message translates to:
+  /// **'Sources'**
+  String get sourcesCardTitle;
+
+  /// Action on the sources card of a movie opened from Browse; opens the list of sources from plugins, Nuvio and Stremio add-ons.
+  ///
+  /// In en, this message translates to:
+  /// **'Find sources'**
+  String get sourcesFind;
+
+  /// Action on the sources card of a series opened from Browse, naming the episode it looks up.
+  ///
+  /// In en, this message translates to:
+  /// **'Find sources: S{season} E{episode}'**
+  String sourcesFindForEpisode(int season, int episode);
+
   /// Button in the empty sources state that opens the Plugins tab.
   ///
   /// In en, this message translates to:

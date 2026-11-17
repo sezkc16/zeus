@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
-import '../../../../shared/widgets/thumbnail_error_placeholder.dart';
+import 'cast_avatar.dart';
 import '../../../../shared/widgets/cards_wrapper.dart';
 import '../../../../shared/widgets/desktop_scroll_wrapper.dart';
 import '../../../../core/utils/responsive_breakpoints.dart';
@@ -14,10 +13,16 @@ class MovieCastList extends StatefulWidget {
 
   final bool isLoading;
 
+  /// Look up a photo by name for a member the title's data sent none for
+  /// (a Cinemeta title names its cast and has no photos). Needs a
+  /// ProviderScope above.
+  final bool lookupPhotos;
+
   const MovieCastList({
     super.key,
     required this.cast,
     this.isLoading = false,
+    this.lookupPhotos = false,
     this.textColor,
     this.textSecondary,
   });
@@ -121,18 +126,11 @@ class _MovieCastListState extends State<MovieCastList> {
       borderRadius: BorderRadius.circular(40),
       child: Column(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(40),
-            child: CachedNetworkImage(
-              imageUrl: actor.profileImageUrl ?? '',
-              width: 80,
-              height: 80,
-              // No memCacheWidth — TMDB profile source is already w185 which
-              // matches 80 dp × 3 DPR. Forcing smaller blurs on hi-DPR.
-              fit: BoxFit.cover,
-              errorWidget: (_, _, _) =>
-                  ThumbnailErrorPlaceholder(label: actor.name, iconSize: 30),
-            ),
+          CastAvatar(
+            name: actor.name,
+            size: 80,
+            photoUrl: actor.profileImageUrl,
+            lookup: widget.lookupPhotos,
           ),
           const SizedBox(height: 8),
           SizedBox(
@@ -170,17 +168,11 @@ class _MovieCastListState extends State<MovieCastList> {
         margin: const EdgeInsets.only(right: 16),
         child: Column(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(35),
-              child: CachedNetworkImage(
-                imageUrl: member.profileImageUrl ?? '',
-                width: 70,
-                height: 70,
-                // No memCacheWidth — see desktop branch above.
-                fit: BoxFit.cover,
-                errorWidget: (_, _, _) =>
-                    ThumbnailErrorPlaceholder(label: member.name, iconSize: 30),
-              ),
+            CastAvatar(
+              name: member.name,
+              size: 70,
+              photoUrl: member.profileImageUrl,
+              lookup: widget.lookupPhotos,
             ),
             const SizedBox(height: 8),
             Text(

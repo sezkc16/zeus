@@ -108,13 +108,12 @@ MergedSourceService _service({
 }) => MergedSourceService(
   plugins: () => plugins,
   streamAddons: () => addons,
-  askAddons:
-      ({
-        required addons,
-        required request,
-        required forceRefresh,
-        required personWaiting,
-      }) => addonAnswers!(request),
+  askAddons: ({
+    required addons,
+    required request,
+    required forceRefresh,
+    required personWaiting,
+  }) => addonAnswers!(request),
   askNuvio:
       ({
         required id,
@@ -137,6 +136,7 @@ const _movie = AddonStreamRequest(
 );
 
 void main() {
+  v8Tests();
   group('bestTitleMatch', () {
     test('takes the title itself over a longer one', () {
       final match = bestTitleMatch(
@@ -169,7 +169,10 @@ void main() {
 
     test('prefers the right year when two share a name', () {
       final match = bestTitleMatch(
-        [_item('Dune', year: 1984, url: 'old'), _item('Dune (2021)', url: 'new')],
+        [
+          _item('Dune', year: 1984, url: 'old'),
+          _item('Dune (2021)', url: 'new'),
+        ],
         title: 'Dune',
         year: 2021,
       );
@@ -194,12 +197,18 @@ void main() {
     test('a film plays its own data url', () {
       expect(
         playUrlFor(
-          _item('Inception', episodes: [Episode(name: 'Movie', url: 'data')]),
+          _item(
+            'Inception',
+            episodes: [Episode(name: 'Movie', url: 'data')],
+          ),
           isSeries: false,
         ),
         'data',
       );
-      expect(playUrlFor(_item('Inception', url: 'page'), isSeries: false), 'page');
+      expect(
+        playUrlFor(_item('Inception', url: 'page'), isSeries: false),
+        'page',
+      );
     });
 
     test('a series plays the wanted season and episode', () {
@@ -230,97 +239,100 @@ void main() {
   });
 
   group('MergedSourceService', () {
-    test('plugin, Nuvio and add-on links arrive together, each labelled', () async {
-      final plugin = _Plugin(
-        'Anikoto',
-        results: [_item('Inception', url: 'page', year: 2010)],
-        details: _item(
-          'Inception',
-          url: 'page',
-          episodes: [Episode(name: 'Movie', url: 'data')],
-        ),
-        streams: {
-          'data': const [
-            StreamResult(
-              url: 'https://plug.test/a.m3u8',
-              source: 'Server 1',
-              quality: 1080,
-              headers: {'Referer': 'https://plug.test/'},
-            ),
-          ],
-        },
-      );
-      String? nuvioAskedWith;
-      final service = _service(
-        plugins: [plugin],
-        addons: [_addon],
-        addonAnswers: (_) => Stream.value(
-          const AddonStreamProgress(
-            streams: [_addonLink],
-            statuses: [
-              AddonQueryStatus(
-                addonName: 'Torrentio',
-                outcome: AddonQueryOutcome.links,
-                linkCount: 1,
+    test(
+      'plugin, Nuvio and add-on links arrive together, each labelled',
+      () async {
+        final plugin = _Plugin(
+          'Anikoto',
+          results: [_item('Inception', url: 'page', year: 2010)],
+          details: _item(
+            'Inception',
+            url: 'page',
+            episodes: [Episode(name: 'Movie', url: 'data')],
+          ),
+          streams: {
+            'data': const [
+              StreamResult(
+                url: 'https://plug.test/a.m3u8',
+                source: 'Server 1',
+                quality: 1080,
+                headers: {'Referer': 'https://plug.test/'},
               ),
             ],
-            completedCount: 1,
-            totalCount: 1,
-          ),
-        ),
-        nuvioAnswers: (id, type, s, e) {
-          nuvioAskedWith = '$id|$type';
-          return Stream.value(
-            const NuvioProgress(
-              streams: [
-                NuvioStreamResult(
-                  scraperId: 'showbox',
-                  scraperName: 'ShowBox',
-                  title: 'Inception 2010',
-                  url: 'https://nuvio.test/b.mp4',
-                  quality: '720p',
-                ),
-              ],
+          },
+        );
+        String? nuvioAskedWith;
+        final service = _service(
+          plugins: [plugin],
+          addons: [_addon],
+          addonAnswers: (_) => Stream.value(
+            const AddonStreamProgress(
+              streams: [_addonLink],
               statuses: [
-                NuvioScraperStatus(
-                  scraperName: 'ShowBox',
-                  outcome: NuvioScraperOutcome.links,
+                AddonQueryStatus(
+                  addonName: 'Torrentio',
+                  outcome: AddonQueryOutcome.links,
                   linkCount: 1,
                 ),
               ],
               completedCount: 1,
               totalCount: 1,
             ),
-          );
-        },
-      );
+          ),
+          nuvioAnswers: (id, type, s, e) {
+            nuvioAskedWith = '$id|$type';
+            return Stream.value(
+              const NuvioProgress(
+                streams: [
+                  NuvioStreamResult(
+                    scraperId: 'showbox',
+                    scraperName: 'ShowBox',
+                    title: 'Inception 2010',
+                    url: 'https://nuvio.test/b.mp4',
+                    quality: '720p',
+                  ),
+                ],
+                statuses: [
+                  NuvioScraperStatus(
+                    scraperName: 'ShowBox',
+                    outcome: NuvioScraperOutcome.links,
+                    linkCount: 1,
+                  ),
+                ],
+                completedCount: 1,
+                totalCount: 1,
+              ),
+            );
+          },
+        );
 
-      final last = await service.resolve(request: _movie).last;
+        final last = await service.resolve(request: _movie).last;
 
-      expect(last.isLoading, isFalse);
-      expect(
-        {for (final s in last.streams) s.addonName},
-        {'Anikoto', 'ShowBox', 'Torrentio'},
-      );
-      final fromPlugin = last.streams.firstWhere(
-        (s) => s.addonId.startsWith(kPluginSourcePrefix),
-      );
-      expect(fromPlugin.url, 'https://plug.test/a.m3u8');
-      expect(fromPlugin.headline, 'Anikoto');
-      expect(fromPlugin.qualityLabel, '1080p');
-      expect(fromPlugin.proxyHeaders, {'Referer': 'https://plug.test/'});
-      expect(fromPlugin.isPlayable, isTrue);
-      final fromNuvio = last.streams.firstWhere(
-        (s) => s.addonId.startsWith(kNuvioSourcePrefix),
-      );
-      expect(fromNuvio.headline, 'ShowBox');
-      expect(fromNuvio.qualityLabel, '720p');
-      expect(nuvioAskedWith, 'tt1375666|movie');
-      expect(plugin.searched, ['Inception']);
-      expect(plugin.loaded, ['data']);
-      expect(last.totalCount, 3);
-      expect(last.completedCount, 3);
-    });
+        expect(last.isLoading, isFalse);
+        expect(
+          {for (final s in last.streams) s.addonName},
+          {'Anikoto', 'ShowBox', 'Torrentio'},
+        );
+        final fromPlugin = last.streams.firstWhere(
+          (s) => s.addonId.startsWith(kPluginSourcePrefix),
+        );
+        expect(fromPlugin.url, 'https://plug.test/a.m3u8');
+        expect(fromPlugin.headline, 'Anikoto');
+        expect(fromPlugin.qualityLabel, '1080p');
+        expect(fromPlugin.proxyHeaders, {'Referer': 'https://plug.test/'});
+        expect(fromPlugin.isPlayable, isTrue);
+        final fromNuvio = last.streams.firstWhere(
+          (s) => s.addonId.startsWith(kNuvioSourcePrefix),
+        );
+        expect(fromNuvio.headline, 'ShowBox');
+        expect(fromNuvio.qualityLabel, '720p');
+        expect(nuvioAskedWith, 'tt1375666|movie');
+        expect(plugin.searched, ['Inception']);
+        expect(plugin.loaded, ['data']);
+        expect(last.totalCount, 3);
+        expect(last.completedCount, 3);
+      },
+    );
 
     test('links show as each source answers, not after the slowest', () async {
       final gate = Completer<void>();
@@ -354,7 +366,10 @@ void main() {
       gate.complete();
       await done.future;
       expect(seen.last.isLoading, isFalse);
-      expect({for (final s in seen.last.streams) s.addonName}, {'Fast', 'Slow'});
+      expect(
+        {for (final s in seen.last.streams) s.addonName},
+        {'Fast', 'Slow'},
+      );
     });
 
     test('a plugin that fails or finds nothing is skipped quietly', () async {
@@ -368,9 +383,9 @@ void main() {
           'p': const [StreamResult(url: 'https://good.test/1', source: 'S')],
         },
       );
-      final last = await _service(
-        plugins: [broken, empty, good],
-      ).resolve(request: _movie).last;
+      final last = await _service(plugins: [broken, empty, good])
+          .resolve(request: _movie)
+          .last;
 
       expect(last.error, isNull);
       expect(last.streams.map((s) => s.addonName), ['Good']);
@@ -380,22 +395,25 @@ void main() {
       expect(byName['Good'], AddonQueryOutcome.links);
     });
 
-    test('nothing installed, or nothing found: an empty, finished answer', () async {
-      final nothing = await _service().resolve(request: _movie).last;
-      expect(nothing.streams, isEmpty);
-      expect(nothing.isLoading, isFalse);
-      expect(nothing.error, isNull);
+    test(
+      'nothing installed, or nothing found: an empty, finished answer',
+      () async {
+        final nothing = await _service().resolve(request: _movie).last;
+        expect(nothing.streams, isEmpty);
+        expect(nothing.isLoading, isFalse);
+        expect(nothing.error, isNull);
 
-      final none = await _service(
-        plugins: [_Plugin('Empty')],
-        addons: [_addon],
-        addonAnswers: (_) => Stream.value(
-          const AddonStreamProgress(error: 'No add-on returned links'),
-        ),
-      ).resolve(request: _movie).last;
-      expect(none.streams, isEmpty);
-      expect(none.isLoading, isFalse);
-    });
+        final none = await _service(
+          plugins: [_Plugin('Empty')],
+          addons: [_addon],
+          addonAnswers: (_) => Stream.value(
+            const AddonStreamProgress(error: 'No add-on returned links'),
+          ),
+        ).resolve(request: _movie).last;
+        expect(none.streams, isEmpty);
+        expect(none.isLoading, isFalse);
+      },
+    );
 
     test('a series asks each kind for the chosen season and episode', () async {
       final plugin = _Plugin(
@@ -413,39 +431,110 @@ void main() {
           ],
         ),
         streams: {
-          's2e3': const [StreamResult(url: 'https://shows.test/x', source: 'S')],
+          's2e3': const [
+            StreamResult(url: 'https://shows.test/x', source: 'S'),
+          ],
         },
       );
       AddonStreamRequest? addonRequest;
       String? nuvioAskedWith;
-      final last = await _service(
-        plugins: [plugin],
-        addons: [_addon],
-        addonAnswers: (request) {
-          addonRequest = request;
-          return Stream.value(const AddonStreamProgress());
-        },
-        nuvioAnswers: (id, type, s, e) {
-          nuvioAskedWith = '$id|$type|$s|$e';
-          return Stream.value(const NuvioProgress());
-        },
-      ).resolve(
-        request: const AddonStreamRequest(
-          type: 'series',
-          contentId: 'tt5753856',
-          videoId: 'tt5753856:2:3',
-          season: 2,
-          episode: 3,
-          imdbId: 'tt5753856',
-          title: 'Dark',
-          year: 2017,
-        ),
-      ).last;
+      final last =
+          await _service(
+                plugins: [plugin],
+                addons: [_addon],
+                addonAnswers: (request) {
+                  addonRequest = request;
+                  return Stream.value(const AddonStreamProgress());
+                },
+                nuvioAnswers: (id, type, s, e) {
+                  nuvioAskedWith = '$id|$type|$s|$e';
+                  return Stream.value(const NuvioProgress());
+                },
+              )
+              .resolve(
+                request: const AddonStreamRequest(
+                  type: 'series',
+                  contentId: 'tt5753856',
+                  videoId: 'tt5753856:2:3',
+                  season: 2,
+                  episode: 3,
+                  imdbId: 'tt5753856',
+                  title: 'Dark',
+                  year: 2017,
+                ),
+              )
+              .last;
 
       expect(plugin.loaded, ['s2e3']);
       expect(last.streams.single.addonName, 'Shows');
       expect(addonRequest?.idCandidates.first, 'tt5753856:2:3');
       expect(nuvioAskedWith, 'tt5753856|tv|2|3');
+    });
+  });
+}
+
+// v8 ------------------------------------------------------------------------
+
+void v8Tests() {
+  group('v8: Nuvio id and per-kind status', () {
+    test('Nuvio is asked with the TMDB id when the title has one', () {
+      expect(
+        MergedSourceService.nuvioIdFor(
+          const AddonStreamRequest(
+            type: 'movie',
+            contentId: 'tt33764258',
+            imdbId: 'tt33764258',
+            tmdbId: 1368337,
+            title: 'The Odyssey',
+          ),
+        ),
+        '1368337',
+      );
+      expect(MergedSourceService.nuvioIdFor(_movie), 'tt1375666');
+    });
+
+    test('every kind reports, also with nothing to ask', () async {
+      final last = await _service().resolve(request: _movie).last;
+      final lines = [for (final l in originSummaries(last.statuses)) l.text];
+      expect(lines, [
+        'Plugins: none installed',
+        'Nuvio: no provider enabled for movies',
+        'Stremio: no stream add-on installed',
+      ]);
+    });
+
+    test('a Nuvio failure is said, not swallowed', () async {
+      final last = await _service(
+        nuvioAnswers: (_, _, _, _) => Stream.error(Exception('runtime down')),
+      ).resolve(request: _movie).last;
+      final nuvio = originSummaries(last.statuses)
+          .firstWhere((l) => l.origin == kOriginNuvio);
+      expect(nuvio.isError, isTrue);
+      expect(nuvio.text, contains('runtime down'));
+    });
+
+    test('rows say which kind they came from', () {
+      expect(sourceOriginTag(_addonLink), 'STREMIO');
+      expect(
+        sourceOriginTag(
+          const AddonStreamSource(
+            addonId: '${kNuvioSourcePrefix}showbox',
+            addonName: 'ShowBox',
+            url: 'https://x.test/a.mp4',
+          ),
+        ),
+        'NUVIO',
+      );
+      expect(
+        sourceOriginTag(
+          const AddonStreamSource(
+            addonId: '${kPluginSourcePrefix}pkg.goku',
+            addonName: 'GokuHD',
+            url: 'https://x.test/a.mp4',
+          ),
+        ),
+        'PLUGIN',
+      );
     });
   });
 }

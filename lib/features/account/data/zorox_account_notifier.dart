@@ -41,8 +41,10 @@ class ZoroxAccountState {
     this.busy = false,
     this.error,
     this.lastSyncedAt,
-    this.cloudConfigured = false,
-    this.workerUrl = '',
+    this.cloudConfigured = true,
+    this.workerUrl = kZoroxSyncWorkerUrl,
+    this.usingDefaultServer = true,
+    this.sessionExpired = false,
   });
 
   final String? email;
@@ -55,7 +57,16 @@ class ZoroxAccountState {
 
   /// True when a sync server URL is set (cloud sync is possible).
   final bool cloudConfigured;
+
+  /// The server in use: the saved one, else the built-in default.
   final String workerUrl;
+
+  /// True when no server of the user's own is saved (v8).
+  final bool usingDefaultServer;
+
+  /// True after the server refused the saved session (401) — also from a
+  /// background auto-upload. The card says "log in again" until a login.
+  final bool sessionExpired;
 
   ZoroxAccountState copyWith({
     String? email,
@@ -66,6 +77,8 @@ class ZoroxAccountState {
     DateTime? lastSyncedAt,
     bool? cloudConfigured,
     String? workerUrl,
+    bool? usingDefaultServer,
+    bool? sessionExpired,
   }) => ZoroxAccountState(
     email: email ?? this.email,
     loggedIn: loggedIn ?? this.loggedIn,
@@ -74,6 +87,8 @@ class ZoroxAccountState {
     lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
     cloudConfigured: cloudConfigured ?? this.cloudConfigured,
     workerUrl: workerUrl ?? this.workerUrl,
+    usingDefaultServer: usingDefaultServer ?? this.usingDefaultServer,
+    sessionExpired: sessionExpired ?? this.sessionExpired,
   );
 }
 
@@ -81,6 +96,9 @@ final zoroxAccountProvider =
     NotifierProvider<ZoroxAccountNotifier, ZoroxAccountState>(
       ZoroxAccountNotifier.new,
     );
+
+/// What the card and the dialog say after the server refused the session.
+const String kSessionExpiredMessage = 'Session expired. Log in again.';
 
 class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
   static const String _kTokenKey = 'zorox_account_token';
@@ -141,6 +159,7 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
         loggedIn: token != null && token.isNotEmpty && email != null,
         workerUrl: workerUrl,
         cloudConfigured: workerUrl.isNotEmpty,
+        usingDefaultServer: _savedWorkerUrl(storage).isEmpty,
         lastSyncedAt: lastSynced,
       );
     } catch (e) {
@@ -148,11 +167,11 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
     }
   }
 
-  String _workerUrl(StorageService storage) {
-    final stored = storage.getString(_kWorkerUrlKey)?.trim() ?? '';
-    if (stored.isNotEmpty) return stored.replaceAll(RegExp(r'/+$'), '');
-    return kZoroxSyncWorkerUrl.replaceAll(RegExp(r'/+$'), '');
-  }
+  String _savedWorkerUrl(StorageService storage) =>
+      storage.getString(_kWorkerUrlKey)?.trim() ?? '';
+
+  String _workerUrl(StorageService storage) =>
+      effectiveSyncServerUrl(storage.getString(_kWorkerUrlKey));
 
   DateTime? _lastSynced(StorageService storage) {
     final raw = storage.getString(_kLastSyncedKey);
@@ -230,10 +249,7 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
 
   /// Logs in, downloads the cloud backup and restores it (newest wins per
   /// item), then uploads the merged result so the server holds the union.
-  Future<bool> login({
-    required String email,
-    required String password,
-  }) async {
+  Future<bool> login({required String email, required String password}) async {
     final problem = validateCredentials(email, password);
     if (problem != null) {
       state = state.copyWith(error: problem);
@@ -269,7 +285,11 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
     await tokens.write(_kTokenKey, token);
     await tokens.write(_kEmailKey, email);
     if (ref.mounted) {
-      state = state.copyWith(email: email, loggedIn: true);
+      state = state.copyWith(
+        email: email,
+        loggedIn: true,
+        sessionExpired: false,
+      );
     }
   }
 
@@ -300,7 +320,8 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
 
   // --- sync server URL --------------------------------------------------------
 
-  /// Saves the Worker URL (empty clears it). Only `https://` is accepted.
+  /// Saves the user's own sync server (empty clears it and goes back to
+  /// the built-in default). Only `https://` is accepted.
   Future<bool> setWorkerUrl(String rawUrl) async {
     final url = rawUrl.trim().replaceAll(RegExp(r'/+$'), '');
     if (url.isNotEmpty && !url.startsWith('https://')) {
@@ -309,14 +330,15 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       );
       return false;
     }
-    await ref.read(storageServiceProvider).setString(
-      _kWorkerUrlKey,
-      url.isEmpty ? null : url,
-    );
+    await ref
+        .read(storageServiceProvider)
+        .setString(_kWorkerUrlKey, url.isEmpty ? null : url);
     if (ref.mounted) {
+      final effective = effectiveSyncServerUrl(url);
       state = state.copyWith(
-        workerUrl: url,
-        cloudConfigured: url.isNotEmpty,
+        workerUrl: effective,
+        cloudConfigured: effective.isNotEmpty,
+        usingDefaultServer: url.isEmpty,
         clearError: true,
       );
     }
@@ -334,14 +356,21 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       final baseUrl = await _requireWorkerUrl();
       final token = await _token();
       if (token == null || token.isEmpty) {
-        throw const ZoroxSyncException('Session expired. Log in again.');
+        throw const ZoroxSyncException(
+          'Session expired. Log in again.',
+          statusCode: 401,
+        );
       }
       final backup = await collectBackup();
       await _client.upload(baseUrl, token, backup.toJson());
       await _markSynced();
       return true;
     } on ZoroxSyncException catch (e) {
-      if (ref.mounted) state = state.copyWith(error: e.message);
+      if (e.sessionExpired) {
+        await _expireSession();
+      } else if (ref.mounted) {
+        state = state.copyWith(error: e.message);
+      }
       return false;
     } catch (e) {
       if (ref.mounted) state = state.copyWith(error: '$e');
@@ -349,6 +378,23 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
     } finally {
       if (ref.mounted && state.busy) state = state.copyWith(busy: false);
     }
+  }
+
+  /// The server refused the saved session (v8): drop it and say so on the
+  /// card, so a background auto-upload that hits a 401 is not silent. The
+  /// email stays, local data is untouched; logging in again clears this.
+  Future<void> _expireSession() async {
+    try {
+      await ref.read(secureTokenStorageProvider).delete(_kTokenKey);
+    } catch (e) {
+      talker.warning('[ZoroX Account] dropping the expired session: $e');
+    }
+    if (!ref.mounted) return;
+    state = state.copyWith(
+      loggedIn: false,
+      sessionExpired: true,
+      error: kSessionExpiredMessage,
+    );
   }
 
   /// Downloads the cloud backup and restores it. Returns the restore
@@ -360,7 +406,10 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       final baseUrl = await _requireWorkerUrl();
       final token = await _token();
       if (token == null || token.isEmpty) {
-        throw const ZoroxSyncException('Session expired. Log in again.');
+        throw const ZoroxSyncException(
+          'Session expired. Log in again.',
+          statusCode: 401,
+        );
       }
       final remote = await _client.download(baseUrl, token);
       if (remote == null) return null;
@@ -368,7 +417,11 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       await _markSynced();
       return report;
     } on ZoroxSyncException catch (e) {
-      if (ref.mounted) state = state.copyWith(error: e.message);
+      if (e.sessionExpired) {
+        await _expireSession();
+      } else if (ref.mounted) {
+        state = state.copyWith(error: e.message);
+      }
       return null;
     } catch (e) {
       if (ref.mounted) state = state.copyWith(error: '$e');
@@ -416,9 +469,7 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       final extensions = ref.read(extensionsControllerProvider.notifier);
       await extensions.ensureInitialized();
       final extensionsState = ref.read(extensionsControllerProvider);
-      zoroxRepos = [
-        for (final repo in extensionsState.repositories) repo.url,
-      ];
+      zoroxRepos = [for (final repo in extensionsState.repositories) repo.url];
       zoroxPlugins = [
         for (final plugin in extensionsState.installedPlugins)
           {

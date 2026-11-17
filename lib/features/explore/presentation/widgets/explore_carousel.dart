@@ -322,7 +322,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
             }
           },
           // The preview hero is a CARD, not full-bleed: rounded corners
-          // and a gold border on every screen (v3). The dots sit BELOW
+          // on every screen (v3; the border went in v8). The dots sit BELOW
           // the card, not overlaid on the backdrop the way v2 had them.
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -339,21 +339,20 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
     );
   }
 
-  /// The hero as a card: rounded corners, a gold border, the backdrop
-  /// clipped inside. The border is always present (the preview's gold
-  /// card edge); keyboard/TV focus thickens it instead of adding it.
+  /// The hero as a card: rounded corners, the backdrop clipped inside and
+  /// no outline (v8: the thin accent line around it was removed at the
+  /// user's request). Only keyboard/TV focus draws a border, as the focus
+  /// indicator; touch never does.
   Widget _buildHeroCard(
     BuildContext context,
     double heroHeight, {
     required bool isDesktop,
   }) {
-    final border = Border.all(
-      color: _isFocusHighlighted
-          ? Theme.of(context).colorScheme.primary
-          : Theme.of(context).colorScheme.primary.withValues(alpha: 0.45),
-      width: _isFocusHighlighted ? 2.5 : 1.0,
-    );
+    final border = _isFocusHighlighted
+        ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2.5)
+        : null;
     final card = AnimatedContainer(
+      key: const ValueKey('hero-card'),
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
@@ -794,10 +793,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 5,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
                 color: theme.colorScheme.primary,
                 borderRadius: BorderRadius.circular(999),
@@ -831,14 +827,15 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               textAlign: isDesktop ? TextAlign.left : TextAlign.center,
-              style: (isDesktop
-                      ? theme.textTheme.displaySmall
-                      : theme.textTheme.headlineMedium)
-                  ?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    height: 1.05,
-                  ),
+              style:
+                  (isDesktop
+                          ? theme.textTheme.displaySmall
+                          : theme.textTheme.headlineMedium)
+                      ?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        height: 1.05,
+                      ),
             ),
           ),
         if (showPreview)
@@ -902,10 +899,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
               backgroundColor: Colors.white,
               foregroundColor: Colors.black87,
               elevation: 0,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 28,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
               shape: const StadiumBorder(),
               textStyle: const TextStyle(
                 fontSize: 15,
@@ -1101,8 +1095,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
         fit: BoxFit.contain,
         placeholderBuilder: (context) =>
             const SizedBox(height: 140, width: 300),
-        errorBuilder: (context, error, stackTrace) =>
-            const SizedBox.shrink(),
+        errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
       );
     }
     return CachedNetworkImage(

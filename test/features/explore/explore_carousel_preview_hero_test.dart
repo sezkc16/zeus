@@ -124,6 +124,22 @@ void main() {
   }
 
   group('preview hero on', () {
+    testWidgets('the hero card has no outline (v8): rounded, no border', (
+      tester,
+    ) async {
+      await pumpCarousel(
+        tester,
+        movies: [_movie(0)],
+        showPreviewActions: true,
+      );
+      final card = tester.widget<AnimatedContainer>(
+        find.byKey(const ValueKey('hero-card')),
+      );
+      final decoration = card.decoration! as BoxDecoration;
+      expect(decoration.border, isNull);
+      expect(decoration.borderRadius, BorderRadius.circular(20));
+    });
+
     testWidgets('big title, badge pill and all three actions render', (
       tester,
     ) async {

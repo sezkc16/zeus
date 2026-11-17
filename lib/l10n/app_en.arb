@@ -371,6 +371,22 @@
   "@sourcesNoneFound": {
     "description": "Empty state of the sources list for a title opened from Browse, when no installed plugin, Nuvio provider or Stremio add-on returned a link."
   },
+  "sourcesCardTitle": "Sources",
+  "@sourcesCardTitle": {
+    "description": "Title of the sources card on a title opened from Browse: plugins, Nuvio providers and Stremio add-ons together."
+  },
+  "sourcesFind": "Find sources",
+  "@sourcesFind": {
+    "description": "Action on the sources card of a movie opened from Browse; opens the list of sources from plugins, Nuvio and Stremio add-ons."
+  },
+  "sourcesFindForEpisode": "Find sources: S{season} E{episode}",
+  "@sourcesFindForEpisode": {
+    "description": "Action on the sources card of a series opened from Browse, naming the episode it looks up.",
+    "placeholders": {
+      "season": { "type": "int" },
+      "episode": { "type": "int" }
+    }
+  },
   "sourcesOpenPlugins": "Open Plugins",
   "@sourcesOpenPlugins": {
     "description": "Button in the empty sources state that opens the Plugins tab."

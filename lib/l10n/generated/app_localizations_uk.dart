@@ -594,6 +594,17 @@ class AppLocalizationsUk extends AppLocalizations {
   String get sourcesNoneFound => 'No sources found — install a plugin or addon';
 
   @override
+  String get sourcesCardTitle => 'Sources';
+
+  @override
+  String get sourcesFind => 'Find sources';
+
+  @override
+  String sourcesFindForEpisode(int season, int episode) {
+    return 'Find sources: S$season E$episode';
+  }
+
+  @override
   String get sourcesOpenPlugins => 'Open Plugins';
 
   @override

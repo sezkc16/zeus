@@ -28,7 +28,14 @@ class StremioSourcesCard extends ConsumerWidget {
     this.episode,
     this.compact = false,
     this.autofocus = false,
+    this.merged = false,
   });
+
+  /// A title opened from Browse: its sources come from plugins, Nuvio
+  /// providers and Stremio add-ons together, so the card is always there -
+  /// also with no Stremio stream add-on installed (v8: it used to vanish and
+  /// leave the page with no way to play).
+  final bool merged;
 
   /// The season and episode this card resolves, or null for a movie.
   ///
@@ -54,20 +61,29 @@ class StremioSourcesCard extends ConsumerWidget {
         (s) => AddonStreamService.streamProvidersOf(s.enabled).length,
       ),
     );
-    if (addonCount == 0) return const SizedBox.shrink();
+    if (addonCount == 0 && !merged) return const SizedBox.shrink();
 
     final target = episode;
     return SourceSectionCard(
-      icon: Icons.extension_rounded,
-      title: l10n.stremioAddons,
+      key: merged ? const ValueKey('merged-sources-card') : null,
+      icon: merged
+          ? Icons.play_circle_outline_rounded
+          : Icons.extension_rounded,
+      title: merged ? l10n.sourcesCardTitle : l10n.stremioAddons,
       compact: compact,
-      badge: SourceSectionBadge(label: l10n.stremioAddonCount(addonCount)),
+      badge: merged
+          ? null
+          : SourceSectionBadge(label: l10n.stremioAddonCount(addonCount)),
       child: Padding(
         padding: compact
             ? EdgeInsets.zero
             : const EdgeInsets.symmetric(horizontal: SourceSectionCard.gutter),
         child: SourceSectionAction(
-          label: target == null
+          label: merged
+              ? (target == null
+                    ? l10n.sourcesFind
+                    : l10n.sourcesFindForEpisode(target.season, target.episode))
+              : target == null
               ? l10n.stremioSearchAddons
               // (season, episode) - the order gen-l10n emits from the ARB
               // placeholders. Both are ints, so getting it backwards compiles
@@ -76,7 +92,7 @@ class StremioSourcesCard extends ConsumerWidget {
                   target.season,
                   target.episode,
                 ),
-          icon: Icons.search_rounded,
+          icon: merged ? Icons.play_arrow_rounded : Icons.search_rounded,
           onTap: onOpen,
           autofocus: autofocus,
           // Full bleed on a phone; capped on a desktop, where the card sits in

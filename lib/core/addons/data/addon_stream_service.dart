@@ -82,7 +82,9 @@ class AddonStreamRequest {
     }
 
     final base = contentId.split(':').first;
-    final imdb = imdbId ?? (contentId.startsWith('tt') ? contentId.split(':').first : null);
+    final imdb =
+        imdbId ??
+        (contentId.startsWith('tt') ? contentId.split(':').first : null);
     final opaque = hasOpaqueContentId;
 
     if (isEpisode) {
@@ -121,21 +123,24 @@ class AddonStreamRequest {
     int? tmdbId,
     String? title,
     int? year,
-  }) =>
-      AddonStreamRequest(
-        type: type ?? this.type,
-        contentId: contentId ?? this.contentId,
-        videoId: videoId ?? this.videoId,
-        season: season ?? this.season,
-        episode: episode ?? this.episode,
-        imdbId: imdbId ?? this.imdbId,
-        tmdbId: tmdbId ?? this.tmdbId,
-        title: title ?? this.title,
-        year: year ?? this.year,
-      );
+  }) => AddonStreamRequest(
+    type: type ?? this.type,
+    contentId: contentId ?? this.contentId,
+    videoId: videoId ?? this.videoId,
+    season: season ?? this.season,
+    episode: episode ?? this.episode,
+    imdbId: imdbId ?? this.imdbId,
+    tmdbId: tmdbId ?? this.tmdbId,
+    title: title ?? this.title,
+    year: year ?? this.year,
+  );
 }
 
 enum AddonQueryOutcome { pending, links, empty, failed }
+
+const String kOriginPlugin = 'plugin';
+const String kOriginNuvio = 'nuvio';
+const String kOriginStremio = 'stremio';
 
 class AddonQueryStatus {
   final String addonName;
@@ -143,11 +148,22 @@ class AddonQueryStatus {
   final int linkCount;
   final String? message;
 
+  /// Which kind of source this is in the merged (Browse) list: one of
+  /// [kOriginPlugin], [kOriginNuvio], [kOriginStremio]. Null in the plain
+  /// add-on list, where everything is a Stremio add-on.
+  final String? origin;
+
+  /// A line that stands for a whole kind with nothing to ask ("none
+  /// installed"), not for one plugin or add-on that was asked.
+  final bool isNote;
+
   const AddonQueryStatus({
     required this.addonName,
     required this.outcome,
     this.linkCount = 0,
     this.message,
+    this.origin,
+    this.isNote = false,
   });
 }
 
@@ -480,8 +496,9 @@ class AddonStreamService {
       // moment each one answers — the sheet never waits on the slowest
       // host before showing the fast ones.
       final queue = List<ManagedAddon>.of(providers);
-      final workerCount =
-          providers.length < _maxConcurrent ? providers.length : _maxConcurrent;
+      final workerCount = providers.length < _maxConcurrent
+          ? providers.length
+          : _maxConcurrent;
       final workers = List.generate(
         workerCount,
         (_) => Future(() async {
