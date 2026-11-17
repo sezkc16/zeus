@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/utils/motion.dart';
+import 'branch_cross_fade.dart';
 
 /// The iOS swipe-from-the-left-edge back gesture for a screen that is NOT a
 /// pushed page and so has nothing for the system gesture to pop — the
@@ -67,9 +68,34 @@ class _EdgeSwipeBackState extends State<EdgeSwipeBack>
     if (!enabled) return widget.child;
     final rtl = Directionality.of(context) == TextDirection.rtl;
     if (rtl) return widget.child;
+    // Inside the shell the branch container does the moving, so the tab
+    // this screen was opened from shows underneath instead of nothing.
+    final shell = BranchSwipeBackScope.maybeOf(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
+        if (shell != null) {
+          return Stack(
+            children: [
+              widget.child,
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: widget.edgeWidth,
+                child: GestureDetector(
+                  key: const ValueKey('edge-swipe-back-strip'),
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragUpdate: (d) =>
+                      shell.dragBy((d.primaryDelta ?? 0) / width),
+                  onHorizontalDragEnd: (d) =>
+                      shell.dragEnd(d.primaryVelocity ?? 0),
+                  onHorizontalDragCancel: shell.dragCancel,
+                ),
+              ),
+            ],
+          );
+        }
         return Stack(
           children: [
             AnimatedBuilder(

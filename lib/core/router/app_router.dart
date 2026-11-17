@@ -111,6 +111,8 @@ class AppShellRouteData extends StatefulShellRouteData {
     return BranchCrossFade(
       currentIndex: navigationShell.currentIndex,
       slideIndex: settingsBranchIndex,
+      // The back swipe on Settings returns to the tab it was opened from.
+      onSwipeBack: (index) => navigationShell.goBranch(index),
       children: children,
     );
   }
