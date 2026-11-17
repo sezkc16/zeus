@@ -8,6 +8,7 @@ import '../../../core/theme/theme_provider.dart';
 import '../../../core/services/notification_service.dart';
 
 import 'widgets/settings_widgets.dart';
+import 'widgets/general_extra_tiles.dart';
 import 'widgets/settings_dialogs.dart';
 import 'widgets/accent_color_picker.dart';
 import 'full_screen_mode_provider.dart';
@@ -20,6 +21,8 @@ import 'package:zorox/l10n/generated/app_localizations.dart';
 import '../../../core/providers/locale_provider.dart';
 import '../../../core/router/app_router.dart';
 import 'cache_provider.dart';
+import 'search_plugins_screen.dart';
+import '../../search/domain/search_plugin_filter.dart';
 
 class SettingsScreen extends ConsumerWidget {
   final String? initialCategory;
@@ -90,8 +93,21 @@ class SettingsScreen extends ConsumerWidget {
                       emoji: '🧲',
                       title: 'Stremio Add-ons',
                       subtitle: 'Manage installed Stremio add-ons',
-                      isLast: true,
                       onTap: () => const AddonsRoute().go(context),
+                    ),
+                    // v7: which plugins and add-ons Search asks.
+                    SettingsTile(
+                      key: const ValueKey('settings-search-in-plugins'),
+                      emoji: '🔎',
+                      title: l10n.searchInPlugins,
+                      subtitle: l10n.searchInPluginsSubtitle,
+                      value: ref.watch(searchDisabledSourcesProvider).isEmpty
+                          ? l10n.searchInPluginsAll
+                          : l10n.searchInPluginsOff(
+                              ref.watch(searchDisabledSourcesProvider).length,
+                            ),
+                      isLast: true,
+                      onTap: () => SearchPluginsScreen.open(context),
                     ),
                   ],
                 ),
@@ -221,6 +237,8 @@ class SettingsScreen extends ConsumerWidget {
             generalSettings.defaultHomeScreen,
           ),
         ),
+        const HomeRowsSettingsTile(),
+        const AppLockSettingsTile(),
         SettingsTile(
           emoji: '🕘',
           title: l10n.recordWatchHistory,

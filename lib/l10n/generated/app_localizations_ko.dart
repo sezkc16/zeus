@@ -2549,4 +2549,337 @@ class AppLocalizationsKo extends AppLocalizations {
   String playerBehindLive(String time) {
     return '실시간보다 $time 늦음';
   }
+
+  @override
+  String get pluginsUpdateAll => 'Update all';
+
+  @override
+  String get pluginsUpToDate => 'All plugins are up to date';
+
+  @override
+  String get mobileDataMaxQuality => 'Max quality on mobile data';
+
+  @override
+  String get mobileDataMaxQualitySubtitle =>
+      'On cellular, sources up to this come first';
+
+  @override
+  String get mobileDataMaxQualityOff => 'Off';
+
+  @override
+  String get mobileDataMaxQualityOffHint => 'No limit on mobile data';
+
+  @override
+  String get autoPlayNextEpisode => 'Auto-play next episode';
+
+  @override
+  String get autoPlayNextEpisodeSubtitle =>
+      '5 second countdown when an episode ends';
+
+  @override
+  String get searchInPlugins => 'Search in plugins';
+
+  @override
+  String get searchInPluginsSubtitle => 'Choose which plugins Search asks';
+
+  @override
+  String get searchInPluginsAll => 'All';
+
+  @override
+  String get searchInPluginsHint =>
+      'Search asks only the sources switched on here. Fewer sources means faster results.';
+
+  @override
+  String get searchInPluginsEmpty => 'No plugins or add-ons installed yet.';
+
+  @override
+  String get searchInPluginsPlugins => 'Plugins';
+
+  @override
+  String get searchInPluginsAddons => 'Add-ons';
+
+  @override
+  String get searchInPluginsEnableAll => 'Turn all on';
+
+  @override
+  String pluginsUpdatedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count plugins updated',
+      one: '1 plugin updated',
+      zero: 'No plugins updated',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String pluginsUpdateSomeFailed(int count, String names) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count plugins updated',
+      one: '1 plugin updated',
+      zero: 'No plugins updated',
+    );
+    return '$_temp0. Could not update: $names';
+  }
+
+  @override
+  String searchInPluginsOff(int count) {
+    return '$count off';
+  }
+
+  @override
+  String get playerSleepTimer => 'Sleep timer';
+
+  @override
+  String get playerSleepTimerOff => 'Off';
+
+  @override
+  String playerSleepTimerMinutes(int minutes) {
+    return '$minutes min';
+  }
+
+  @override
+  String get playerSleepTimerEndOfEpisode => 'End of episode';
+
+  @override
+  String playerSleepTimerRemaining(String time) {
+    return '$time left';
+  }
+
+  @override
+  String get playerSleepTimerEndOfEpisodeArmed => 'Stops after this episode';
+
+  @override
+  String get playerSleepTimerPaused => 'Sleep timer — paused';
+
+  @override
+  String get downloadSeason => 'Download season';
+
+  @override
+  String downloadSeasonConfirm(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Download $count episodes?',
+      one: 'Download 1 episode?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get downloadSeasonAllDownloaded =>
+      'All episodes of this season are already downloaded';
+
+  @override
+  String get downloadSeasonAllQueued =>
+      'All episodes of this season are already downloaded or in the download queue';
+
+  @override
+  String downloadSeasonQueuing(int done, int total) {
+    return 'Queuing $done/$total…';
+  }
+
+  @override
+  String get downloadSeasonStop => 'Stop';
+
+  @override
+  String get downloadSeasonBusy => 'Another season is still being queued';
+
+  @override
+  String get downloadSeasonPickSource => 'Choose a source for this season';
+
+  @override
+  String get downloadSeasonPickSourceHint =>
+      'Used for the remaining episodes too. You are asked only once.';
+
+  @override
+  String downloadSeasonSummaryQueued(int count) {
+    return 'Queued $count';
+  }
+
+  @override
+  String downloadSeasonSummaryAlreadyDownloaded(int count) {
+    return '$count already downloaded';
+  }
+
+  @override
+  String downloadSeasonSummaryAlreadyQueued(int count) {
+    return '$count already in queue';
+  }
+
+  @override
+  String downloadSeasonSummaryNoSource(int count) {
+    return '$count no downloadable source';
+  }
+
+  @override
+  String downloadSeasonSummaryFailed(int count) {
+    return '$count failed';
+  }
+
+  @override
+  String downloadSeasonSummaryStopped(int count) {
+    return '$count not queued (stopped)';
+  }
+
+  @override
+  String get pluginCheckButton => 'Check';
+
+  @override
+  String get pluginCheckHint => 'Tests each .cs3 plugin, one at a time';
+
+  @override
+  String pluginCheckProgress(int current, int total) {
+    return 'Checking $current of $total…';
+  }
+
+  @override
+  String get pluginCheckedJustNow => 'Checked just now';
+
+  @override
+  String pluginCheckedMinutesAgo(int minutes) {
+    String _temp0 = intl.Intl.pluralLogic(
+      minutes,
+      locale: localeName,
+      other: 'Checked $minutes min ago',
+      one: 'Checked 1 min ago',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String pluginCheckStopped(int done, int total) {
+    return 'Stopped · $done of $total checked';
+  }
+
+  @override
+  String get pluginStatusNotChecked => 'Not checked';
+
+  @override
+  String get pluginStatusChecking => 'Checking…';
+
+  @override
+  String get pluginStatusWorking => 'Working';
+
+  @override
+  String get pluginStatusSlow => 'Slow';
+
+  @override
+  String get pluginStatusEmpty => 'Answered, no items';
+
+  @override
+  String get pluginStatusNotResponding => 'Not responding';
+
+  @override
+  String get pluginStatusCouldNotLoad => 'Could not load';
+
+  @override
+  String get pluginStatusNoSource => 'Nothing to test';
+
+  @override
+  String pluginStatusSeconds(String status, String seconds) {
+    return '$status · $seconds s';
+  }
+
+  @override
+  String pluginStatusPartial(String status, int ok, int total) {
+    return '$status · $ok of $total sources OK';
+  }
+
+  @override
+  String pluginCheckDetailAnswered(int count, String seconds, String how) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items',
+      one: '1 item',
+      zero: 'No items',
+    );
+    return '$_temp0 in $seconds s ($how)';
+  }
+
+  @override
+  String get pluginCheckDetailMainPage => 'main page';
+
+  @override
+  String get pluginCheckDetailViaSearch => 'search';
+
+  @override
+  String pluginCheckDetailTimedOut(String seconds) {
+    return 'No answer within $seconds s';
+  }
+
+  @override
+  String get pluginCheckDetailEmptyNote =>
+      'It answered, but with nothing in it. A search that fails inside the plugin also looks like this.';
+
+  @override
+  String get pluginCheckDetailNoSource =>
+      'This plugin adds no source that can be tested. It may be a helper for other plugins, or its sources are switched off.';
+
+  @override
+  String pluginCheckDetailCouldNotLoad(String error) {
+    return 'The plugin\'s file could not be loaded on this device, so it was not called: $error';
+  }
+
+  @override
+  String get homeRowsTitle => 'Home rows';
+
+  @override
+  String get homeRowsSubtitle => 'Reorder or hide rows on Home';
+
+  @override
+  String get homeRowsSourceDefaultFeed => 'Default feed';
+
+  @override
+  String homeRowsHeader(String source) {
+    return 'Rows from $source';
+  }
+
+  @override
+  String get homeRowsHint =>
+      'Drag the handle to reorder. Switch a row off to hide it. The banner at the top of Home always stays first. Saved separately for each source.';
+
+  @override
+  String get homeRowsLoading => 'Loading this source\'s rows…';
+
+  @override
+  String get homeRowsOpenHomeFirst =>
+      'Open Home once to load this source\'s rows.';
+
+  @override
+  String get homeRowsNotOnHomeNow => 'Not on Home right now';
+
+  @override
+  String get homeRowsResetHeader => 'Reset';
+
+  @override
+  String get homeRowsResetSubtitle =>
+      'The source\'s own order, every row shown';
+
+  @override
+  String get appLockTitle => 'App lock (Face ID)';
+
+  @override
+  String get appLockSubtitle => 'Ask for Face ID or passcode to open Zeus';
+
+  @override
+  String get appLockEnableReason => 'Confirm it\'s you to turn on App lock';
+
+  @override
+  String get appLockUnlockReason => 'Unlock Zeus';
+
+  @override
+  String get appLockUnavailable =>
+      'App lock stays off: set up Face ID or a passcode on this device first.';
+
+  @override
+  String get appLockNotVerified =>
+      'App lock stays off: it could not confirm it\'s you.';
+
+  @override
+  String get appLockStillLocked => 'Still locked. Tap Unlock to try again.';
 }

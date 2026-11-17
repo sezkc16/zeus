@@ -12,6 +12,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/loading_indicator.dart';
 import '../../../shared/widgets/text_input_dialog.dart';
 import '../../cloudstream/presentation/extension_ui/extension_settings_flow.dart';
+import 'plugin_check_bar.dart';
 
 /// The CloudStream part of the Plugins (Extensions) screen.
 ///
@@ -581,6 +582,7 @@ class _CloudStreamPluginTile extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: cs.error),
             ),
+          if (installed != null) PluginCheckStatusLine(pluginKey: key),
           if (applying)
             Text(
               l10n.cloudStreamSettingsApplying,
@@ -640,23 +642,32 @@ class _CloudStreamPluginTile extends ConsumerWidget {
                               ),
                       ),
                     ),
+                  // v7: a labelled one-tap Update (it was an unlabelled
+                  // icon). The install replaces the .cs3 in place: the old
+                  // version is unloaded, the file swapped and the new code
+                  // loaded — no uninstall first, no app restart.
                   if (newer != null)
-                    IconButton(
-                      tooltip: l10n.cloudStreamUpdate,
-                      icon: Icon(
-                        Icons.system_update_alt_rounded,
-                        color: cs.tertiary,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: FilledButton.tonal(
+                        key: ValueKey('cs3_update_${info.internalName}'),
+                        style: FilledButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          minimumSize: const Size(0, 34),
+                        ),
+                        onPressed: on
+                            ? () => unawaited(
+                                _install(
+                                  context,
+                                  () => notifier.install(newer),
+                                  info,
+                                  l10n.cloudStreamUpdated,
+                                ),
+                              )
+                            : null,
+                        child: Text(l10n.cloudStreamUpdate),
                       ),
-                      onPressed: on
-                          ? () => unawaited(
-                              _install(
-                                context,
-                                () => notifier.install(newer),
-                                info,
-                                l10n.cloudStreamUpdated,
-                              ),
-                            )
-                          : null,
                     ),
                   IconButton(
                     key: ValueKey('cs3_uninstall_${info.internalName}'),

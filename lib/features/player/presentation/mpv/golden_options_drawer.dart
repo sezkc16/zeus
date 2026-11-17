@@ -180,6 +180,22 @@ class GoldenSourcesDrawer extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: <Widget>[
               const GoldenSectionLabel('Sources'),
+              // v7: on cellular with "Max quality on mobile data" set, the
+              // sources at or below the limit lead the list. Say so, so the
+              // order is not a surprise; the higher ones are still below.
+              if (data.dataSaver && data.sources.isNotEmpty)
+                const Padding(
+                  key: ValueKey('sources-data-saver-note'),
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Data saver: on mobile data, sources within your limit '
+                    'come first. Higher ones are below.',
+                    style: TextStyle(
+                      color: GoldenPlayerColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
               if (data.sources.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
@@ -212,6 +228,7 @@ class GoldenSourcesDrawer extends StatelessWidget {
                               ? 'Playing'
                               : null),
                     selected: i == data.currentSourceIndex,
+                    lastUsed: i == data.lastUsedSourceIndex,
                     onTap: () => onPickSource?.call(i),
                   ),
             ],
@@ -235,7 +252,11 @@ class _SourceTile extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.detail,
+    this.lastUsed = false,
   });
+
+  /// Whether this is the source the title last played on (v7).
+  final bool lastUsed;
 
   final StreamResult stream;
   final int index;
@@ -308,6 +329,10 @@ class _SourceTile extends StatelessWidget {
                           fontSize: 14,
                         ),
                       ),
+                      if (lastUsed) ...<Widget>[
+                        const SizedBox(height: 3),
+                        const _Chip(label: 'Last used', gold: true),
+                      ],
                       if (detail != null) ...<Widget>[
                         const SizedBox(height: 2),
                         Text(

@@ -754,6 +754,70 @@ class CloudStreamRepository extends _$CloudStreamRepository {
     }
   }
 
+  /// How many plugins one [warmUp] loads at most. Every loaded plugin stays
+  /// in memory for the session, and iOS ends an app that takes too much, so
+  /// the warm-up covers the ones most likely to be asked first rather than
+  /// every plugin a large repository installed.
+  static const int warmUpLimit = 10;
+
+  /// The pause between two warm-up loads, so the engine is not held for
+  /// seconds on end while Home is being scrolled.
+  static const Duration warmUpGap = Duration(milliseconds: 600);
+
+  /// The order [warmUp] loads plugins in: the ones that provide a source,
+  /// loadable, [first] (the plugin Home is showing) ahead of the rest, cut
+  /// to [limit]. Utility plugins (MegaRepo's) and extractor-only ones are
+  /// left to their own loaders.
+  static List<CsInstalledPlugin> warmUpOrder(
+    List<CsInstalledPlugin> installed, {
+    bool Function(CsInstalledPlugin plugin)? first,
+    int limit = warmUpLimit,
+  }) {
+    final wanted = [
+      for (final plugin in installed)
+        if (plugin.providers.isNotEmpty && plugin.loadError == null) plugin,
+    ];
+    if (first != null) {
+      final lead = wanted.where(first).toList();
+      wanted
+        ..removeWhere(first)
+        ..insertAll(0, lead);
+    }
+    return wanted.length > limit ? wanted.sublist(0, limit) : wanted;
+  }
+
+  /// Loads the installed plugins in the background (v7), one at a time, so
+  /// the first search or the first title opened does not wait for a
+  /// plugin's code to be loaded. Up to [warmUpLimit] of them (see
+  /// [warmUpOrder]); [shouldStop] is asked before each one and ends the
+  /// warm-up — the app went to the background, or the system warned about
+  /// memory. A plugin that fails here is simply loaded (and reported) when
+  /// it is first used, as before. Returns how many were loaded.
+  Future<int> warmUp({
+    bool Function(CsInstalledPlugin plugin)? first,
+    bool Function()? shouldStop,
+  }) async {
+    await _loaded;
+    if (!state.enabled) return 0;
+    var loaded = 0;
+    for (final plugin in warmUpOrder(state.installed, first: first)) {
+      if (shouldStop?.call() ?? false) break;
+      if (!state.enabled) break;
+      // Uninstalled or replaced meanwhile.
+      if (!state.installed.any((p) => p.filePath == plugin.filePath)) continue;
+      try {
+        await _host.ensureLoaded(plugin.filePath, pluginUrl: plugin.info.url);
+        loaded++;
+      } on CloudStreamSwitchedOff {
+        break;
+      } catch (error) {
+        talker.warning('[CloudStream] warm-up: ${plugin.info.name} failed to load: $error');
+      }
+      await Future<void>.delayed(warmUpGap);
+    }
+    return loaded;
+  }
+
   /// What a load said about an installed plugin's settings screen, kept with it.
   void _noteLoad(({String path, Map<String, dynamic> answer}) load) {
     final hasSettings = load.answer['hasSettings'];

@@ -53,6 +53,8 @@ class ResolvedPlayback {
     required this.streams,
     required this.index,
     this.qualityFilteredFallback = false,
+    this.lastUsedIndex = -1,
+    this.dataSaver = false,
   });
 
   /// Quality-filtered and sorted, best first. Never empty.
@@ -65,6 +67,16 @@ class ResolvedPlayback {
   /// The quality filter matched nothing and was dropped, so [streams] is
   /// unfiltered. Callers may want to say so.
   final bool qualityFilteredFallback;
+
+  /// Index into [streams] of the source this title last played on (v7), or
+  /// -1 when none is remembered or it is not in this list. The Sources list
+  /// tags it "Last used".
+  final int lastUsedIndex;
+
+  /// Whether the mobile-data limit shaped [streams] (v7): the device is on
+  /// cellular with "Max quality on mobile data" set, so the sources at or
+  /// below it come first. The Sources list says so.
+  final bool dataSaver;
 
   StreamResult get selected => streams[index];
 }
@@ -347,15 +359,37 @@ Future<ResolvedPlayback> resolvePlayback({
   // drop the picked one out of it altogether.
   var didFallback = false;
   final settings = await _playerSettings(read);
-  final streams = ranked || settings == null
-      ? raw
-      : await _byQuality(raw, settings, (v) => didFallback = v);
+  var streams = raw;
+  var saved = 0;
+  var lastUsedIndex = -1;
+  var dataSaver = false;
+  if (!ranked && settings != null) {
+    final preference = await qualityPreferenceInForce(settings);
+    final cap = await mobileDataCapInForce(settings);
+    final plan = planSourceList(
+      filterStreamsByQuality(
+        raw,
+        preference,
+        settings.qualityFilterMode,
+        onFallback: (v) => didFallback = v,
+      ),
+      preference: preference,
+      cap: cap,
+      lastUsed: (ordered) => _savedStreamIndex(read, item, ordered),
+    );
+    streams = plan.streams;
+    saved = plan.start;
+    lastUsedIndex = plan.lastUsedIndex;
+    dataSaver = cap != QualityPreference.any;
+  } else if (!ranked) {
+    final found = _savedStreamIndex(read, item, streams);
+    saved = found < 0 ? 0 : found;
+    lastUsedIndex = found;
+  }
   if (streams.isEmpty) {
     throw const StreamResolutionException(StreamResolutionFailure.noStreams);
   }
   onCandidates?.call(streams);
-
-  final saved = ranked ? 0 : _savedStreamIndex(read, item, streams);
   final index = probeCandidates <= 1
       ? saved
       : await _firstHealthyStream(
@@ -373,6 +407,8 @@ Future<ResolvedPlayback> resolvePlayback({
     streams: streams,
     index: index,
     qualityFilteredFallback: didFallback,
+    lastUsedIndex: lastUsedIndex,
+    dataSaver: dataSaver,
   );
 }
 
@@ -489,29 +525,56 @@ Future<PlayerSettings?> _playerSettings(ProviderReader read) async {
   }
 }
 
-/// Metered link → mobileQuality, unmetered → wifiQuality. If the filter leaves
-/// nothing it is dropped rather than failing playback, and [onFallback] reports
-/// that.
+/// The source list as the player shows and walks it (v7), and where it
+/// starts.
 ///
-/// Asked once, when playback is resolved, and deliberately not re-asked on a
-/// handover: the candidate order is also what failover walks, and the walk
-/// records which indices it has tried, so re-sorting mid-session would make
-/// that record point at different sources. A viewer who leaves Wi-Fi keeps the
-/// rendition they are watching until something else reopens the media, which
-/// is the same answer every other player gives.
-Future<List<StreamResult>> _byQuality(
-  List<StreamResult> streams,
-  PlayerSettings settings,
-  void Function(bool) onFallback,
-) async {
-  final preference = await qualityPreferenceInForce(settings);
-  final filtered = filterStreamsByQuality(
-    streams,
-    preference,
-    settings.qualityFilterMode,
-    onFallback: onFallback,
+/// [streams] best quality first (see [sortStreamsBestFirst]); with a
+/// mobile-data [cap] in force the sources at or below it lead. [lastUsed]
+/// finds the source this title last played on in that list (-1 for none):
+/// it moves to the top and playback starts on it — unless it is above the
+/// [cap], in which case it keeps its place (still tagged) and playback
+/// starts under the cap. With nothing remembered, playback starts on the
+/// source the quality [preference] ranks first, as it did before v7, so a
+/// 4K source at the top of the list is not opened just for being there.
+///
+/// Decided once, when playback is resolved, and not again on a handover:
+/// the order is also what failover walks, and the walk records which
+/// indices it has tried.
+({List<StreamResult> streams, int start, int lastUsedIndex}) planSourceList(
+  List<StreamResult> streams, {
+  required QualityPreference preference,
+  QualityPreference cap = QualityPreference.any,
+  int Function(List<StreamResult> ordered)? lastUsed,
+}) {
+  final ordered = sortStreamsBestFirst(streams, cap: cap);
+  if (ordered.isEmpty) return (streams: ordered, start: 0, lastUsedIndex: -1);
+  final startPreference = lowerQualityPreference(preference, cap);
+  final found = lastUsed?.call(ordered) ?? -1;
+  if (found < 0 || found >= ordered.length) {
+    return (
+      streams: ordered,
+      start: preferredStartIndex(ordered, startPreference),
+      lastUsedIndex: -1,
+    );
+  }
+  if (streamExceedsQuality(ordered[found], cap)) {
+    return (
+      streams: ordered,
+      start: preferredStartIndex(ordered, startPreference),
+      lastUsedIndex: found,
+    );
+  }
+  if (found == 0) return (streams: ordered, start: 0, lastUsedIndex: 0);
+  final first = ordered[found];
+  return (
+    streams: <StreamResult>[
+      first,
+      for (var i = 0; i < ordered.length; i++)
+        if (i != found) ordered[i],
+    ],
+    start: 0,
+    lastUsedIndex: 0,
   );
-  return sortStreamsByQuality(filtered, preference);
 }
 
 /// Stable identity of one source, for remembering the last-played source
@@ -548,7 +611,8 @@ Map<String, String> readLastSourceMap(ProviderReader read) {
 }
 
 /// The source the user last watched this title on, so switching episodes keeps
-/// the working provider instead of re-picking from scratch.
+/// the working provider instead of re-picking from scratch. -1 when none is
+/// remembered or it is not among [streams].
 int _savedStreamIndex(
   ProviderReader read,
   MultimediaItem item,
@@ -585,7 +649,7 @@ int _savedStreamIndex(
   } catch (e) {
     if (kDebugMode) debugPrint('resolvePlayback: saved stream lookup: $e');
   }
-  return 0;
+  return -1;
 }
 
 /// How long the rolling check may run before playback starts regardless: on

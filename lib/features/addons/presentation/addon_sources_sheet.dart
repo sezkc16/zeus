@@ -19,6 +19,10 @@ import '../../../core/domain/entity/multimedia_item.dart';
 import '../../../core/network/clearance/clearance.dart';
 import '../../../core/network/clearance/site_checks.dart';
 import '../../../core/services/download_service.dart';
+import '../../../core/storage/settings_repository.dart';
+import '../../../core/utils/stream_quality_sorter.dart';
+import '../../settings/presentation/player_settings_provider.dart';
+import '../../sources/domain/last_used_source.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/focus/app_focus.dart';
 import '../../../shared/focus/row_traversal.dart';
@@ -121,7 +125,42 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
   @override
   void initState() {
     super.initState();
+    // v7: the source this title last played on goes first ("Last used").
+    final settings = _settingsOrNull();
+    _lastUsedKey = settings == null
+        ? null
+        : readLastUsedSource(settings, widget.item.url);
+    unawaited(_readMobileDataCap());
     WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_start()));
+  }
+
+  /// [addonSourceKey] of the source this title last played on, or null.
+  String? _lastUsedKey;
+
+  /// The mobile-data limit in force, in lines (1080 / 720 / 480), or null:
+  /// not on cellular, or "Max quality on mobile data" is Off (v7).
+  int? _capHeight;
+
+  /// The settings store, or null where it is not available (storage not
+  /// opened): the sheet then simply has no "Last used".
+  SettingsRepository? _settingsOrNull() {
+    try {
+      return ref.read(settingsRepositoryProvider);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _readMobileDataCap() async {
+    try {
+      final settings = await ref.read(playerSettingsProvider.future);
+      final cap = await mobileDataCapInForce(settings);
+      final height = qualityPreferenceHeight(cap);
+      if (_disposed || !mounted || height == _capHeight) return;
+      setState(() => _capHeight = height);
+    } catch (_) {
+      // No limit known is no limit applied.
+    }
   }
 
   @override
@@ -296,7 +335,13 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
     );
   }
 
-  List<AddonStreamSource> get _visible => _result.streams
+  List<AddonStreamSource> get _visible => arrangeAddonSources(
+    _filtered,
+    lastUsedKey: _lastUsedKey,
+    capHeight: _capHeight,
+  );
+
+  List<AddonStreamSource> get _filtered => _result.streams
       .where((s) {
         if (_hdOnly && s.qualityScore < 1080) return false;
         if (_downloadMode && (!s.isDirect || s.url == null)) {
@@ -335,6 +380,20 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
       // The sheet goes before the player comes up.
       beforeLaunch: () => Navigator.of(context).pop(),
     );
+    if (played) {
+      // v7: remembered for this title, so the next episode's sheet puts
+      // the same source first.
+      final settings = _settingsOrNull();
+      if (settings != null) {
+        unawaited(
+          rememberLastUsedSource(
+            settings,
+            widget.item.url,
+            addonSourceKey(stream),
+          ),
+        );
+      }
+    }
     if (!played && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         appSnackBar(content: const Text('This source has no playable link.')),
@@ -547,7 +606,7 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
     );
   }
 
-  Widget _topPickLabel(ColorScheme cs) {
+  Widget _topPickLabel(ColorScheme cs, {bool lastUsed = false}) {
     return Padding(
       padding: const EdgeInsets.only(left: 2, bottom: 6),
       child: Row(
@@ -559,7 +618,7 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
-              'TOP PICK',
+              lastUsed ? 'LAST USED' : 'TOP PICK',
               style: TextStyle(
                 color: cs.primary,
                 fontSize: 10,
@@ -568,6 +627,24 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
               ),
             ),
           ),
+          // v7: on cellular with a mobile-data limit, say why the order is
+          // what it is. The higher ones are still in the list, below.
+          if (_capHeight != null) ...[
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Data saver: up to ${_capHeight}p first',
+                key: const ValueKey('sources-data-saver-note'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.onSurfaceVariant,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -946,7 +1023,14 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
                     itemCount: rowCount,
                     itemBuilder: (context, index) {
                       if (topPick != null) {
-                        if (index == 0) return _topPickLabel(cs);
+                        if (index == 0) {
+                          return _topPickLabel(
+                            cs,
+                            lastUsed:
+                                _lastUsedKey != null &&
+                                addonSourceKey(topPick) == _lastUsedKey,
+                          );
+                        }
                         if (index == 1) {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),

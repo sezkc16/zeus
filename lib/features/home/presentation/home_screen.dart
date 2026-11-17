@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'home_provider.dart';
+import 'home_row_prefs.dart';
+import 'home_row_prefs_provider.dart';
 import 'home_state.dart';
 import 'widgets/home_check_card.dart';
 
@@ -337,6 +339,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // full-screen "Current provider: None" empty state.
     final hasNoProvider = ref.watch(activeProviderProvider) == null;
 
+    // Home rows customise (v7): the saved order and hidden rows of the
+    // source on screen - the active provider, or the key-free feed when
+    // there is none or Home fell back to it.
+    final homeRows = state is HomeSuccess
+        ? applyHomeRowPrefs(
+            [
+              kHomeRowContinueWatching,
+              ...state.data.keys.where((k) => k != 'Trending'),
+            ],
+            ref.watch(
+              homeRowPrefsProvider.select(
+                (prefs) => prefs[homeRowsSourceKey(
+                  ref.read(activeProviderProvider)?.packageName,
+                  fellBack: state.fellBackFrom != null,
+                )],
+              ),
+            ),
+          )
+        : const <String>[];
+
     return switch (state) {
       HomeLoading() => _checkGate(
         _withGradientEdgeHint(
@@ -423,38 +445,47 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
                 ),
 
-              if (watchHistoryEnabled && history.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: ContinueWatchingSection(
-                    title: l10n.continueWatching,
-                    items: history.cast<HistoryItem>(),
-                  ),
-                ),
-
-              if (syncedProgressAsync.asData?.value.isNotEmpty == true)
-                SliverToBoxAdapter(
-                  child: SyncedProgressSection(
-                    title: 'Synced from Trakt',
-                    items: syncedProgressAsync.asData!.value,
-                    onItemTap: (item) {
-                      // Pre-fill search query and navigate to Search tab
-                      ref.read(searchQueryProvider.notifier).set(item.title);
-                      const SearchRoute().go(context);
-                    },
-                  ),
-                ),
-
+              // Home rows customise (v7): Continue Watching and the
+              // source's rows in the saved order, hidden ones left out
+              // (see home_row_prefs.dart). The hero above is not a row and
+              // always stays first; with every row hidden this list is
+              // empty and Home shows the hero alone. Trakt's synced
+              // progress belongs to the Continue Watching row.
               SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                    final filteredEntries = data.entries
-                        .where((e) => e.key != 'Trending')
-                        .toList();
-                    if (index >= filteredEntries.length) return null;
-                    final entry = filteredEntries[index];
+                    if (index >= homeRows.length) return null;
+                    final rowId = homeRows[index];
+                    if (rowId == kHomeRowContinueWatching) {
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (watchHistoryEnabled && history.isNotEmpty)
+                            ContinueWatchingSection(
+                              title: l10n.continueWatching,
+                              items: history.cast<HistoryItem>(),
+                            ),
+                          if (syncedProgressAsync.asData?.value.isNotEmpty ==
+                              true)
+                            SyncedProgressSection(
+                              title: 'Synced from Trakt',
+                              items: syncedProgressAsync.asData!.value,
+                              onItemTap: (item) {
+                                // Pre-fill search query and navigate to
+                                // Search tab
+                                ref
+                                    .read(searchQueryProvider.notifier)
+                                    .set(item.title);
+                                const SearchRoute().go(context);
+                              },
+                            ),
+                        ],
+                      );
+                    }
                     return MediaHorizontalList(
-                      title: entry.key,
-                      mediaList: entry.value,
+                      title: rowId,
+                      mediaList: data[rowId] ?? const [],
                       category: ViewAllCategory.providerContent,
                       showViewAll: true,
                       onTap: (item) {
@@ -464,9 +495,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       heroTagPrefix: 'home',
                     );
                   },
-                  childCount: data.entries
-                      .where((e) => e.key != 'Trending')
-                      .length,
+                  childCount: homeRows.length,
                 ),
               ),
 

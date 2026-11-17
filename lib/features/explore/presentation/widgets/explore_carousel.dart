@@ -14,6 +14,7 @@ import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../../../core/utils/image_utils.dart';
 import '../../../../core/utils/layout_constants.dart';
+import '../../../../core/utils/title_quality.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -757,14 +758,17 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
     // the title comes back as big text when there is no logo, and Play /
     // My List / Info actions sit under the meta line.
     final showPreview = widget.showPreviewActions;
-    // Preview hero meta, as the approved design draws it:
-    // "98% Match · 2024 · 2h 46m · 4K · Dolby Vision · Sci-Fi".
-    // Match comes from the score, runtime from the duration; the 4K /
-    // Dolby Vision badges are presentational — the feed carries no
-    // per-title quality data, and the preview draws them on every hero.
-    final match = movie.score != null && movie.score! > 0
-        ? '${(movie.score! * 10).round()}% Match'
-        : null;
+    // Preview hero meta: "★ 8.7 · 2024 · 2h 46m · 4K · Sci-Fi".
+    // v7: every part is real. The star is the item's own score out of 10
+    // (the feed's or the plugin's rating — it used to be printed as a
+    // "% Match", which it never was). Quality badges show only when the
+    // title or its tags state them (see [statedQualityBadges]); they used
+    // to be drawn on every slide with no data behind them.
+    final rating = ratingLabel(movie.score);
+    final match = rating == null ? null : '★ $rating';
+    final qualityBadges = showPreview
+        ? statedQualityBadges(movie.title, tags: movie.tags)
+        : const <String>[];
     final runtime = _formatRuntime(movie.duration);
     final synopsis = showPreview ? _plainSynopsis(movie.description) : null;
     // The first slide wears the trending badge; the rest wear the type as
@@ -853,6 +857,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
                   match: match,
                   year: year,
                   runtime: runtime,
+                  qualityBadges: qualityBadges,
                   genres: genres,
                 ),
               ),
@@ -914,13 +919,14 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
   }
 
   /// The preview hero's meta line, as one ellipsis-clamped line:
-  /// "[match] · [year] · [runtime] · 4K · Dolby Vision · [genres]".
+  /// "[rating] · [year] · [runtime] · [stated quality] · [genres]".
   /// Segments that have nothing to say are skipped, so a bare item still
-  /// reads as the preview's line instead of a row of stray separators.
+  /// reads as one line instead of a row of stray separators.
   List<InlineSpan> _previewMetaSpans({
     required String? match,
     required String year,
     required String? runtime,
+    required List<String> qualityBadges,
     required String genres,
   }) {
     final spans = <InlineSpan>[];
@@ -942,22 +948,16 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
     }
     if (year.isNotEmpty) add(year);
     if (runtime != null) add(runtime);
-    // Presentational quality badges, as the preview draws them on every
-    // hero slide (see the note on the meta above).
-    add(
-      '4K',
-      style: const TextStyle(
-        color: Colors.white,
-        fontWeight: FontWeight.w800,
-      ),
-    );
-    add(
-      'Dolby Vision',
-      style: const TextStyle(
-        color: Colors.white,
-        fontWeight: FontWeight.w800,
-      ),
-    );
+    // Only what the title itself states (v7) — nothing stated, no badge.
+    for (final badge in qualityBadges) {
+      add(
+        badge,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+        ),
+      );
+    }
     if (genres.isNotEmpty) add(genres);
     return spans;
   }

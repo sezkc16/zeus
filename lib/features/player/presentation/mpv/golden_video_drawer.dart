@@ -32,16 +32,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../settings/presentation/player_settings_provider.dart';
+import '../../domain/sleep_timer.dart';
 import 'golden_drawer.dart';
 import 'golden_player_theme.dart';
+import 'golden_sleep_timer.dart';
 
 class GoldenVideoDrawer extends ConsumerWidget {
   const GoldenVideoDrawer({
     required this.settings,
     required this.onPresetPicked,
     required this.onClose,
+    this.sleepTimer,
+    this.showPresets = true,
     super.key,
   });
+
+  /// The player's sleep timer (v7). Non-null: the drawer opens with a
+  /// "Sleep timer" section above the presets. Null: no section, the
+  /// drawer is exactly the +57 one.
+  final SleepTimer? sleepTimer;
+
+  /// Whether the output presets render. False where the live preset
+  /// apply does not exist (Android): the drawer then only carries the
+  /// sleep timer.
+  final bool showPresets;
 
   /// The saved settings, live. The drawer rebuilds from this, so the
   /// checkmark follows a pick at once.
@@ -90,6 +104,9 @@ class GoldenVideoDrawer extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: <Widget>[
+              if (sleepTimer != null)
+                GoldenSleepTimerSection(timer: sleepTimer!),
+              if (showPresets) ...<Widget>[
               Row(
                 children: <Widget>[
                   const Expanded(child: GoldenSectionLabel('Output preset')),
@@ -163,6 +180,7 @@ class GoldenVideoDrawer extends ConsumerWidget {
                       ),
                     ),
                   ),
+              ],
               ],
             ],
           );

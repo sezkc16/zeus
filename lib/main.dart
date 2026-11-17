@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_displaymode/flutter_displaymode.dart';
+import 'features/app_lock/app_lock_gate.dart';
 import 'package:flutter/material.dart';
 
 import 'features/player/presentation/player_debug_flags.dart'
@@ -32,6 +33,9 @@ import 'features/player/domain/subtitle_fonts.dart';
 import 'features/extensions/providers/extensions_controller.dart';
 import 'core/addons/data/addon_repository.dart';
 import 'core/cloudstream/cloudstream_repository.dart';
+import 'core/cloudstream/cloudstream_provider.dart';
+import 'core/cloudstream/plugin_warm_up.dart';
+import 'core/extensions/extension_manager.dart';
 import 'core/cloudstream/extension_notices.dart';
 import 'core/cloudstream/extension_ui/extension_pages.dart';
 import 'core/models/extension_update_report.dart';
@@ -357,7 +361,10 @@ class _MyAppState extends ConsumerState<MyApp> {
         if (mounted) unawaited(_showWaitingScreen(screen));
       });
       _checkAppUpdates();
-      unawaited(_checkExtensionsUpdates());
+      // v7: the plugin warm-up follows the update check rather than
+      // running beside it — an update replaces plugin files, and loading
+      // one that is about to be replaced is work done twice.
+      unawaited(_checkExtensionsUpdates().whenComplete(_warmUpPlugins));
     });
   }
 
@@ -463,6 +470,37 @@ class _MyAppState extends ConsumerState<MyApp> {
           .loadInstalledPlugins();
     } catch (e) {
       if (kDebugMode) debugPrint('Installed extension load failed: $e');
+    }
+  }
+
+  /// Loads the installed .cs3 plugins in the background (v7), one at a
+  /// time, so the first search or title does not pay for loading a
+  /// plugin's code. Starts only after the launch and the update check are
+  /// over; iOS only (the platform this build ships for); stops for good on
+  /// a memory warning or when the app leaves the foreground. See
+  /// [CloudStreamRepository.warmUp] for what it loads and how many.
+  Future<void> _warmUpPlugins() async {
+    if (!mounted || kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) {
+      return;
+    }
+    final guard = PluginWarmUpGuard()..attach();
+    try {
+      final active = ref.read(activeProviderProvider);
+      final activePath = active is CloudStreamProvider
+          ? active.plugin.filePath
+          : null;
+      await ref
+          .read(cloudStreamRepositoryProvider.notifier)
+          .warmUp(
+            first: activePath == null
+                ? null
+                : (plugin) => plugin.filePath == activePath,
+            shouldStop: () => !mounted || guard.shouldStop,
+          );
+    } catch (e) {
+      if (kDebugMode) debugPrint('Plugin warm-up failed: $e');
+    } finally {
+      guard.detach();
     }
   }
 
@@ -708,6 +746,10 @@ class _MyAppState extends ConsumerState<MyApp> {
             // `MaterialApp.router`'s builder, i.e. around the Navigator that
             // builds the player route.
             result = UpdatePromptHost(child: M3ToastOverlay(child: result));
+
+            // App lock (v7): the lock screen / privacy cover over the whole
+            // app, toasts included. It stands down over the player.
+            result = AppLockGate(router: appRouter, child: result);
 
             // Outermost, so every focus indicator in the app - the browsing
             // UI, the player chrome, dialogs and the toast host alike - reads

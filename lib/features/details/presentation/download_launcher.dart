@@ -51,19 +51,7 @@ class DownloadLauncher {
 
     try {
       // 2. Resolve streams
-      final manager = _ref.read(extensionManagerProvider.notifier);
-      SkyStreamProvider? provider;
-      if (item.provider != null) {
-        try {
-          final val = item.provider!;
-          provider = manager.getAllProviders().firstWhere(
-            (p) => p.packageName == val || p.name == val,
-          );
-        } catch (e) {
-          if (kDebugMode) debugPrint('DownloadLauncher.launch: $e');
-        }
-      }
-      provider ??= _ref.read(activeProviderProvider);
+      final provider = providerFor(item);
       if (provider == null) throw Exception('No active provider');
 
       final streams = await provider.loadStreams(resolveUrl);
@@ -88,6 +76,25 @@ class DownloadLauncher {
             icon: Icons.error_outline_rounded,
           );
     }
+  }
+
+  /// The plugin that serves [item]: the one it names, else the active
+  /// one. Null when there is neither. Shared with the whole-season
+  /// download, which loads each episode's links the same way.
+  SkyStreamProvider? providerFor(MultimediaItem item) {
+    final manager = _ref.read(extensionManagerProvider.notifier);
+    SkyStreamProvider? provider;
+    if (item.provider != null) {
+      try {
+        final val = item.provider!;
+        provider = manager.getAllProviders().firstWhere(
+          (p) => p.packageName == val || p.name == val,
+        );
+      } catch (e) {
+        if (kDebugMode) debugPrint('DownloadLauncher.providerFor: $e');
+      }
+    }
+    return provider ?? _ref.read(activeProviderProvider);
   }
 
   void _showSourcePicker(
@@ -294,45 +301,12 @@ class DownloadLauncher {
     required String resolveUrl,
     required DownloadMetadata metadata,
   }) async {
-    final downloadService = _ref.read(downloadServiceProvider);
     try {
-      // Finalize path and filename
-      final episodeData = item.episodes?.firstWhereOrNull(
-        (e) => e.url == resolveUrl,
-      );
-      final saveDir = await downloadService.getDownloadPath(
-        item,
-        episode: episodeData,
-      );
-
-      final extension = _getFileExtension(stream.url, metadata.mimeType);
-      String filename;
-      if (episodeData != null &&
-          item.contentType != MultimediaContentType.movie) {
-        final sanitizedEpName = episodeData.name
-            .replaceAll(RegExp(r'[^\w\s-]'), '')
-            .trim();
-        filename =
-            "S${episodeData.season}-E${episodeData.episode} $sanitizedEpName$extension";
-      } else {
-        final sanitizedTitle = item.title
-            .replaceAll(RegExp(r'[^\w\s-]'), '')
-            .trim();
-        filename = "$sanitizedTitle$extension";
-      }
-
-      if (kDebugMode) {
-        debugPrint('[DownloadLauncher] Final Path: $saveDir/$filename');
-      }
-
-      final started = await downloadService.startDownload(
-        url: stream.url,
-        filename: filename,
-        directory: saveDir,
+      final started = await queueDirect(
+        stream: stream,
         item: item,
-        episode: episodeData,
-        trackingUrl: resolveUrl,
-        headers: stream.headers,
+        resolveUrl: resolveUrl,
+        metadata: metadata,
       );
 
       if (!started) {
@@ -358,6 +332,64 @@ class DownloadLauncher {
             icon: Icons.error_outline_rounded,
           );
     }
+  }
+
+  /// Hands one verified source to the download manager: works out the
+  /// folder and the file name, then enqueues. No dialog and no toast —
+  /// the caller reports. Returns whether the download manager took it;
+  /// throws what `startDownload` throws.
+  ///
+  /// The single-episode "Download Now" and the whole-season download both
+  /// end here, so a file lands in the same place under the same name
+  /// whichever started it. [episode] may be passed when the caller
+  /// already holds it; otherwise it is looked up in [item] by
+  /// [resolveUrl], as before.
+  Future<bool> queueDirect({
+    required StreamResult stream,
+    required MultimediaItem item,
+    required String resolveUrl,
+    required DownloadMetadata metadata,
+    Episode? episode,
+  }) async {
+    final downloadService = _ref.read(downloadServiceProvider);
+    // Finalize path and filename
+    final episodeData =
+        episode ??
+        item.episodes?.firstWhereOrNull((e) => e.url == resolveUrl);
+    final saveDir = await downloadService.getDownloadPath(
+      item,
+      episode: episodeData,
+    );
+
+    final extension = _getFileExtension(stream.url, metadata.mimeType);
+    String filename;
+    if (episodeData != null &&
+        item.contentType != MultimediaContentType.movie) {
+      final sanitizedEpName = episodeData.name
+          .replaceAll(RegExp(r'[^\w\s-]'), '')
+          .trim();
+      filename =
+          "S${episodeData.season}-E${episodeData.episode} $sanitizedEpName$extension";
+    } else {
+      final sanitizedTitle = item.title
+          .replaceAll(RegExp(r'[^\w\s-]'), '')
+          .trim();
+      filename = "$sanitizedTitle$extension";
+    }
+
+    if (kDebugMode) {
+      debugPrint('[DownloadLauncher] Final Path: $saveDir/$filename');
+    }
+
+    return downloadService.startDownload(
+      url: stream.url,
+      filename: filename,
+      directory: saveDir,
+      item: item,
+      episode: episodeData,
+      trackingUrl: resolveUrl,
+      headers: stream.headers,
+    );
   }
 
   void _showErrorDialog(

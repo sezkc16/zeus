@@ -165,6 +165,8 @@ class MergedSourceService {
           [...pluginStreams, ...nuvioStreams, ...addonProgress.streams],
           title: request.title,
           year: request.year,
+          // v7: the merged list is ordered by quality, best first.
+          byQuality: true,
         ),
         statuses: [
           ...pluginStatuses.values,

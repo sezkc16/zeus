@@ -16,6 +16,7 @@ import '../../../../core/network/clearance/site_checks.dart';
 import '../../../../core/nuvio/data/nuvio_repository.dart';
 import '../../explore/data/explore_tmdb_provider.dart';
 import '../domain/search_fold.dart';
+import '../domain/search_plugin_filter.dart';
 import 'search_category.dart';
 import 'search_sources.dart';
 
@@ -315,10 +316,21 @@ Stream<SearchAggregateState> searchAllProviders(
   required SearchFilter filter,
   required bool Function() isCancelled,
   List<SkyStreamProvider> others = const [],
+  Set<String> disabled = const <String>{},
+  Duration sourceTimeout = kSearchSourceTimeout,
 }) async* {
-  final allProviders = manager.getAllProviders();
+  // v7, "Search in plugins": a source switched off there is not asked.
+  final allProviders = enabledSearchSources(
+    manager.getAllProviders(),
+    disabled,
+    (SkyStreamProvider p) => p.packageName,
+  );
   final searchers = filter == SearchFilter.content
-      ? others
+      ? enabledSearchSources(
+          others,
+          disabled,
+          (SkyStreamProvider p) => p.packageName,
+        )
       : const <SkyStreamProvider>[];
   final providers = [
     ...allProviders.where((p) {
@@ -525,7 +537,18 @@ Stream<SearchAggregateState> searchAllProviders(
 
         try {
           debugPrint('[SEARCH DBG] START ${provider.packageName}');
-          final rawResults = await provider.search(query, cancelToken: token);
+          // v7: one slow plugin does not hold the search. Past the limit
+          // its request is cancelled and it counts as having found
+          // nothing this time (the catch below); the others are already
+          // on screen.
+          final rawResults = await searchWithin(
+            provider.search(query, cancelToken: token),
+            limit: sourceTimeout,
+            onTimeout: () {
+              debugPrint('[SEARCH DBG] TIMEOUT ${provider.packageName}');
+              if (!token.isCancelled) token.cancel('search timeout');
+            },
+          );
           debugPrint(
             '[SEARCH DBG] DONE ${provider.packageName} — rawResults=${rawResults.length}',
           );
@@ -604,7 +627,8 @@ Stream<SearchAggregateState> searchAllProviders(
           }
         } catch (e) {
           debugPrint('[SEARCH DBG] ERROR ${provider.packageName}: $e');
-          if (isCancelled() || token.isCancelled) {
+          if (e is! TimeoutException &&
+              (isCancelled() || token.isCancelled)) {
             debugPrint(
               '[SEARCH DBG] CANCELLED during error ${provider.packageName}',
             );
@@ -738,6 +762,7 @@ Stream<SearchAggregateState> searchResults(Ref ref) {
   final query = ref.watch(searchQueryProvider);
   final filter = ref.watch(searchFilterProvider);
   final manager = ref.read(extensionManagerProvider.notifier);
+  final disabled = ref.watch(searchDisabledSourcesProvider);
 
   debugPrint('[SEARCH DBG] searchResults PROVIDER BUILT — query="$query"');
 
@@ -753,6 +778,7 @@ Stream<SearchAggregateState> searchResults(Ref ref) {
     manager,
     filter: filter,
     isCancelled: () => cancelled,
+    disabled: disabled,
     others: filter == SearchFilter.content
         ? searchSources(
             addons: ref.read(addonRepositoryProvider).enabled,

@@ -530,10 +530,18 @@ List<String> addonStreamProviderLabels(Iterable<AddonStreamSource> streams) {
 /// the score to decide. A link that carries the film's [year] counts as naming
 /// it: that keeps a release under a translated title ("Duna - Parte Dois
 /// 2024") where it was.
+///
+/// [byQuality] (v7, the Browse merged list — plugins, Nuvio and add-ons in
+/// one sheet) orders by stated quality instead of the blended score: 4K,
+/// 1440p, 1080p, 720p, 480p, then the ones that state none; the bigger file
+/// first within one quality when sizes are stated; the score only breaks
+/// what is still tied. Wrong-film suspects and CAM copies still go last,
+/// and nothing is dropped.
 List<AddonStreamSource> rankAddonStreams(
   Iterable<AddonStreamSource> streams, {
   String? title,
   int? year,
+  bool byQuality = false,
 }) {
   final ranked = streams.toList();
   final scores = Map<AddonStreamSource, int>.identity();
@@ -561,11 +569,61 @@ List<AddonStreamSource> rankAddonStreams(
       suspects.contains(b) ? 1 : 0,
     );
     if (bySuspicion != 0) return bySuspicion;
+    if (byQuality) {
+      final byCam = (a.isCam ? 1 : 0).compareTo(b.isCam ? 1 : 0);
+      if (byCam != 0) return byCam;
+      final byHeight = b.qualityScore.compareTo(a.qualityScore);
+      if (byHeight != 0) return byHeight;
+      final bySize = (b.sizeBytes ?? -1).compareTo(a.sizeBytes ?? -1);
+      if (bySize != 0) return bySize;
+    }
     final byScore = scores[b]!.compareTo(scores[a]!);
     if (byScore != 0) return byScore;
     return a.addonName.compareTo(b.addonName);
   });
   return ranked;
+}
+
+/// What identifies one source of the sources sheet from one opening to the
+/// next (v7, "Last used"): where it came from — the add-on, plugin or Nuvio
+/// provider, and the inner provider when a bridge names one — and its
+/// quality. Not its address: signed links are re-issued on every load.
+String addonSourceKey(AddonStreamSource stream) =>
+    '${stream.addonName}\u0001${stream.providerName ?? ''}\u0001${stream.qualityLabel}';
+
+/// The sources sheet's final arrangement of an already ranked list (v7).
+///
+/// The source matching [lastUsedKey] (see [addonSourceKey]; the first match)
+/// goes first. With a mobile-data limit of [capHeight] lines in force, the
+/// sources at or below it — and the ones that state no quality — come
+/// before the ones above it, and a last-used source above the limit stays
+/// with those. Order within each part is the ranking's; nothing is dropped.
+List<AddonStreamSource> arrangeAddonSources(
+  List<AddonStreamSource> ranked, {
+  String? lastUsedKey,
+  int? capHeight,
+}) {
+  if (ranked.length <= 1 || (lastUsedKey == null && capHeight == null)) {
+    return ranked;
+  }
+  bool over(AddonStreamSource s) =>
+      capHeight != null && s.qualityScore > capHeight;
+  AddonStreamSource? last;
+  if (lastUsedKey != null) {
+    for (final s in ranked) {
+      if (addonSourceKey(s) == lastUsedKey) {
+        if (!over(s)) last = s;
+        break;
+      }
+    }
+  }
+  return <AddonStreamSource>[
+    ?last,
+    for (final s in ranked)
+      if (!identical(s, last) && !over(s)) s,
+    for (final s in ranked)
+      if (over(s)) s,
+  ];
 }
 
 /// Words that name nothing in particular: they turn up in titles and in any

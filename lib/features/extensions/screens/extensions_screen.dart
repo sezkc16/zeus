@@ -12,7 +12,9 @@ import '../../../core/extensions/extension_manager.dart';
 import '../../../core/widgets/app_snack_bar.dart';
 import '../providers/extensions_controller.dart';
 import '../widgets/cloudstream_plugin_section.dart';
+import '../widgets/plugin_check_bar.dart';
 import '../widgets/installed_other_sources.dart';
+import '../widgets/plugin_updates_bar.dart';
 import 'plugin_settings_dialog.dart';
 import '../../../shared/widgets/cards_wrapper.dart';
 import '../../../shared/widgets/loading_indicator.dart';
@@ -60,6 +62,57 @@ class ExtensionsScreen extends ConsumerStatefulWidget {
 
 class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
   bool _didEnsureInit = false;
+
+  /// When the installed plugins' repositories were last asked for newer
+  /// versions by this screen (v7): opening the Plugins tab asks again, at
+  /// most once every [_updateCheckEvery], so tabbing back and forth is not
+  /// a network round trip each time. Static: the screen is rebuilt, the
+  /// answer is still fresh.
+  static DateTime? _lastUpdateCheck;
+  static const Duration _updateCheckEvery = Duration(minutes: 10);
+
+  /// Fetches the repositories of the installed plugins again, so an
+  /// "Update" shows on a plugin whose repository has a newer version. A
+  /// repository that fails keeps the list it had (the repository's own
+  /// rule). [force] is the pull-to-refresh; without it the check is skipped
+  /// while the last one is fresh.
+  Future<void> _checkPluginUpdates({bool force = false}) async {
+    final now = DateTime.now();
+    final last = _lastUpdateCheck;
+    if (!force && last != null && now.difference(last) < _updateCheckEvery) {
+      return;
+    }
+    _lastUpdateCheck = now;
+    try {
+      await ref
+          .read(cloudStreamRepositoryProvider.notifier)
+          .refreshAll(installedOnly: true);
+    } catch (_) {
+      // The repository records its own failures; nothing to add here.
+    }
+  }
+
+  /// Pull-to-refresh on the Installed segment: checks again, then says
+  /// what it found.
+  Future<void> _refreshInstalled() async {
+    final l10n = AppLocalizations.of(context)!;
+    final messenger = ScaffoldMessenger.of(context);
+    await _checkPluginUpdates(force: true);
+    if (!mounted) return;
+    final updates = pluginUpdatesOf(
+      ref.read(cloudStreamRepositoryProvider),
+    ).length;
+    messenger.showSnackBar(
+      appSnackBar(
+        content: Text(
+          updates == 0
+              ? l10n.pluginsUpToDate
+              : l10n.cloudStreamUpdatesAvailable(updates),
+        ),
+        duration: const Duration(milliseconds: 1500),
+      ),
+    );
+  }
 
   /// The Add Repository URL field, kept across rebuilds so typing is not
   /// lost while the repository list refreshes underneath it.
@@ -141,6 +194,7 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
       _didEnsureInit = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref.read(extensionsControllerProvider.notifier).ensureInitialized();
+        unawaited(_checkPluginUpdates());
       });
     }
     ref.listen(extensionsControllerProvider, (previous, next) {
@@ -210,20 +264,30 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
               ),
             ),
             Expanded(
-              child: ListView(
-                // One list per segment, so each starts at its own top.
-                key: ValueKey('plugins-list-${segment.name}'),
-                padding: EdgeInsets.only(
-                  bottom: LayoutConstants.shellBottomContentPadding(context),
-                  top: LayoutConstants.spacingSm,
+              child: RefreshIndicator(
+                // v7: pulling the Installed list down checks the plugins'
+                // repositories for newer versions. Add Plugins has its own
+                // per-repository refresh buttons.
+                notificationPredicate: (notification) =>
+                    segment == PluginsSegment.installed &&
+                    notification.depth == 0,
+                onRefresh: _refreshInstalled,
+                child: ListView(
+                  // One list per segment, so each starts at its own top.
+                  key: ValueKey('plugins-list-${segment.name}'),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.only(
+                    bottom: LayoutConstants.shellBottomContentPadding(context),
+                    top: LayoutConstants.spacingSm,
+                  ),
+                  children: segment == PluginsSegment.installed
+                      ? _installedWidgets(context, ref, state)
+                      : [
+                          _buildAddRepositoryCard(context, ref),
+                          ..._repositoryWidgets(context, ref, state),
+                          _buildMoreSourcesCard(context),
+                        ],
                 ),
-                children: segment == PluginsSegment.installed
-                    ? _installedWidgets(context, ref, state)
-                    : [
-                        _buildAddRepositoryCard(context, ref),
-                        ..._repositoryWidgets(context, ref, state),
-                        _buildMoreSourcesCard(context),
-                      ],
               ),
             ),
           ],
@@ -347,6 +411,9 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
     }
 
     return [
+      // v7: "N updates available · Update all", only while there are some.
+      if (csInstalled.isNotEmpty) const PluginUpdatesBar(),
+      const PluginCheckBar(),
       if (hasDebug) _buildDebugSection(context, debugPlugins),
       _buildInstalledSection(context, ref, installedPlugins),
       if (hasInstalledOnly)

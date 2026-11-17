@@ -40,6 +40,14 @@ enum PlayerGesture { brightness, volume, seek, none }
 /// never overwritten — this only changes what happens when nothing was chosen.
 const QualityPreference kDefaultWifiQuality = QualityPreference.q1080;
 
+/// What "Max quality on mobile data" (v7) offers: Off, 1080p, 720p, 480p.
+const List<QualityPreference> kMobileDataMaxQualities = <QualityPreference>[
+  QualityPreference.any,
+  QualityPreference.q1080,
+  QualityPreference.q720,
+  QualityPreference.q480,
+];
+
 enum QualityPreference {
   any, // no preference — keep original order
   q360, // 360p
@@ -276,6 +284,17 @@ class PlayerSettings {
   /// Quality to prefer when on mobile data. Default: 1080p.
   final QualityPreference mobileQuality;
 
+  /// "Max quality on mobile data" (v7): on cellular, sources at or below
+  /// this come first in the source list and playback starts among them;
+  /// higher ones stay listed below. [QualityPreference.any] is Off, the
+  /// default. One of [kMobileDataMaxQualities].
+  final QualityPreference mobileDataMaxQuality;
+
+  /// Whether the next episode starts on its own when one ends (v7): a 5 s
+  /// "Next episode" card with Play now and Cancel. Off: the episode just
+  /// ends, with Next episode on the ended card. Default on.
+  final bool autoPlayNextEpisode;
+
   /// Controls whether streams below/above the quality preference are hidden.
   /// Default: [QualityFilterMode.any] (sort only, no filtering).
   final QualityFilterMode qualityFilterMode;
@@ -398,6 +417,8 @@ class PlayerSettings {
     this.wifiQuality = kDefaultWifiQuality,
     this.mobileQuality = QualityPreference.q1080,
     this.qualityFilterMode = QualityFilterMode.any,
+    this.mobileDataMaxQuality = QualityPreference.any,
+    this.autoPlayNextEpisode = true,
     this.bufferOverrideMb,
     this.maxVolumePercent = 200,
     this.showRemainingTime = false,
@@ -450,6 +471,8 @@ class PlayerSettings {
     QualityPreference? wifiQuality,
     QualityPreference? mobileQuality,
     QualityFilterMode? qualityFilterMode,
+    QualityPreference? mobileDataMaxQuality,
+    bool? autoPlayNextEpisode,
     int? bufferOverrideMb,
     bool clearBufferOverride = false,
     int? maxVolumePercent,
@@ -508,6 +531,8 @@ class PlayerSettings {
       wifiQuality: wifiQuality ?? this.wifiQuality,
       mobileQuality: mobileQuality ?? this.mobileQuality,
       qualityFilterMode: qualityFilterMode ?? this.qualityFilterMode,
+      mobileDataMaxQuality: mobileDataMaxQuality ?? this.mobileDataMaxQuality,
+      autoPlayNextEpisode: autoPlayNextEpisode ?? this.autoPlayNextEpisode,
       bufferOverrideMb: clearBufferOverride
           ? null
           : (bufferOverrideMb ?? this.bufferOverrideMb),
@@ -730,6 +755,19 @@ class PlayerSettingsNotifier extends _$PlayerSettingsNotifier {
     final filterMode = _parseFilterMode(
       storage.getPlayerSetting<String>('player_quality_filter_mode'),
     );
+    final storedCap = _parseQuality(
+      storage.getPlayerSetting<String>('player_mobile_data_max_quality'),
+      QualityPreference.any,
+    );
+    final mobileDataMaxQuality = kMobileDataMaxQualities.contains(storedCap)
+        ? storedCap
+        : QualityPreference.any;
+    final autoPlayNextEpisode =
+        storage.getPlayerSetting<bool>(
+          'player_autoplay_next_episode',
+          defaultValue: true,
+        ) ??
+        true;
 
     final showVolume =
         storage.getPlayerSetting<bool>(
@@ -847,6 +885,8 @@ class PlayerSettingsNotifier extends _$PlayerSettingsNotifier {
       wifiQuality: wifiQ,
       mobileQuality: mobileQ,
       qualityFilterMode: filterMode,
+      mobileDataMaxQuality: mobileDataMaxQuality,
+      autoPlayNextEpisode: autoPlayNextEpisode,
       bufferOverrideMb: bufferOverrideMb,
       maxVolumePercent: maxVolumePercent,
       showRemainingTime: showRemaining,
@@ -1314,6 +1354,22 @@ class PlayerSettingsNotifier extends _$PlayerSettingsNotifier {
   Future<void> setMobileQuality(QualityPreference q) async {
     await _repository.setPlayerSetting('player_mobile_quality', q.name);
     _update((PlayerSettings c) => c.copyWith(mobileQuality: q));
+  }
+
+  Future<void> setMobileDataMaxQuality(QualityPreference q) async {
+    final value = kMobileDataMaxQualities.contains(q)
+        ? q
+        : QualityPreference.any;
+    await _repository.setPlayerSetting(
+      'player_mobile_data_max_quality',
+      value.name,
+    );
+    _update((PlayerSettings c) => c.copyWith(mobileDataMaxQuality: value));
+  }
+
+  Future<void> setAutoPlayNextEpisode(bool val) async {
+    await _repository.setPlayerSetting('player_autoplay_next_episode', val);
+    _update((PlayerSettings c) => c.copyWith(autoPlayNextEpisode: val));
   }
 
   Future<void> setQualityFilterMode(QualityFilterMode mode) async {

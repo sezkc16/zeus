@@ -24,6 +24,7 @@ import 'download_progress_dialog.dart';
 import 'download_management_dialog.dart';
 import 'episode_card.dart';
 import 'hero_details_widgets.dart';
+import 'season_download_widgets.dart';
 import '../../../home/presentation/widgets/home_provider_chip.dart'
     show cleanPluginName;
 import '../../../../shared/focus/app_focus.dart';
@@ -1432,8 +1433,23 @@ class _DetailsEpisodeRowSectionState
                 totalEpisodes: count,
                 batchSize: batch,
               ),
+              // Whole-season download (v7): the selected season's
+              // episodes, with the Sub/Dub choice applied. Not for live
+              // channels — there is no file to fetch.
+              if (widget.parentItem.contentType !=
+                  MultimediaContentType.livestream) ...[
+                const SizedBox(width: 8),
+                SeasonDownloadButton(
+                  item: widget.parentItem,
+                  episodes: episodes,
+                ),
+              ],
             ],
           ),
+        ),
+        SeasonDownloadStatusBar(
+          itemUrl: widget.parentItem.url,
+          horizontalPadding: widget.horizontalPadding,
         ),
         HorizontalEpisodeRow(
           key: _rowKey,

@@ -97,6 +97,25 @@ class SettingsRepository {
 
   String getTmdbApiKey() => _storageService.getString(kTmdbApiKey) ?? '';
 
+  /// Home rows customise (v7): one JSON object, source key -> {order, hidden}.
+  /// See `home_row_prefs.dart` for the shape. Null/absent = nothing saved.
+  static const String kHomeRowPrefs = 'home_row_prefs';
+
+  Future<void> setHomeRowPrefsJson(String? json) =>
+      _storageService.setString(kHomeRowPrefs, json);
+
+  String? getHomeRowPrefsJson() => _storageService.getString(kHomeRowPrefs);
+
+  /// App lock (v7): whether Face ID / passcode is asked for on launch and
+  /// after a while in the background. Off unless turned on.
+  static const String kAppLockEnabled = 'app_lock_enabled';
+
+  Future<void> setAppLockEnabled(bool enabled) =>
+      _storageService.setPlayerSetting(kAppLockEnabled, enabled ? true : null);
+
+  bool isAppLockEnabled() =>
+      _storageService.getPlayerSetting<bool>(kAppLockEnabled) ?? false;
+
   Future<void> setTitlePosition(String position) async {
     await _storageService.setTitlePosition(position);
   }

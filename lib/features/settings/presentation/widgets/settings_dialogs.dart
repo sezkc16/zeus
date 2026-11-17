@@ -2129,9 +2129,11 @@ void showQualityDialog(
   required String title,
   required QualityPreference current,
   required Future<void> Function(QualityPreference) onChanged,
+  List<QualityPreference> options = QualityPreference.values,
+  String? anyLabel,
+  String? anySubtitle,
 }) {
   final l10n = AppLocalizations.of(context)!;
-  const options = QualityPreference.values;
   showDialog<void>(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -2157,9 +2159,13 @@ void showQualityDialog(
                     isCurrent: isCurrent,
                     child: ListTile(
                       autofocus: isCurrent,
-                      title: Text(qualityPreferenceLabel(q, l10n)),
+                      title: Text(
+                        q == QualityPreference.any && anyLabel != null
+                            ? anyLabel
+                            : qualityPreferenceLabel(q, l10n),
+                      ),
                       subtitle: q == QualityPreference.any
-                          ? Text(l10n.keepSourcesOriginalOrder)
+                          ? Text(anySubtitle ?? l10n.keepSourcesOriginalOrder)
                           : null,
                       leading: Radio<QualityPreference>(value: q),
                       onTap: () {

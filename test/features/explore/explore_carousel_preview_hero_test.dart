@@ -32,7 +32,7 @@ MultimediaItem _movie(int i) => MultimediaItem(
 );
 
 /// A movie with the metadata the preview hero's meta line renders:
-/// score 8.7 → "87% Match", year 2024, 166 minutes → "2h 46m", genres,
+/// score 8.7 → "★ 8.7", year 2024, 166 minutes → "2h 46m", genres,
 /// and an HTML description (AniList ships them that way) for the synopsis.
 MultimediaItem _richMovie() => MultimediaItem(
   title: 'Rich Title',
@@ -176,20 +176,43 @@ void main() {
         showPreviewActions: true,
       );
 
-      // "98% Match · 2024 · 2h 46m · 4K · Dolby Vision · Sci-Fi", as one
-      // clamped line — the match, year, runtime and genres come from the
-      // item, the 4K / Dolby Vision badges from the preview's design.
+      // "★ 8.7 · 2024 · 2h 46m · Sci-Fi", as one clamped line — the
+      // rating, year, runtime and genres come from the item. v7: no
+      // quality badge, because this title states none (the 4K / Dolby
+      // Vision badges used to be drawn on every slide).
       // The meta is a standalone RichText, which textContaining ignores
       // unless findRichText is passed.
-      expect(find.textContaining('87% Match', findRichText: true), findsOneWidget);
+      expect(find.textContaining('★ 8.7', findRichText: true), findsOneWidget);
+      expect(find.textContaining('Match', findRichText: true), findsNothing);
       expect(find.textContaining('2024', findRichText: true), findsOneWidget);
       expect(find.textContaining('2h 46m', findRichText: true), findsOneWidget);
-      expect(find.textContaining('4K', findRichText: true), findsOneWidget);
-      expect(find.textContaining('Dolby Vision', findRichText: true), findsOneWidget);
+      expect(find.textContaining('4K', findRichText: true), findsNothing);
+      expect(find.textContaining('Dolby Vision', findRichText: true), findsNothing);
       expect(find.textContaining('Sci-Fi', findRichText: true), findsOneWidget);
       // The HTML in the description is stripped, not printed raw.
       expect(find.text('A short synopsis across lines.'), findsOneWidget);
       expect(find.textContaining('<i>'), findsNothing);
+    });
+
+    testWidgets('a quality badge shows only when the title states it', (
+      tester,
+    ) async {
+      await pumpCarousel(
+        tester,
+        movies: [
+          MultimediaItem(
+            title: 'Blue Box (Season 1) Hindi Dubbed Blu-Ray 1080p & 720p',
+            url: 'https://fake.test/bluebox',
+            posterUrl: '',
+            bannerUrl: '',
+            contentType: MultimediaContentType.anime,
+          ),
+        ],
+        showPreviewActions: true,
+      );
+      expect(find.textContaining('1080p', findRichText: true), findsWidgets);
+      expect(find.textContaining('Dolby Vision', findRichText: true), findsNothing);
+      expect(find.textContaining(' · 4K', findRichText: true), findsNothing);
     });
 
     testWidgets('Play calls onPlay once and does not fire the slide tap', (

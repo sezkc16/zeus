@@ -433,6 +433,50 @@ class PlayerSettingsScreen extends ConsumerWidget {
                           .setMobileQuality,
                     ),
                   ),
+                  // v7: a ceiling for cellular. Sources at or below it lead
+                  // the source list and playback starts among them; higher
+                  // ones stay listed below.
+                  SettingsTile(
+                    emoji: '📶',
+                    title: l10n.mobileDataMaxQuality,
+                    subtitle: l10n.mobileDataMaxQualitySubtitle,
+                    value:
+                        playerSettings.mobileDataMaxQuality ==
+                            QualityPreference.any
+                        ? l10n.mobileDataMaxQualityOff
+                        : qualityPreferenceLabel(
+                            playerSettings.mobileDataMaxQuality,
+                            l10n,
+                          ),
+                    onTap: () => showQualityDialog(
+                      context,
+                      ref,
+                      title: l10n.mobileDataMaxQuality,
+                      current: playerSettings.mobileDataMaxQuality,
+                      options: kMobileDataMaxQualities,
+                      anyLabel: l10n.mobileDataMaxQualityOff,
+                      anySubtitle: l10n.mobileDataMaxQualityOffHint,
+                      onChanged: ref
+                          .read(playerSettingsProvider.notifier)
+                          .setMobileDataMaxQuality,
+                    ),
+                  ),
+                  SettingsTile(
+                    emoji: '⏭️',
+                    title: l10n.autoPlayNextEpisode,
+                    subtitle: l10n.autoPlayNextEpisodeSubtitle,
+                    trailing: Switch(
+                      value: playerSettings.autoPlayNextEpisode,
+                      onChanged: (val) => ref
+                          .read(playerSettingsProvider.notifier)
+                          .setAutoPlayNextEpisode(val),
+                    ),
+                    onTap: () => ref
+                        .read(playerSettingsProvider.notifier)
+                        .setAutoPlayNextEpisode(
+                          !playerSettings.autoPlayNextEpisode,
+                        ),
+                  ),
                   SettingsTile(
                     emoji: '🎚️',
                     title: 'Quality Filter Mode',

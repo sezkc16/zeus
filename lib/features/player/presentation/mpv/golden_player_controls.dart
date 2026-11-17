@@ -50,6 +50,7 @@ import '../../../../../core/domain/entity/multimedia_item.dart';
 import '../../../settings/presentation/player_settings_provider.dart';
 import '../../../skip/data/skip_service.dart';
 import '../../domain/skip_segments.dart';
+import '../../domain/sleep_timer.dart';
 import '../player_brightness.dart';
 import '../vlc/chrome_visibility_controller.dart';
 import '../vlc/panel/player_panel_data.dart';
@@ -59,6 +60,7 @@ import 'golden_episodes_drawer.dart';
 import 'golden_options_drawer.dart';
 import 'golden_video_drawer.dart';
 import 'golden_player_theme.dart';
+import 'golden_sleep_timer.dart';
 import 'golden_subtitle_style_drawer.dart';
 
 /// The seek step for the ±10 s buttons and the double-tap, per the spec.
@@ -182,8 +184,14 @@ class GoldenPlayerControls extends ConsumerStatefulWidget {
     this.lockAvailable = true,
     this.onEnterPip,
     this.onVideoPresetChanged,
+    this.sleepTimer,
     super.key,
   });
+
+  /// The screen's sleep timer (v7). Non-null: the Video drawer carries
+  /// the "Sleep timer" picker and the bottom bar shows the remaining
+  /// time while one is armed. Null: neither renders.
+  final SleepTimer? sleepTimer;
 
   /// The mpv-backed controller (the adapter).
   final VlcPlayerController controller;
@@ -1448,8 +1456,10 @@ class _GoldenPlayerControlsState
                                   // button renders only where the screen
                                   // offers a live preset apply (iOS mpv);
                                   // null on Android.
+                                  sleepTimer: widget.sleepTimer,
                                   onOpenVideo:
-                                      widget.onVideoPresetChanged != null
+                                      widget.onVideoPresetChanged != null ||
+                                          widget.sleepTimer != null
                                       ? () => _openDrawer(
                                           _GoldenDrawerKind.video,
                                         )
@@ -1652,6 +1662,8 @@ class _GoldenPlayerControlsState
         return GoldenVideoDrawer(
           key: ValueKey<_GoldenDrawerKind>(kind),
           settings: widget.settings,
+          sleepTimer: widget.sleepTimer,
+          showPresets: widget.onVideoPresetChanged != null,
           onPresetPicked: (preset) {
             unawaited(
               widget.settingsNotifier.setVideoOutputPreset(preset),
@@ -2008,7 +2020,11 @@ class _BottomBar extends StatelessWidget {
     required this.onCycleFit,
     required this.onRotate,
     this.onOpenVideo,
+    this.sleepTimer,
   });
+
+  /// The sleep timer, for the remaining-time badge (v7). Null: no badge.
+  final SleepTimer? sleepTimer;
 
   final VlcPlayerController controller;
   final ValueListenable<double>? bufferedFraction;
@@ -2113,6 +2129,15 @@ class _BottomBar extends StatelessWidget {
                 size: 38,
               ),
             ],
+            // Sleep timer (v7): the time left, only while one is armed.
+            // A tap opens the drawer the picker lives in.
+            if (sleepTimer != null)
+              Flexible(
+                child: GoldenSleepTimerBadge(
+                  timer: sleepTimer!,
+                  onTap: onOpenVideo,
+                ),
+              ),
             const Spacer(),
             _SubtitleButton(
               hasSubtitles: hasSubtitles,

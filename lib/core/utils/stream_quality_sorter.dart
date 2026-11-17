@@ -238,6 +238,26 @@ Future<QualityPreference> qualityPreferenceInForce(
 ) async =>
     await isOnMeteredNetwork() ? settings.mobileQuality : settings.wifiQuality;
 
+/// The mobile-data limit in force now (v7): the "Max quality on mobile
+/// data" setting while the device is on cellular (see [isOnMeteredNetwork]),
+/// [QualityPreference.any] — no limit — on any other link or with the
+/// setting Off.
+Future<QualityPreference> mobileDataCapInForce(PlayerSettings settings) async {
+  final cap = settings.mobileDataMaxQuality;
+  if (cap == QualityPreference.any) return QualityPreference.any;
+  return await isOnMeteredNetwork() ? cap : QualityPreference.any;
+}
+
+/// The lower of two preferences, where [QualityPreference.any] is no limit.
+QualityPreference lowerQualityPreference(
+  QualityPreference a,
+  QualityPreference b,
+) {
+  if (a == QualityPreference.any) return b;
+  if (b == QualityPreference.any) return a;
+  return a.rank <= b.rank ? a : b;
+}
+
 /// Sorts [streams] by quality preference without changing the original list.
 ///
 /// If [preference] is [QualityPreference.any] the list is returned unchanged.
@@ -274,6 +294,100 @@ List<StreamResult> sortStreamsByQuality(
   });
 
   return indexed.map((e) => e.stream).toList();
+}
+
+/// A file size written in a label, with the number and the unit apart.
+final RegExp _sizeInLabel = RegExp(
+  r'(\d+(?:[.,]\d+)?)\s*([KMGT])i?B\b',
+  caseSensitive: false,
+);
+
+/// The file size [label] states, in megabytes, or null when it states none.
+/// `2.1 GB`, `2,1GiB`, `700 mb`; `1,024 MB` reads as a thousands separator.
+double? labelSizeMb(String label) {
+  final match = _sizeInLabel.firstMatch(label);
+  if (match == null) return null;
+  var number = match.group(1)!;
+  if (number.contains(',')) {
+    final parts = number.split(',');
+    number = parts.length == 2 && parts[1].length == 3
+        ? parts.join()
+        : number.replaceAll(',', '.');
+  }
+  final value = double.tryParse(number);
+  if (value == null) return null;
+  return switch (match.group(2)!.toUpperCase()) {
+    'K' => value / 1024,
+    'M' => value,
+    'G' => value * 1024,
+    _ => value * 1024 * 1024,
+  };
+}
+
+/// Whether [stream] states a quality above [cap]. An adaptive or unlabelled
+/// stream does not: nothing says it is over. Always false for
+/// [QualityPreference.any], which caps nothing.
+bool streamExceedsQuality(StreamResult stream, QualityPreference cap) {
+  if (cap == QualityPreference.any) return false;
+  final quality = _qualityOf(stream);
+  if (quality.adaptive || quality.tier == _QualityTier.unknown) return false;
+  return quality.tier.rank > cap.rank;
+}
+
+/// The source list's order (v7): best quality first — 4K, 1440p, 1080p,
+/// 720p, adaptive (HLS, which picks its own), 480p, 360p — then the ones
+/// that state no quality. Within one quality the bigger file comes first
+/// when sizes are stated, and otherwise the plugin's own order holds
+/// (stable). Nothing is dropped.
+///
+/// With a [cap] (the mobile-data limit, in force on cellular) the sources at
+/// or below it come first, in that same order, and the ones above it follow:
+/// still listed, never hidden.
+List<StreamResult> sortStreamsBestFirst(
+  List<StreamResult> streams, {
+  QualityPreference cap = QualityPreference.any,
+}) {
+  if (streams.length <= 1) return streams;
+  final indexed = streams.asMap().entries.map((e) {
+    final quality = _qualityOf(e.value);
+    final unknown = !quality.adaptive && quality.tier == _QualityTier.unknown;
+    // Twice the tier rank, so adaptive sits in the gap under 720p.
+    final rank = quality.adaptive
+        ? _QualityTier.q720.rank * 2 - 1
+        : quality.tier.rank * 2;
+    return (
+      index: e.key,
+      stream: e.value,
+      group: unknown
+          ? 2
+          : (streamExceedsQuality(e.value, cap) ? 1 : 0),
+      rank: rank,
+      size: labelSizeMb(e.value.source) ?? -1.0,
+    );
+  }).toList();
+
+  indexed.sort((a, b) {
+    if (a.group != b.group) return a.group.compareTo(b.group);
+    if (a.rank != b.rank) return b.rank.compareTo(a.rank);
+    if (a.size != b.size) return b.size.compareTo(a.size);
+    return a.index.compareTo(b.index);
+  });
+  return indexed.map((e) => e.stream).toList();
+}
+
+/// Which of [ordered] playback starts on when nothing was remembered: the
+/// one the quality [preference] ranks first (see [sortStreamsByQuality]) —
+/// the Wi-Fi or mobile-data preference, as before v7. The list is shown
+/// best first, but a 4K source is not opened on its own just for being on
+/// top. 0 for [QualityPreference.any] or an empty list.
+int preferredStartIndex(
+  List<StreamResult> ordered,
+  QualityPreference preference,
+) {
+  if (ordered.length <= 1 || preference == QualityPreference.any) return 0;
+  final first = sortStreamsByQuality(ordered, preference).first;
+  final index = ordered.indexWhere((s) => identical(s, first));
+  return index < 0 ? 0 : index;
 }
 
 /// Filters [streams] to only those satisfying [mode] relative to [preference].

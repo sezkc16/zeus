@@ -80,11 +80,13 @@ import '../../../skip/data/aniskip_service.dart';
 import '../../../skip/data/skip_service.dart';
 import '../../../tracking/data/simkl_service.dart';
 import '../../domain/episode_navigator.dart';
+import '../../domain/next_episode_autoplay.dart';
 import '../../domain/episode_duration.dart';
 import '../../domain/playback_progress.dart';
 import '../../domain/playback_recovery.dart';
 import '../../domain/playback_tracker.dart';
 import '../../domain/skip_segments.dart';
+import '../../domain/sleep_timer.dart';
 import '../../domain/source_row_status.dart';
 import '../../domain/stream_resolver.dart';
 import '../../domain/subtitle_search_target.dart';
@@ -225,6 +227,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
 
   /// Candidates in failover order, and which one is open.
   List<StreamResult> _streams = const [];
+
+  /// Index into [_streams] of the source this title last played on, as the
+  /// resolver found it, or -1 (v7): the Sources drawer tags it "Last used".
+  int _lastUsedIndex = -1;
+
+  /// Whether the mobile-data limit ordered [_streams] (v7).
+  bool _dataSaver = false;
   int _streamIndex = 0;
   final Set<int> _failedStreams = <int>{};
 
@@ -549,8 +558,33 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// The viewer pressed Cancel on the up-next card.
   bool _nextEpisodeDeclined = false;
 
+  /// The up-next card on screen was raised while the episode was still
+  /// playing (its outro started, or Skip outro was tapped) rather than by
+  /// the episode ending (v7). Cancel then just puts the card away — there
+  /// is no "ended" to show — and the countdown pauses with the video.
+  bool _offerBeforeEnd = false;
+
+  /// The outro already raised the card once this episode (v7), so seeking
+  /// back into it does not raise it again.
+  bool _outroOffered = false;
+
+  /// "Auto-play next episode" (Settings → Player, v7), read when it is
+  /// needed so a change applies to the episode on screen.
+  bool get _autoPlayNext =>
+      ref.read(playerSettingsProvider).asData?.value.autoPlayNextEpisode ??
+      true;
+
   /// The ended card's kind, or null when no card is up.
   EndedKind? _ended;
+
+  /// The sleep timer (v7): one for the whole player session, so it keeps
+  /// counting across episode changes; gone when the player closes.
+  late final SleepTimer _sleepTimer = SleepTimer()
+    ..onFire = _onSleepTimerFired;
+
+  /// A timed sleep fired while no video was playing yet (an episode
+  /// still loading): the pause lands as soon as it starts.
+  bool _sleepPausePending = false;
 
   /// The settings, live, for the panel's Subtitle style page. Updated from
   /// the provider (see [_init]); the panel reads this, not the provider.
@@ -691,6 +725,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   @override
   void dispose() {
     _disposed = true;
+    _sleepTimer.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _watchdogTimer?.cancel();
     _prebufferTimer?.cancel();
@@ -1639,6 +1674,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       _player.stream.playing.listen((playing) {
         if (_disposed) return;
         _playing = playing;
+        // Sleep timer (v7): see [_onSleepPlayingChanged].
+        if (playing) _onSleepPlayingChanged();
         // Keeps the native side's picture-in-picture state current at all
         // times, not only while a window is open: MainActivity enters PiP
         // itself from onUserLeaveHint when the viewer swipes home, and it
@@ -1656,6 +1693,14 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         if (playing) {
           final firstPlay = !_startedPlaying;
           _startedPlaying = true;
+          // v7: this source plays, so it is the one remembered for this
+          // title (see [streamSourceKey]) — the next episode starts on it
+          // and the Sources list tags it "Last used".
+          if (firstPlay &&
+              _streamIndex >= 0 &&
+              _streamIndex < _streams.length) {
+            _rememberSource(_streams[_streamIndex]);
+          }
           _watchdogTimer?.cancel();
           if (firstPlay) {
             // First frame of playback: the video itself has started, so
@@ -1741,6 +1786,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
           _recordedLivestream = true;
           _recorder?.recordLivestream();
         }
+        _maybeOfferAtOutro(position);
         _publishAdapter();
         // Throttle UI rebuilds: the bar only needs ~5 updates a second.
         final now = DateTime.now();
@@ -1878,6 +1924,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       );
       if (_disposed) return;
       _streams = resolved.streams;
+      _lastUsedIndex = resolved.lastUsedIndex;
+      _dataSaver = resolved.dataSaver;
       _resolveDone = true;
       // The viewer picked a row during the probe race: it is already
       // opening (see _pickFromStartup), so do not overrule it with the
@@ -1954,12 +2002,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // drawer on it while the re-application lands.
     if (index != _streamIndex) _adapter.noteNewSource();
     _streamIndex = index;
-    // +46: remember this source for this title, so the next open starts
-    // here instead of on Source 1. The URL is not stored: signed links
-    // change on every load, so the stable label is the key (see
-    // [streamSourceKey]). Saved on every open — manual pick, auto-pick,
-    // failover — because the last-played source is whichever is playing.
-    _rememberSource(_streams[index]);
+    // +46 remembered the source here, on every open. v7 remembers it when
+    // it actually starts playing instead (see the first-play branch of the
+    // playing listener): a source that was opened and failed is not the
+    // one "last played", and the next episode should not start on it.
     _startedPlaying = false;
     _subtitleAppliedFor = -1;
     // The audio-language setting is captured per open (a change in
@@ -3023,6 +3069,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       playedSources: _startedPlaying
           ? <int>{_streamIndex}
           : const <int>{},
+      lastUsedSourceIndex: _lastUsedIndex,
+      dataSaver: _dataSaver,
       // mpv's ABR picks the rendition: no quality ladder, so no Quality tab.
       qualityLadder: const <int>[],
       episodes: effectiveEpisodes(widget.item, _currentEpisode),
@@ -3115,6 +3163,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _sample = null;
     _streams = const [];
     _streamIndex = 0;
+    _lastUsedIndex = -1;
+    _dataSaver = false;
     _failedStreams.clear();
     _probes.clear();
     _pickedIndex = null;
@@ -3139,6 +3189,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _resumeStallPosition = Duration.zero;
     _nextEpisodeOffer = null;
     _nextEpisodeDeclined = false;
+    _offerBeforeEnd = false;
+    _outroOffered = false;
     _ended = null;
     _currentEpisode = next;
     _currentVideoUrl = next.url;
@@ -3156,19 +3208,57 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// failover); here the film or episode really finished.
   void _onEnded() {
     if (_disposed || !mounted) return;
-    // A next episode, not yet declined: offer it (the countdown card).
-    // Otherwise the ended card, finished or declined-next.
-    if (_hasNextEpisode && !_nextEpisodeDeclined) {
-      _offerNextEpisodeNow();
+    // Sleep timer (v7): "End of episode", or a timed sleep that already
+    // fired, stops here — the next episode is neither offered nor
+    // auto-played. The ended card keeps its Next button when an episode
+    // follows, so the viewer can carry on by hand.
+    if (_sleepTimer.consumeEpisodeEnd()) {
+      _nextEpisodeOffer = null;
+      _showSleepNotice();
+      _showEnded(
+        _hasNextEpisode ? EndedKind.declinedNext : EndedKind.finished,
+      );
       return;
     }
-    _showEnded(
-      _nextEpisodeDeclined ? EndedKind.declinedNext : EndedKind.finished,
-    );
+    // v7: what follows is one decision (see [endOfEpisodeAction]) — the
+    // 5 s card, a silent advance in picture-in-picture, or the ended card
+    // (with Next episode on it when auto-play is off or was cancelled).
+    // A film or a last episode never advances.
+    switch (endOfEpisodeAction(
+      hasNext: _hasNextEpisode && !_isLive,
+      autoPlay: _autoPlayNext,
+      declined: _nextEpisodeDeclined,
+      inPip: _inPip,
+    )) {
+      case EndOfEpisodeAction.countdown:
+        // A card raised at the outro is already counting; from here on it
+        // belongs to the ending (Cancel shows the ended card).
+        if (_nextEpisodeOffer != null) {
+          setState(() => _offerBeforeEnd = false);
+        } else {
+          _offerNextEpisodeNow(atEnd: true);
+        }
+      case EndOfEpisodeAction.advanceSilently:
+        // In PiP nothing of this screen is visible, so there is no card:
+        // the next episode opens in the same player.
+        if (_nextEpisodeOffer != null) {
+          setState(() => _nextEpisodeOffer = null);
+        }
+        unawaited(_advance());
+      case EndOfEpisodeAction.endedWithNext:
+        if (_nextEpisodeOffer != null) {
+          setState(() => _nextEpisodeOffer = null);
+        }
+        _showEnded(EndedKind.declinedNext);
+      case EndOfEpisodeAction.ended:
+        _showEnded(EndedKind.finished);
+    }
   }
 
   /// Raises the up-next countdown card for the following episode.
-  void _offerNextEpisodeNow() {
+  /// [atEnd]: the episode has ended; otherwise it is still playing (the
+  /// outro, or a tap on Skip outro).
+  void _offerNextEpisodeNow({bool atEnd = false}) {
     if (_disposed || !mounted) return;
     if (_advancing || _isLive) return;
     final next = nextEpisodeFor(
@@ -3180,7 +3270,81 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     setState(() {
       _nextEpisodeDeclined = false;
       _nextEpisodeOffer = next;
+      _offerBeforeEnd = !atEnd;
     });
+  }
+
+  /// v7: raises the card when an outro that runs to the end of the file
+  /// starts (see [shouldOfferAtOutro]) — once per episode.
+  void _maybeOfferAtOutro(Duration position) {
+    if (_outroOffered || _skipSegments.isEmpty || _isLive) return;
+    if (!_playing || _ended != null || _advancing) return;
+    final seconds = position.inMilliseconds / 1000;
+    final duration = _duration.inMilliseconds / 1000;
+    for (final segment in _skipSegments) {
+      if (segment.type != SkipType.outro) continue;
+      if (!shouldOfferAtOutro(
+        hasNext: _hasNextEpisode,
+        autoPlay: _autoPlayNext,
+        declined: _nextEpisodeDeclined,
+        inPip: _inPip,
+        alreadyOffered: _outroOffered,
+        cardUp: _nextEpisodeOffer != null,
+        stopRequested: _sleepTimer.blocksNextEpisode,
+        positionSeconds: seconds,
+        durationSeconds: duration,
+        outroStart: segment.startTime,
+        outroEnd: segment.endTime,
+      )) {
+        continue;
+      }
+      _outroOffered = true;
+      _offerNextEpisodeNow();
+      return;
+    }
+  }
+
+  // -- sleep timer (v7) -----------------------------------------------------
+
+  /// A timed sleep ran out: pause (the player stays open) and say so. An
+  /// up-next countdown that is already on screen is withdrawn too, so it
+  /// cannot auto-play the next episode over a sleeping viewer.
+  void _onSleepTimerFired() {
+    if (_disposed || !mounted) return;
+    if (_nextEpisodeOffer != null) {
+      setState(() => _nextEpisodeOffer = null);
+      _showEnded(EndedKind.declinedNext);
+    }
+    if (_stage == _Stage.playing) {
+      unawaited(_player.pause());
+      _showSleepNotice();
+    } else {
+      // An episode is still loading: pause it the moment it starts.
+      _sleepPausePending = true;
+    }
+  }
+
+  /// Playback started. Either the pause a fired sleep still owes (see
+  /// [_sleepPausePending]), or the viewer playing again after a sleep —
+  /// which ends the sleep, so the next ending behaves normally.
+  void _onSleepPlayingChanged() {
+    if (_sleepPausePending) {
+      _sleepPausePending = false;
+      unawaited(_player.pause());
+      _showSleepNotice();
+      return;
+    }
+    _sleepTimer.noteResumed();
+  }
+
+  void _showSleepNotice() {
+    if (!mounted) return;
+    ref
+        .read(notificationServiceProvider)
+        .showInfo(
+          AppLocalizations.of(context)!.playerSleepTimerPaused,
+          icon: Icons.bedtime_rounded,
+        );
   }
 
   void _showEnded(EndedKind kind) {
@@ -3198,6 +3362,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _sample = null;
     _nextEpisodeDeclined = false;
     _nextEpisodeOffer = null;
+    _offerBeforeEnd = false;
+    _outroOffered = false;
     setState(() => _ended = null);
     unawaited(_player.seek(Duration.zero));
     unawaited(_player.play());
@@ -3607,6 +3773,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
                     defaultTargetPlatform == TargetPlatform.iOS
                     ? _applyVideoOutputPreset
                     : null,
+                sleepTimer: _sleepTimer,
               ),
             ),
 
@@ -3624,13 +3791,21 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
                 unawaited(_pickEpisode(next));
               },
               onCancel: () {
+                final beforeEnd = _offerBeforeEnd;
                 setState(() {
                   _nextEpisodeDeclined = true;
                   _nextEpisodeOffer = null;
+                  _offerBeforeEnd = false;
                 });
-                _showEnded(EndedKind.declinedNext);
+                // Cancelled while the episode is still playing (v7): it
+                // just keeps playing; the ended card comes at the end.
+                if (!beforeEnd) _showEnded(EndedKind.declinedNext);
               },
-              paused: !_playing,
+              // v7: 5 s. At the end of the episode there is nothing left
+              // to pause, so the countdown always runs; before the end it
+              // pauses with the video.
+              countdown: kNextEpisodeCountdown,
+              paused: _offerBeforeEnd && !_playing,
               isTv: isTv,
             ),
 

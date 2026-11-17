@@ -4535,6 +4535,492 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{time} behind live'**
   String playerBehindLive(String time);
+
+  /// Button on the Plugins tab's Installed list that updates every installed plugin with a newer version.
+  ///
+  /// In en, this message translates to:
+  /// **'Update all'**
+  String get pluginsUpdateAll;
+
+  /// Toast after pulling the Installed plugins list to refresh, when no installed plugin has a newer version.
+  ///
+  /// In en, this message translates to:
+  /// **'All plugins are up to date'**
+  String get pluginsUpToDate;
+
+  /// Player settings row and dialog title: a quality ceiling used while on cellular data.
+  ///
+  /// In en, this message translates to:
+  /// **'Max quality on mobile data'**
+  String get mobileDataMaxQuality;
+
+  /// Subtitle of the 'Max quality on mobile data' row.
+  ///
+  /// In en, this message translates to:
+  /// **'On cellular, sources up to this come first'**
+  String get mobileDataMaxQualitySubtitle;
+
+  /// Value of 'Max quality on mobile data' when no limit is set.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get mobileDataMaxQualityOff;
+
+  /// Explains the Off option of 'Max quality on mobile data'.
+  ///
+  /// In en, this message translates to:
+  /// **'No limit on mobile data'**
+  String get mobileDataMaxQualityOffHint;
+
+  /// Player settings switch: start the next episode automatically when one ends.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-play next episode'**
+  String get autoPlayNextEpisode;
+
+  /// Subtitle of the 'Auto-play next episode' switch.
+  ///
+  /// In en, this message translates to:
+  /// **'5 second countdown when an episode ends'**
+  String get autoPlayNextEpisodeSubtitle;
+
+  /// Settings row and screen title: choose which plugins and add-ons Search asks.
+  ///
+  /// In en, this message translates to:
+  /// **'Search in plugins'**
+  String get searchInPlugins;
+
+  /// Subtitle of the 'Search in plugins' settings row.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose which plugins Search asks'**
+  String get searchInPluginsSubtitle;
+
+  /// Value of the 'Search in plugins' row when every source is switched on.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get searchInPluginsAll;
+
+  /// Explanation at the top of the 'Search in plugins' screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Search asks only the sources switched on here. Fewer sources means faster results.'**
+  String get searchInPluginsHint;
+
+  /// Shown on the 'Search in plugins' screen when nothing that can search is installed.
+  ///
+  /// In en, this message translates to:
+  /// **'No plugins or add-ons installed yet.'**
+  String get searchInPluginsEmpty;
+
+  /// Section header on the 'Search in plugins' screen: installed plugins.
+  ///
+  /// In en, this message translates to:
+  /// **'Plugins'**
+  String get searchInPluginsPlugins;
+
+  /// Section header on the 'Search in plugins' screen: Stremio add-ons and Nuvio.
+  ///
+  /// In en, this message translates to:
+  /// **'Add-ons'**
+  String get searchInPluginsAddons;
+
+  /// Button on the 'Search in plugins' screen that switches every source back on.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn all on'**
+  String get searchInPluginsEnableAll;
+
+  /// Toast after 'Update all': how many plugins were updated.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No plugins updated} =1{1 plugin updated} other{{count} plugins updated}}'**
+  String pluginsUpdatedCount(int count);
+
+  /// Toast after 'Update all' when some updates failed; names is a comma-separated list of plugin names.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No plugins updated} =1{1 plugin updated} other{{count} plugins updated}}. Could not update: {names}'**
+  String pluginsUpdateSomeFailed(int count, String names);
+
+  /// Value of the 'Search in plugins' row: how many sources are switched off.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} off'**
+  String searchInPluginsOff(int count);
+
+  /// Player, Video side panel: the section that pauses playback after a chosen time. Also the spoken label of the remaining-time badge in the bottom bar.
+  ///
+  /// In en, this message translates to:
+  /// **'Sleep timer'**
+  String get playerSleepTimer;
+
+  /// Player sleep timer: the choice that turns the timer off.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get playerSleepTimerOff;
+
+  /// Player sleep timer: a timed choice, such as "30 min".
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes} min'**
+  String playerSleepTimerMinutes(int minutes);
+
+  /// Player sleep timer: the choice that stops playback when the current episode or film ends, without playing the next episode. Also shown in the bottom bar while that choice is armed.
+  ///
+  /// In en, this message translates to:
+  /// **'End of episode'**
+  String get playerSleepTimerEndOfEpisode;
+
+  /// Player sleep timer: the time left before playback pauses, such as "14:05 left".
+  ///
+  /// In en, this message translates to:
+  /// **'{time} left'**
+  String playerSleepTimerRemaining(String time);
+
+  /// Player sleep timer: the status line while the End of episode choice is armed.
+  ///
+  /// In en, this message translates to:
+  /// **'Stops after this episode'**
+  String get playerSleepTimerEndOfEpisodeArmed;
+
+  /// Player: the brief notice shown when the sleep timer pauses playback.
+  ///
+  /// In en, this message translates to:
+  /// **'Sleep timer — paused'**
+  String get playerSleepTimerPaused;
+
+  /// Details page, Episodes header: the button (tooltip and dialog title) that downloads every episode of the selected season.
+  ///
+  /// In en, this message translates to:
+  /// **'Download season'**
+  String get downloadSeason;
+
+  /// Download season dialog: asks before queuing the season's not-yet-downloaded episodes.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Download 1 episode?} other{Download {count} episodes?}}'**
+  String downloadSeasonConfirm(int count);
+
+  /// Download season dialog: nothing to do, every episode of the season is on the device.
+  ///
+  /// In en, this message translates to:
+  /// **'All episodes of this season are already downloaded'**
+  String get downloadSeasonAllDownloaded;
+
+  /// Download season dialog: nothing to do, every episode of the season is on the device or already downloading.
+  ///
+  /// In en, this message translates to:
+  /// **'All episodes of this season are already downloaded or in the download queue'**
+  String get downloadSeasonAllQueued;
+
+  /// Details page: progress while a season's episodes are added to the download queue one by one, such as "Queuing 3/12…".
+  ///
+  /// In en, this message translates to:
+  /// **'Queuing {done}/{total}…'**
+  String downloadSeasonQueuing(int done, int total);
+
+  /// Details page: stops adding further episodes of the season to the download queue. Episodes already queued stay.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get downloadSeasonStop;
+
+  /// Notice when Download season is pressed while an earlier season download is still being prepared.
+  ///
+  /// In en, this message translates to:
+  /// **'Another season is still being queued'**
+  String get downloadSeasonBusy;
+
+  /// Download season: title of the list asking which source to download the season's episodes from.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a source for this season'**
+  String get downloadSeasonPickSource;
+
+  /// Download season: the line under the source list's title.
+  ///
+  /// In en, this message translates to:
+  /// **'Used for the remaining episodes too. You are asked only once.'**
+  String get downloadSeasonPickSourceHint;
+
+  /// Download season summary: how many episodes were added to the download queue.
+  ///
+  /// In en, this message translates to:
+  /// **'Queued {count}'**
+  String downloadSeasonSummaryQueued(int count);
+
+  /// Download season summary: episodes skipped because they are on the device.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} already downloaded'**
+  String downloadSeasonSummaryAlreadyDownloaded(int count);
+
+  /// Download season summary: episodes skipped because they were already downloading.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} already in queue'**
+  String downloadSeasonSummaryAlreadyQueued(int count);
+
+  /// Download season summary: episodes that have no source the app can download.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} no downloadable source'**
+  String downloadSeasonSummaryNoSource(int count);
+
+  /// Download season summary: episodes whose links could not be loaded or that the download manager refused.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} failed'**
+  String downloadSeasonSummaryFailed(int count);
+
+  /// Download season summary: episodes not reached because the viewer pressed Stop.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} not queued (stopped)'**
+  String downloadSeasonSummaryStopped(int count);
+
+  /// Plugins tab, Installed: the button that tests whether each installed plugin still answers.
+  ///
+  /// In en, this message translates to:
+  /// **'Check'**
+  String get pluginCheckButton;
+
+  /// Plugins tab, Installed: the line beside the Check button before any check has run. ".cs3" stays as it is.
+  ///
+  /// In en, this message translates to:
+  /// **'Tests each .cs3 plugin, one at a time'**
+  String get pluginCheckHint;
+
+  /// Plugins tab, Installed: shown beside the Cancel button while the plugin check runs.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking {current} of {total}…'**
+  String pluginCheckProgress(int current, int total);
+
+  /// Plugins tab, Installed: the plugin check finished less than a minute ago.
+  ///
+  /// In en, this message translates to:
+  /// **'Checked just now'**
+  String get pluginCheckedJustNow;
+
+  /// Plugins tab, Installed: how long ago the plugin check finished.
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes, plural, =1{Checked 1 min ago} other{Checked {minutes} min ago}}'**
+  String pluginCheckedMinutesAgo(int minutes);
+
+  /// Plugins tab, Installed: the plugin check was cancelled before every plugin was tested.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopped · {done} of {total} checked'**
+  String pluginCheckStopped(int done, int total);
+
+  /// Installed plugin tile: the plugin has not been tested by the plugin check yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Not checked'**
+  String get pluginStatusNotChecked;
+
+  /// Installed plugin tile: the plugin check is asking this plugin right now.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking…'**
+  String get pluginStatusChecking;
+
+  /// Installed plugin tile, check result: the plugin answered in time with items.
+  ///
+  /// In en, this message translates to:
+  /// **'Working'**
+  String get pluginStatusWorking;
+
+  /// Installed plugin tile, check result: the plugin answered with items but took a long time.
+  ///
+  /// In en, this message translates to:
+  /// **'Slow'**
+  String get pluginStatusSlow;
+
+  /// Installed plugin tile, check result: the plugin answered but its answer had nothing in it.
+  ///
+  /// In en, this message translates to:
+  /// **'Answered, no items'**
+  String get pluginStatusEmpty;
+
+  /// Installed plugin tile, check result: the plugin failed or did not answer before the time limit.
+  ///
+  /// In en, this message translates to:
+  /// **'Not responding'**
+  String get pluginStatusNotResponding;
+
+  /// Installed plugin tile, check result: the plugin's file could not be loaded, so it was not tested.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load'**
+  String get pluginStatusCouldNotLoad;
+
+  /// Installed plugin tile, check result: the plugin has no source the check can call.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing to test'**
+  String get pluginStatusNoSource;
+
+  /// Installed plugin tile, check result with how long the answer took, such as "Working · 2.3 s".
+  ///
+  /// In en, this message translates to:
+  /// **'{status} · {seconds} s'**
+  String pluginStatusSeconds(String status, String seconds);
+
+  /// Installed plugin tile, check result for a plugin with several sources: the worst status, and how many of its sources answered with items.
+  ///
+  /// In en, this message translates to:
+  /// **'{status} · {ok} of {total} sources OK'**
+  String pluginStatusPartial(String status, int ok, int total);
+
+  /// Plugin check details dialog: what one source answered; how is "main page" or "search".
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No items} =1{1 item} other{{count} items}} in {seconds} s ({how})'**
+  String pluginCheckDetailAnswered(int count, String seconds, String how);
+
+  /// Plugin check details dialog: the answer came from the source's main page.
+  ///
+  /// In en, this message translates to:
+  /// **'main page'**
+  String get pluginCheckDetailMainPage;
+
+  /// Plugin check details dialog: the answer came from a test search, used when the main page had no items.
+  ///
+  /// In en, this message translates to:
+  /// **'search'**
+  String get pluginCheckDetailViaSearch;
+
+  /// Plugin check details dialog: the source did not answer before the time limit.
+  ///
+  /// In en, this message translates to:
+  /// **'No answer within {seconds} s'**
+  String pluginCheckDetailTimedOut(String seconds);
+
+  /// Plugin check details dialog: explains the "Answered, no items" result.
+  ///
+  /// In en, this message translates to:
+  /// **'It answered, but with nothing in it. A search that fails inside the plugin also looks like this.'**
+  String get pluginCheckDetailEmptyNote;
+
+  /// Plugin check details dialog: explains the "Nothing to test" result.
+  ///
+  /// In en, this message translates to:
+  /// **'This plugin adds no source that can be tested. It may be a helper for other plugins, or its sources are switched off.'**
+  String get pluginCheckDetailNoSource;
+
+  /// Plugin check details dialog: explains the "Could not load" result; error is the reason, in English.
+  ///
+  /// In en, this message translates to:
+  /// **'The plugin\'s file could not be loaded on this device, so it was not called: {error}'**
+  String pluginCheckDetailCouldNotLoad(String error);
+
+  /// Settings, General: the row (and the screen title) for reordering and hiding the rows on Home.
+  ///
+  /// In en, this message translates to:
+  /// **'Home rows'**
+  String get homeRowsTitle;
+
+  /// Settings, General: the line under Home rows.
+  ///
+  /// In en, this message translates to:
+  /// **'Reorder or hide rows on Home'**
+  String get homeRowsSubtitle;
+
+  /// Home rows screen: the name of Home's built-in feed, shown when no plugin source is selected.
+  ///
+  /// In en, this message translates to:
+  /// **'Default feed'**
+  String get homeRowsSourceDefaultFeed;
+
+  /// Home rows screen: section header above the list of rows; source is the plugin source's name or "Default feed".
+  ///
+  /// In en, this message translates to:
+  /// **'Rows from {source}'**
+  String homeRowsHeader(String source);
+
+  /// Home rows screen: the explanation under the list.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag the handle to reorder. Switch a row off to hide it. The banner at the top of Home always stays first. Saved separately for each source.'**
+  String get homeRowsHint;
+
+  /// Home rows screen: the source's rows are still being fetched.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading this source\'s rows…'**
+  String get homeRowsLoading;
+
+  /// Home rows screen: the source's rows could not be loaded, so only remembered rows are listed.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Home once to load this source\'s rows.'**
+  String get homeRowsOpenHomeFirst;
+
+  /// Home rows screen: under a remembered row that the source did not send this time.
+  ///
+  /// In en, this message translates to:
+  /// **'Not on Home right now'**
+  String get homeRowsNotOnHomeNow;
+
+  /// Home rows screen: section header above the Reset to Default row.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get homeRowsResetHeader;
+
+  /// Home rows screen: the line under Reset to Default.
+  ///
+  /// In en, this message translates to:
+  /// **'The source\'s own order, every row shown'**
+  String get homeRowsResetSubtitle;
+
+  /// Settings, General: the switch that locks the app behind Face ID or the device passcode.
+  ///
+  /// In en, this message translates to:
+  /// **'App lock (Face ID)'**
+  String get appLockTitle;
+
+  /// Settings, General: the line under App lock. "Zeus" is the app's name.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask for Face ID or passcode to open Zeus'**
+  String get appLockSubtitle;
+
+  /// The system Face ID / passcode prompt's reason when switching App lock on.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm it\'s you to turn on App lock'**
+  String get appLockEnableReason;
+
+  /// The system Face ID / passcode prompt's reason when unlocking the app. "Zeus" is the app's name.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock Zeus'**
+  String get appLockUnlockReason;
+
+  /// Shown when App lock cannot be switched on because the device has no biometrics and no passcode.
+  ///
+  /// In en, this message translates to:
+  /// **'App lock stays off: set up Face ID or a passcode on this device first.'**
+  String get appLockUnavailable;
+
+  /// Shown when App lock was not switched on because the authentication failed or was cancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'App lock stays off: it could not confirm it\'s you.'**
+  String get appLockNotVerified;
+
+  /// Lock screen: the last unlock attempt failed or was cancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Still locked. Tap Unlock to try again.'**
+  String get appLockStillLocked;
 }
 
 class _AppLocalizationsDelegate

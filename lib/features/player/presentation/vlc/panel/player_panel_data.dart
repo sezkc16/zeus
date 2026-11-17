@@ -91,6 +91,8 @@ class PanelData {
     this.failedSources = const <int>{},
     this.playedSources = const <int>{},
     this.qualityFilteredFallback = false,
+    this.lastUsedSourceIndex = -1,
+    this.dataSaver = false,
     this.qualityLadder = const <int>[],
     this.qualityPick,
     this.episodes = const <Episode>[],
@@ -128,6 +130,14 @@ class PanelData {
 
   /// Whether the quality filter matched nothing and was dropped.
   final bool qualityFilteredFallback;
+
+  /// Index into [sources] of the source this title last played on, or -1
+  /// (v7). Its row is tagged "Last used".
+  final int lastUsedSourceIndex;
+
+  /// Whether the mobile-data limit ordered [sources] (v7): the list says
+  /// "Data saver".
+  final bool dataSaver;
 
   /// The heights the HLS stream playing offers, tallest first, each once;
   /// empty for anything else. Two or more make the Quality tab.
@@ -169,6 +179,8 @@ class PanelData {
     Set<int>? failedSources,
     Set<int>? playedSources,
     bool? qualityFilteredFallback,
+    int? lastUsedSourceIndex,
+    bool? dataSaver,
     List<int>? qualityLadder,
     int? qualityPick,
     bool clearQualityPick = false,
@@ -189,6 +201,8 @@ class PanelData {
       playedSources: playedSources ?? this.playedSources,
       qualityFilteredFallback:
           qualityFilteredFallback ?? this.qualityFilteredFallback,
+      lastUsedSourceIndex: lastUsedSourceIndex ?? this.lastUsedSourceIndex,
+      dataSaver: dataSaver ?? this.dataSaver,
       qualityLadder: qualityLadder ?? this.qualityLadder,
       qualityPick: clearQualityPick ? null : qualityPick ?? this.qualityPick,
       episodes: episodes ?? this.episodes,
@@ -224,6 +238,8 @@ class PanelData {
         setEquals(failedSources, other.failedSources) &&
         setEquals(playedSources, other.playedSources) &&
         qualityFilteredFallback == other.qualityFilteredFallback &&
+        lastUsedSourceIndex == other.lastUsedSourceIndex &&
+        dataSaver == other.dataSaver &&
         listEquals(qualityLadder, other.qualityLadder) &&
         qualityPick == other.qualityPick &&
         listEquals(episodes, other.episodes) &&
@@ -243,6 +259,8 @@ class PanelData {
     Object.hashAllUnordered(failedSources),
     Object.hashAllUnordered(playedSources),
     qualityFilteredFallback,
+    lastUsedSourceIndex,
+    dataSaver,
     Object.hashAll(qualityLadder),
     qualityPick,
     Object.hashAll(episodes),

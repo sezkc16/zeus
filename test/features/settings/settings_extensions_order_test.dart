@@ -124,6 +124,7 @@ void main() {
       'CloudStream Repos (.cs3)',
       'Nuvio Plugins',
       'Stremio Add-ons',
+      'Search in plugins',
     ]);
     // The first tile leads to the Plugins screen, where the owner's repo
     // is the Zeus Repo (same TojiX repo.json) in its own Zeus section.
