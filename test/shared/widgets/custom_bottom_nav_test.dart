@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_bottom_nav/liquid_glass_bottom_nav.dart';
 import 'package:reicons/reicons.dart';
+import 'package:zorox/core/theme/theme_variant.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
 import 'package:zorox/shared/widgets/custom_bottom_nav.dart';
 
@@ -226,5 +227,76 @@ void main() {
         reason: 'glass pill under $brightness',
       );
     }
+  });
+
+  // Build 85: light Liquid Glass gets the package's clear (dark) glass.
+  group('clear pill on light Liquid Glass', () {
+    Future<void> pumpTheme(WidgetTester tester, ThemeData theme) =>
+        tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: Stack(
+                children: [
+                  const SizedBox.expand(),
+                  CustomBottomNavBar(currentIndex: 0, onTap: (_) {}),
+                ],
+              ),
+            ),
+          ),
+        );
+
+    ThemeData themed(Brightness brightness, {required bool glass}) =>
+        ThemeData(
+          brightness: brightness,
+          extensions: [ZoroxThemeExtension(isGlass: glass)],
+        );
+
+    Brightness barBrightness(WidgetTester tester) =>
+        Theme.of(tester.element(find.byType(LiquidGlassNavBar))).brightness;
+
+    testWidgets('light Liquid Glass: the bar is drawn as the dark glass, '
+        'icons keep the light theme colours', (tester) async {
+      final theme = themed(Brightness.light, glass: true);
+      await pumpTheme(tester, theme);
+      expect(tester.takeException(), isNull);
+      expect(barBrightness(tester), Brightness.dark);
+      final bar = tester.widget<LiquidGlassNavBar>(
+        find.byType(LiquidGlassNavBar),
+      );
+      expect(bar.inactiveColor, theme.colorScheme.onSurfaceVariant);
+      expect(bar.activeColor, theme.colorScheme.primary);
+      expect(bar.labelStyle?.shadows, isNotEmpty);
+    });
+
+    testWidgets('Frost (light, not glass) keeps its own pill', (tester) async {
+      await pumpTheme(tester, themed(Brightness.light, glass: false));
+      expect(barBrightness(tester), Brightness.light);
+      final bar = tester.widget<LiquidGlassNavBar>(
+        find.byType(LiquidGlassNavBar),
+      );
+      expect(bar.labelStyle?.shadows, isNull);
+    });
+
+    testWidgets('dark Liquid Glass is untouched', (tester) async {
+      await pumpTheme(tester, themed(Brightness.dark, glass: true));
+      expect(barBrightness(tester), Brightness.dark);
+      final bar = tester.widget<LiquidGlassNavBar>(
+        find.byType(LiquidGlassNavBar),
+      );
+      expect(bar.inactiveColor, const Color(0xFF9D9A92));
+      expect(bar.labelStyle?.shadows, isNull);
+    });
+
+    testWidgets('the pill sits in the same place with and without the '
+        'clear glass', (tester) async {
+      await pumpTheme(tester, themed(Brightness.light, glass: false));
+      final frost = tester.getRect(find.byType(LiquidGlassNavBar));
+      await pumpTheme(tester, themed(Brightness.light, glass: true));
+      expect(tester.takeException(), isNull);
+      expect(tester.getRect(find.byType(LiquidGlassNavBar)), frost);
+    });
   });
 }

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_bottom_nav/liquid_glass_bottom_nav.dart';
 import 'package:reicons/reicons.dart';
+import 'package:zorox/core/theme/theme_variant.dart';
 import 'package:zorox/core/utils/boot_trace.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
 
@@ -98,7 +99,19 @@ class CustomBottomNavBar extends StatelessWidget {
     );
     final localizations = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
-    return LiquidGlassNavBar(
+    final theme = Theme.of(context);
+    // Light Liquid Glass: the package paints its light-mode pill with a
+    // 76% white fill, a 55% white border and full light intensity — a
+    // milky, frosted pill (user 2026-11-19, build 83: "white mode pe
+    // blurry hein crystal clear karo"). Its dark-mode pill is the clear
+    // one (4% fill). The package picks between them from the theme's
+    // brightness alone, so on light Liquid Glass it is handed a dark
+    // brightness and draws the same clear glass. Colours of the icons and
+    // labels are passed in below and do not come from this theme. Theme
+    // is not a layout widget: the bar's Positioned still talks to the
+    // Stack directly.
+    final clearGlass = clearNavGlassFor(theme);
+    final bar = LiquidGlassNavBar(
       items: [
         LiquidGlassNavItem(
           id: 'home',
@@ -141,11 +154,31 @@ class CustomBottomNavBar extends StatelessWidget {
       insets: _kBottomMargin,
       // Gold accent for the selected tab; muted grey otherwise.
       activeColor: colorScheme.primary,
-      inactiveColor: Theme.of(context).brightness == Brightness.dark
+      inactiveColor: theme.brightness == Brightness.dark
           ? const Color(0xFF9D9A92)
           : colorScheme.onSurfaceVariant,
       iconSize: 28,
-      labelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+      labelStyle: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+        // Clear glass over a poster: a soft light halo keeps the dark
+        // label readable without tinting the pill.
+        shadows: clearGlass
+            ? const [Shadow(color: Color(0xCCFFFFFF), blurRadius: 4)]
+            : null,
+      ),
+    );
+    if (!clearGlass) return bar;
+    return Theme(
+      data: theme.copyWith(brightness: Brightness.dark),
+      child: bar,
     );
   }
 }
+
+/// Whether the nav pill must be forced onto the package's clear (dark)
+/// glass: only on Liquid Glass with Dark Mode off. Frost keeps its own
+/// frosted pill, and every dark theme is already clear.
+bool clearNavGlassFor(ThemeData theme) =>
+    theme.brightness == Brightness.light &&
+    (theme.extension<ZoroxThemeExtension>()?.isGlass ?? false);
