@@ -27,6 +27,7 @@ import '../../domain/subtitle_search_target.dart';
 import '../vlc/panel/player_subtitle_search_page.dart';
 import 'golden_drawer.dart';
 import 'golden_player_theme.dart';
+import 'mpv_subtitle_style.dart';
 
 /// Gold is a spec colour, not one of the stock offered colours, so it is
 /// added here and written through the same [setSubtitleColor].
@@ -52,6 +53,7 @@ class GoldenSubtitleStyleDrawer extends StatefulWidget {
     required this.onClose,
     this.onSubtitlePicked,
     this.subtitleTarget,
+    this.previewSubtitle,
     super.key,
   });
 
@@ -75,6 +77,12 @@ class GoldenSubtitleStyleDrawer extends StatefulWidget {
   /// Null where the catalogue knows nothing of this media, and then the
   /// engine's title seeds the search instead.
   final SubtitleSearchTarget? subtitleTarget;
+
+  /// The caption line on screen right now (build 86), for the Manual
+  /// slider's mini-preview: the preview shows the caption the viewer is
+  /// actually moving. Null or empty where no caption is showing, and the
+  /// preview falls back to a sample line in the current style.
+  final String? previewSubtitle;
 
   @override
   State<GoldenSubtitleStyleDrawer> createState() =>
@@ -153,7 +161,7 @@ class _GoldenSubtitleStyleDrawerState
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final drawerWidth = width * 0.85 > 400 ? 400.0 : width * 0.85;
+    final drawerWidth = goldenDrawerWidth(width);
     return GoldenDrawer(
       title: 'Subtitle style',
       width: drawerWidth,
@@ -312,6 +320,8 @@ class _GoldenSubtitleStyleDrawerState
                   settings: settings,
                   onRaise: (raise) =>
                       widget.notifier.setSubtitleRaise(raise),
+                  previewSubtitle: widget.previewSubtitle,
+                  screenHeight: MediaQuery.sizeOf(context).height,
                 ),
               _StepperRow(
                 icon: Icons.opacity_rounded,
@@ -1013,84 +1023,168 @@ double subtitleRaiseFromSliderPercent(double percent) =>
 /// Hidden while Auto-Adjust is on: the automatic position owns the
 /// caption then, and a slider that does nothing would lie. The reset
 /// button puts the caption back at the bottom edge.
+///
+/// Build 86: a live mini-preview under the slider, so the movement is
+/// visible even while the drawer covers the video's right half. The
+/// preview shows the caption line on screen now (or a sample line) in
+/// the current style — same size, colour, opacity — at the same relative
+/// raise inside a video-like box, plus an up/down readout (percent and
+/// the lift in screen pixels) that updates live as the slider moves.
 class _SliderRow extends StatelessWidget {
   const _SliderRow({
     super.key,
     required this.settings,
     required this.onRaise,
+    required this.previewSubtitle,
+    required this.screenHeight,
   });
 
   final PlayerSettings settings;
   final ValueChanged<double> onRaise;
 
+  /// The caption line on screen now, or null for the sample line.
+  final String? previewSubtitle;
+
+  /// The landscape screen height, the frame the raise is a share of.
+  final double screenHeight;
+
+  /// The preview box's height: tall enough for the largest caption step
+  /// at the top of the raise range.
+  static const double _previewHeight = 96;
+
+  /// Where the preview caption sits from the preview box's bottom: the
+  /// on-video bottom padding (16px base + the raise's share of the
+  /// screen height) scaled to the preview, so the preview shows the
+  /// caption at the same relative raise as the video.
+  double get _previewBottom {
+    if (screenHeight <= 0) return 4;
+    final onVideo = kMpvSubtitlePaddingBottom +
+        settings.subtitleRaise.clamp(0.0, 0.5) * screenHeight;
+    return onVideo * _previewHeight / screenHeight;
+  }
+
   @override
   Widget build(BuildContext context) {
     final percent = subtitleRaiseToSliderPercent(settings.subtitleRaise);
+    final liftPx = (settings.subtitleRaise.clamp(0.0, 0.5) * screenHeight)
+        .round();
+    final line = (previewSubtitle ?? '').trim().isEmpty
+        ? 'Subtitle preview'
+        : previewSubtitle!.trim();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          const Icon(
-            Icons.height_rounded,
-            size: 20,
-            color: GoldenPlayerColors.gold,
-          ),
-          const SizedBox(width: 12),
-          const Text(
-            'Manual',
-            style: TextStyle(
-              color: GoldenPlayerColors.textPrimary,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                activeTrackColor: GoldenPlayerColors.goldHighlight,
-                inactiveTrackColor: GoldenPlayerColors.divider,
-                thumbColor: GoldenPlayerColors.goldHighlight,
-                overlayColor: GoldenPlayerColors.gold.withValues(
-                  alpha: 0.2,
-                ),
-                thumbShape: const RoundSliderThumbShape(
-                  enabledThumbRadius: 7,
-                ),
-                overlayShape: const RoundSliderOverlayShape(
-                  overlayRadius: 14,
-                ),
-                trackHeight: 4,
+          Row(
+            children: <Widget>[
+              const Icon(
+                Icons.height_rounded,
+                size: 20,
+                color: GoldenPlayerColors.gold,
               ),
-              child: Slider(
-                value: percent,
-                min: 0,
-                max: 100,
-                onChanged: (value) =>
-                    onRaise(subtitleRaiseFromSliderPercent(value)),
+              const SizedBox(width: 12),
+              const Text(
+                'Manual',
+                style: TextStyle(
+                  color: GoldenPlayerColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          SizedBox(
-            width: 36,
-            child: Text(
-              '${percent.round()}%',
-              textAlign: TextAlign.right,
-              style: const TextStyle(
+              const SizedBox(width: 8),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    activeTrackColor: GoldenPlayerColors.goldHighlight,
+                    inactiveTrackColor: GoldenPlayerColors.divider,
+                    thumbColor: GoldenPlayerColors.goldHighlight,
+                    overlayColor: GoldenPlayerColors.gold.withValues(
+                      alpha: 0.2,
+                    ),
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 7,
+                    ),
+                    overlayShape: const RoundSliderOverlayShape(
+                      overlayRadius: 14,
+                    ),
+                    trackHeight: 4,
+                  ),
+                  child: Slider(
+                    value: percent,
+                    min: 0,
+                    max: 100,
+                    onChanged: (value) =>
+                        onRaise(subtitleRaiseFromSliderPercent(value)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 36,
+                child: Text(
+                  '${percent.round()}%',
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                    color: GoldenPlayerColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.restart_alt_rounded, size: 20),
                 color: GoldenPlayerColors.textSecondary,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
+                tooltip: 'Back to the bottom edge',
+                onPressed: settings.subtitleRaise > 0
+                    ? () => onRaise(0.0)
+                    : null,
               ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // The live preview: the caption at its current raise, in the
+          // current style, inside a dark video-like box. Rebuilt from
+          // the settings on every slider tick, so it glides with the
+          // finger exactly as the on-video caption does.
+          Container(
+            height: _previewHeight,
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(
+                GoldenPlayerRadii.card,
+              ),
+              border: Border.all(color: GoldenPlayerColors.divider),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              children: <Widget>[
+                Positioned(
+                  left: 8,
+                  right: 8,
+                  bottom: _previewBottom,
+                  child: Text(
+                    line,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: mpvSubtitleTextStyle(settings),
+                  ),
+                ),
+              ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.restart_alt_rounded, size: 20),
-            color: GoldenPlayerColors.textSecondary,
-            tooltip: 'Back to the bottom edge',
-            onPressed: settings.subtitleRaise > 0
-                ? () => onRaise(0.0)
-                : null,
+          const SizedBox(height: 4),
+          Text(
+            liftPx <= 0
+                ? '0% · at the bottom edge'
+                : '↑ ${percent.round()}% · $liftPx px up',
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              color: GoldenPlayerColors.textSecondary,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
           ),
         ],
       ),

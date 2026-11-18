@@ -29,8 +29,6 @@
 ///     visible, low when hidden (see [subtitleEffectiveRaise]).
 library;
 
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -72,8 +70,12 @@ const List<String> kMpvSubtitleEdges = <String>['None', 'Outline', 'Shadow'];
 /// lock pill appeared and dropped again when they left; and 40px plus a
 /// saved raise was already ~140px up on a phone in landscape. 16px puts
 /// it close to the bottom edge, the way a normal player does, and the
-/// saved raise still lifts it from there. The PiP window keeps its own
-/// smaller padding below.
+/// saved raise still lifts it from there. Build 86: in MANUAL mode
+/// (Auto-Adjust off) this base + the saved raise is the caption's ONE
+/// place in every chrome state — the 116px lift below is Auto-Adjust's
+/// alone and never moves a manual caption, even with the controls up
+/// (the old `max(resting, 116)` re-introduced the jump). The PiP window
+/// keeps its own smaller padding below.
 const double kMpvSubtitlePaddingBottom = 16;
 
 /// The bottom padding Auto-Adjust uses while the bottom controls are
@@ -173,12 +175,24 @@ List<Shadow>? _mpvSubtitleShadows(PlayerSettings settings) {
 /// [screenHeight] is the landscape screen height, the frame the raise is a
 /// share of. The lift is added on top of the fixed base padding.
 ///
-/// [controlsVisible] no longer moves the caption (+25) — unless
-/// Auto-Adjust is on (+27): then the caption sits just above the bottom
-/// controls while they are visible and low when they are hidden, and the
-/// saved raise is ignored. The parameter stays so call sites keep passing
-/// the chrome state and tests can assert the independence in the manual
-/// case and the dependence in the auto case.
+/// [controlsVisible] moves the caption ONLY when Auto-Adjust is on
+/// (+27): then the caption sits just above the bottom controls while
+/// they are visible and low when they are hidden, and the saved raise
+/// is ignored. In MANUAL mode (Auto-Adjust off, build 86) the caption
+/// sticks to exactly one place — 16px + the saved raise — in every
+/// chrome state, controls up, hidden, or locked; the controls-visible
+/// lift never applies there, even if the caption then sits behind or
+/// near the seek bar — that is the raise the viewer chose. The parameter
+/// stays so call sites keep passing the chrome state and tests can
+/// assert the independence in the manual case and the dependence in the
+/// auto case.
+///
+/// [drawerWidth] is the width of a right-side drawer open over the
+/// video (build 86): the caption is centred on the full screen width,
+/// so an open drawer hides its right half — the right padding grows by
+/// the drawer's width and the caption shifts into the visible video
+/// area left of the panel. 0 when no drawer is open. Never in PiP:
+/// there is no drawer in the window.
 ///
 /// [isPip] is the Android PiP window: the font is halved and the padding
 /// shrunk to PiP proportions (see [kMpvSubtitlePipFontScale]) — the
@@ -191,6 +205,7 @@ SubtitleViewConfiguration mpvSubtitleViewConfiguration(
   required double screenHeight,
   required bool controlsVisible,
   bool isPip = false,
+  double drawerWidth = 0,
 }) {
   // Auto-Adjust (+27): the automatic position, not the saved raise.
   // Off in PiP — no chrome there, the manual raise applies.
@@ -214,17 +229,23 @@ SubtitleViewConfiguration mpvSubtitleViewConfiguration(
   // One fixed base in every state (+25): the caption used to sit at 40px
   // with the chrome hidden and 116px with it up. Auto-Adjust (+27) puts
   // it just above the controls while they are visible, low when hidden.
+  // Manual mode (build 86) never takes the 116px lift: the caption's
+  // place is `base + liftPx` in every chrome state, so showing or hiding
+  // the controls cannot move it. The old `max(resting, 116)` forced a
+  // manual caption to at least 116px whenever the chrome was up — the
+  // jump the viewer saw — and is gone: in Auto-Adjust the base already
+  // is 116px while the controls are visible and the lift is 0, so
+  // `resting` is the answer in both modes.
   final base = autoAdjust && controlsVisible
       ? kMpvSubtitlePaddingBottomControlsVisible
       : kMpvSubtitlePaddingBottom;
-  // v9: the caption never sits under the bottom control row. While the
-  // controls are up it is lifted to just above them — only as far as it
-  // has to go, so a caption already raised clear of the row does not move
-  // — and it returns to its own place when they hide.
-  final resting = base + liftPx;
-  final bottom = controlsVisible
-      ? math.max(resting, kMpvSubtitlePaddingBottomControlsVisible)
-      : resting;
+  final bottom = base + liftPx;
+  // A drawer open over the video (build 86) hides the caption's right
+  // half: the right padding grows by the drawer's width, so the centred
+  // caption shifts into the visible area left of the panel. The Manual
+  // range (0–0.2 of the screen height) can lift the caption onto the
+  // seek bar when the controls are up — that is the viewer's chosen
+  // raise, not a bug to auto-correct, so it is never clamped here.
   return SubtitleViewConfiguration(
     style: mpvSubtitleTextStyle(settings),
     textAlign: TextAlign.center,
@@ -233,7 +254,7 @@ SubtitleViewConfiguration mpvSubtitleViewConfiguration(
     // so a 22pt caption renders at ~10pt. 1.0 renders the configured size
     // as-is, matching the VLC player's look.
     textScaler: const TextScaler.linear(1.0),
-    padding: EdgeInsets.fromLTRB(16, 0, 16, bottom),
+    padding: EdgeInsets.fromLTRB(16, 0, 16 + drawerWidth, bottom),
   );
 }
 

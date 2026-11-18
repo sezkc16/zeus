@@ -50,6 +50,17 @@ class GoldenDrawerScrim extends StatelessWidget {
   }
 }
 
+/// A drawer panel's width for a screen of [screenWidth] (build 86):
+/// 85 % of the screen, capped at 400px. Pure, so it is unit-tested.
+/// The subtitle drawer computes it inline in its build and the controls
+/// need the same number when a drawer opens (the caption shifts left by
+/// it — see `mpvSubtitleViewConfiguration`'s `drawerWidth`); one helper
+/// keeps the two from ever disagreeing.
+double goldenDrawerWidth(double screenWidth) {
+  final width = screenWidth * 0.85;
+  return width > 400 ? 400.0 : width;
+}
+
 /// A drawer panel that slides in from the right edge.
 ///
 /// [child] is the drawer's content (its own header included). The panel is

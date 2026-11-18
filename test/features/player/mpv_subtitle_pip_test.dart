@@ -71,8 +71,14 @@ void main() {
       expect(config.padding.bottom, 16.0);
     });
 
-    test('fullscreen: the bars coming up lift the caption clear of the '
-        'control row (v9), same text size', () {
+    test('fullscreen: in manual mode the bars coming up do NOT move the '
+        'caption (build 86), same text size', () {
+      // The v9 lift is Auto-Adjust's alone now: with Auto-Adjust off
+      // (the default) the caption sticks to 16px + the saved raise in
+      // every chrome state — controls up, controls hidden — so it never
+      // jumps when the player UI shows or hides (item 5). The lift to
+      // 116px with the controls up lives in the Auto-Adjust tests in
+      // mpv_subtitle_stable_position_test.dart.
       final down = mpvSubtitleViewConfiguration(
         settings,
         screenHeight: 360,
@@ -85,6 +91,23 @@ void main() {
       );
       expect(down.style.fontSize, 22.0);
       expect(up.style.fontSize, 22.0);
+      expect(down.padding.bottom, 16.0);
+      expect(up.padding.bottom, 16.0);
+    });
+
+    test('fullscreen: with Auto-Adjust on, the bars coming up still lift '
+        'the caption clear of the control row (build 86)', () {
+      final auto = settings.copyWith(subtitleAutoAdjust: true);
+      final down = mpvSubtitleViewConfiguration(
+        auto,
+        screenHeight: 360,
+        controlsVisible: false,
+      );
+      final up = mpvSubtitleViewConfiguration(
+        auto,
+        screenHeight: 360,
+        controlsVisible: true,
+      );
       expect(down.padding.bottom, 16.0);
       expect(up.padding.bottom, kMpvSubtitlePaddingBottomControlsVisible);
     });

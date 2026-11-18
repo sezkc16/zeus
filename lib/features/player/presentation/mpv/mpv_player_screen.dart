@@ -623,6 +623,14 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// only calls the view when the padding actually moved.
   EdgeInsets? _lastSubtitlePadding;
 
+  /// The width of a right-side drawer open over the video (build 86),
+  /// 0 when none is open. The caption shifts left by it — see
+  /// `mpvSubtitleViewConfiguration`'s `drawerWidth` — so it is never
+  /// hidden behind a drawer. Set by the controls' `onDrawerChanged`;
+  /// the build below folds it into the subtitle configuration, and the
+  /// post-frame sync pushes it to the view.
+  double _drawerOpenWidth = 0;
+
   /// The screen height last seen in build. The padding sync runs from a
   /// post-frame callback and from the chrome listener — outside build —
   /// so it reads the height from here instead of calling MediaQuery
@@ -5282,6 +5290,9 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         // configuration's style fresh each build); the padding is pushed
         // here because the view caches it (see the doc above).
         isPip: _inPip,
+        // A drawer open over the video (build 86): the caption shifts
+        // left by its width, into the visible area.
+        drawerWidth: _drawerOpenWidth,
       ).padding;
       if (padding == _lastSubtitlePadding) return;
       // Only record the padding once the view has it: if the video state
@@ -5323,6 +5334,9 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // PiP halves the caption (see the doc in mpv_subtitle_style.dart);
       // _inPip flips by setState, so the rebuild carries it to the view.
       isPip: _inPip,
+      // A drawer open over the video (build 86): the caption shifts left
+      // by its width. The post-frame sync below pushes it to the view.
+      drawerWidth: _drawerOpenWidth,
     );
     if (_stage != _Stage.resolving &&
         subtitleConfig.padding != _lastSubtitlePadding) {
@@ -5608,6 +5622,12 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
                     : null,
                 videoIsHdr: _videoIsHdr,
                 sleepTimer: _sleepTimer,
+                // Build 86: a drawer open over the video shifts the
+                // caption left by its width (see `_drawerOpenWidth`).
+                onDrawerChanged: (width) {
+                  if (!mounted) return;
+                  setState(() => _drawerOpenWidth = width);
+                },
               ),
             ),
 
