@@ -105,7 +105,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // can stall the rendering pipeline during bounce / direction-change.
     if (_isWidescreenForScroll()) return;
 
-    final opacity = (_scrollController.offset * 0.8 / 300).clamp(0.0, 1.0);
+    _syncAppBarOpacity();
+  }
+
+  /// The header's fill follows the scroll offset. Also run after every
+  /// build: when the list is replaced (provider switched, refresh) the
+  /// new one starts at the top without a scroll event, and the header
+  /// kept the old, opaque fill - a plain band over the top of the hero
+  /// (build 83 phone screenshot).
+  void _syncAppBarOpacity() {
+    if (!mounted) return;
+    final offset = _scrollController.hasClients
+        ? _scrollController.offset
+        : 0.0;
+    final opacity = (offset * 0.8 / 300).clamp(0.0, 1.0);
     if (opacity != _appBarOpacityNotifier.value) {
       _appBarOpacityNotifier.value = opacity;
     }
@@ -183,6 +196,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       );
     }
 
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _syncAppBarOpacity(),
+    );
     // Mobile layout: existing AppBar + FAB
     return Scaffold(
       extendBodyBehindAppBar: true,

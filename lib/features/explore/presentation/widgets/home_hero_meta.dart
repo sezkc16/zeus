@@ -69,15 +69,17 @@ String? heroMetaLine(MultimediaItem item, {int maxGenres = 1}) {
 /// The outlined chip: the certification the item carries ("R", "TV-MA") and
 /// the run its source described ("ENDED", "ONGOING", "UPCOMING"), joined by
 /// a bar. Null when the item carries neither.
-String? heroChipLabel(MultimediaItem item) {
+String? heroChipLabel(MultimediaItem item, {String? statusLabel}) {
   final cert = item.contentRating?.trim();
+  // The item's own word first; [statusLabel] (looked up, e.g. RELEASED)
+  // only when the item says nothing.
   final status = item.comingSoon
       ? 'UPCOMING'
       : switch (item.status) {
           ShowStatus.completed => 'ENDED',
           ShowStatus.ongoing => 'ONGOING',
           ShowStatus.upcoming => 'UPCOMING',
-          ShowStatus.unknown => null,
+          ShowStatus.unknown => statusLabel,
         };
   final parts = <String>[
     if (cert != null && cert.isNotEmpty) cert.toUpperCase(),
@@ -131,12 +133,21 @@ class HeroBadges {
 
 /// The badge row for [item]. [language] is the item's language code when
 /// its source gave one.
-HeroBadges heroBadges(MultimediaItem item, {String? language}) {
+///
+/// [statusLabel] and [scoreIsImdb] come from the hero's TMDB lookup:
+/// the status when the item has none of its own, and whether the score
+/// now on the item was fetched from IMDb.
+HeroBadges heroBadges(
+  MultimediaItem item, {
+  String? language,
+  String? statusLabel,
+  bool scoreIsImdb = false,
+}) {
   final score = heroScoreLabel(item);
   return HeroBadges(
-    chip: heroChipLabel(item),
+    chip: heroChipLabel(item, statusLabel: statusLabel),
     score: score,
-    scoreIsImdb: score != null && heroScoreIsImdb(item),
+    scoreIsImdb: score != null && (scoreIsImdb || heroScoreIsImdb(item)),
     language: heroLanguageLabel(language),
   );
 }

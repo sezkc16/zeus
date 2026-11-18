@@ -18,6 +18,7 @@ import '../../../../core/utils/title_quality.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../home/data/hero_enrichment.dart';
 import 'home_hero_meta.dart';
 
 import '../../../../shared/widgets/thumbnail_error_placeholder.dart';
@@ -358,7 +359,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
   bool _isHomeHero(bool isDesktop) => widget.showPreviewActions && !isDesktop;
 
   /// Where the Home hero's dots sit, from the poster's bottom edge.
-  static const double _homeDotsBottom = 40;
+  static const double _homeDotsBottom = 26;
 
   /// The hero as a card: rounded corners, the backdrop clipped inside and
   /// no outline (v8: the thin accent line around it was removed at the
@@ -621,11 +622,22 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
     required ThemeData theme,
     required bool isFirstSlide,
   }) {
-    final imageUrl = movie.backdropImageUrl;
     final title = movie.title;
 
     const bleed = 60.0;
     final homeHero = _isHomeHero(isDesktop);
+    // Home: art without the title printed on it, when the lookup found
+    // some AND a logo to put on it; otherwise the plugin's own picture.
+    final found = homeHero ? watchHeroEnrichment(ref, movie) : null;
+    final cleanArt = found?.artUrl;
+    final hasLogo =
+        (movie.logoUrl?.isNotEmpty ?? false) ||
+        (found?.logoUrl?.isNotEmpty ?? false);
+    final imageUrl = cleanArt != null && hasLogo
+        ? cleanArt
+        : movie.backdropImageUrl;
+    final topInset = MediaQuery.paddingOf(context).top;
+    final lightPage = theme.brightness == Brightness.light;
 
     return ClipRect(
       child: Stack(
@@ -709,6 +721,41 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
               ),
             ),
           ),
+
+          // 2.4. Home: a soft scrim behind the header (logo, buttons,
+          // provider line), which sits on top of the art. In the light
+          // themes it is a wash of the page colour, because the header's
+          // text there is dark.
+          if (homeHero)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: topInset + 150,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  key: const ValueKey('home-hero-top-scrim'),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: lightPage
+                          ? [
+                              scaffoldColor.withValues(alpha: 0.92),
+                              scaffoldColor.withValues(alpha: 0.7),
+                              scaffoldColor.withValues(alpha: 0.0),
+                            ]
+                          : [
+                              Colors.black.withValues(alpha: 0.6),
+                              Colors.black.withValues(alpha: 0.35),
+                              Colors.black.withValues(alpha: 0.0),
+                            ],
+                      stops: const [0.0, 0.6, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+            ),
 
           // 2.5. Fixed Bottom Feather (eased page transition scrim)
           Positioned(
@@ -982,12 +1029,24 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
 
   Widget _buildHomeHeroContent(
     BuildContext context,
-    MultimediaItem movie,
+    MultimediaItem plain,
     ThemeData theme,
   ) {
     final l10n = AppLocalizations.of(context)!;
+    // Build 85: what the plugin does not say is looked up on TMDB. Null
+    // until it arrives, and for good on a miss - the hero then shows
+    // only the plugin's own data, as before.
+    final found = watchHeroEnrichment(ref, plain);
+    final movie = found?.applyTo(plain) ?? plain;
     final logoUrl = movie.logoUrl;
-    final badges = heroBadges(movie);
+    final badges = heroBadges(
+      movie,
+      language: found?.language,
+      statusLabel: found?.status,
+      scoreIsImdb: found != null &&
+          found.scoreIsImdb &&
+          movie.score == found.imdbScore,
+    );
     final hasMeta = heroMetaParts(movie).isNotEmpty;
 
     return Column(
@@ -1009,7 +1068,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
         // View Details - same destination as tapping the poster.
         ElevatedButton(
           key: const ValueKey('home-hero-view-details'),
-          onPressed: () => _openMovie(context, movie),
+          onPressed: () => _openMovie(context, plain),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.white,
             foregroundColor: Colors.black,
