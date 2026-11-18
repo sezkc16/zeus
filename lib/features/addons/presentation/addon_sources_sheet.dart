@@ -417,20 +417,9 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
       // The sheet goes before the player comes up.
       beforeLaunch: () => Navigator.of(context).pop(),
     );
-    if (played) {
-      // v7: remembered for this title, so the next episode's sheet puts
-      // the same source first.
-      final settings = _settingsOrNull();
-      if (settings != null) {
-        unawaited(
-          rememberLastUsedSource(
-            settings,
-            widget.item.url,
-            addonSourceKey(stream),
-          ),
-        );
-      }
-    }
+    // v7's "Last used" memory is written by [playAddonLinks] itself,
+    // before the player opens (build 75): by the time it returns the
+    // player has closed and this sheet is disposed — `ref` is dead.
     if (!played && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         appSnackBar(content: const Text('This source has no playable link.')),

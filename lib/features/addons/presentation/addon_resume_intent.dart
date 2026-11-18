@@ -45,3 +45,28 @@ class AddonResumeIntent {
 /// Whether a saved position is worth calling "Resume" (the same line
 /// the add-on Play button draws at).
 bool addonHasResume(int positionMs) => positionMs > 5000;
+
+/// Build 75: the Sources card's label for a title with a saved
+/// position — the word for "Resume" ([resume]), the episode for a
+/// show, and where it continues: `Resume S1 E3 · 12:34`,
+/// `Resume · 1:02:03`.
+String addonResumeLabel({
+  required String resume,
+  required int positionMs,
+  int? season,
+  int? episode,
+}) {
+  final buffer = StringBuffer(resume);
+  if (season != null && episode != null) {
+    buffer.write(' S$season E$episode');
+  }
+  final total = positionMs ~/ 1000;
+  if (total > 0) {
+    final h = total ~/ 3600;
+    final m = (total % 3600) ~/ 60;
+    final s = total % 60;
+    String two(int v) => v.toString().padLeft(2, '0');
+    buffer.write(h > 0 ? ' · $h:${two(m)}:${two(s)}' : ' · $m:${two(s)}');
+  }
+  return buffer.toString();
+}

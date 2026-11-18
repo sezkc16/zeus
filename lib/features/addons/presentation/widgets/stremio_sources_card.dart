@@ -29,7 +29,12 @@ class StremioSourcesCard extends ConsumerWidget {
     this.compact = false,
     this.autofocus = false,
     this.merged = false,
+    this.resumeLabel,
   });
+
+  /// Build 75: the action's label when the title (or [episode]) has a
+  /// saved position — "Resume S1 E3 · 12:34" instead of "Find sources".
+  final String? resumeLabel;
 
   /// A title opened from Browse: its sources come from plugins, Nuvio
   /// providers and Stremio add-ons together, so the card is always there -
@@ -79,7 +84,9 @@ class StremioSourcesCard extends ConsumerWidget {
             ? EdgeInsets.zero
             : const EdgeInsets.symmetric(horizontal: SourceSectionCard.gutter),
         child: SourceSectionAction(
-          label: merged
+          label: resumeLabel != null
+              ? resumeLabel!
+              : merged
               ? (target == null
                     ? l10n.sourcesFind
                     : l10n.sourcesFindForEpisode(target.season, target.episode))

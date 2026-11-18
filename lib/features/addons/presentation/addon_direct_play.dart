@@ -73,21 +73,28 @@ Future<bool> playAddonLinks(
       ? named
       : installs.firstWhereOrNull((a) => a.id == chosen.addonId);
 
-  // Build 74: a direct play (the page's Play, an episode card) is
-  // remembered as this title's source too, so a later resume from
-  // Continue Watching continues on it. The sources sheet records its
-  // own picks (v7); this is the path that had no memory.
-  if (selected == null) {
-    try {
-      unawaited(
-        rememberLastUsedSource(
-          ref.read(settingsRepositoryProvider),
-          item.url,
-          addonSourceKey(first),
-        ),
-      );
-    } catch (_) {}
-  }
+  // The source this title plays on is remembered here, for every play
+  // — a row picked in the sources sheet (an add-on's, a plugin's or a
+  // Nuvio provider's alike) and a direct play — so "Last used" and a
+  // later resume continue on it.
+  //
+  // Build 75: it has to be here, before the player opens. The sheet
+  // used to record its own picks after this call returned, which is
+  // when the player has closed again; the sheet is long gone by then,
+  // and reading the settings through a disposed widget's `ref` throws
+  // (flutter_riverpod 3: "Using ref when a widget is about to or has
+  // been unmounted is unsafe"). The error was swallowed, so no pick
+  // from the sheet was ever remembered: no "Last used", and build 74's
+  // resume had nothing to play.
+  try {
+    unawaited(
+      rememberLastUsedSource(
+        ref.read(settingsRepositoryProvider),
+        item.url,
+        addonSourceKey(first),
+      ),
+    );
+  } catch (_) {}
 
   beforeLaunch?.call();
   await launcher.playResolved(

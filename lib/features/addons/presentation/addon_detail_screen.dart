@@ -847,24 +847,28 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
   }
 
   /// Whether the film, or [video] of a show, has a position to resume.
-  bool _hasResume(AddonMeta meta, AddonVideo? video) {
+  bool _hasResume(AddonMeta meta, AddonVideo? video) =>
+      addonHasResume(_resumePositionMs(meta, video));
+
+  /// The saved position of the film, or of [video] of a show, in ms.
+  /// Read under the keys the player writes: the title's id for a film,
+  /// the episode's own id for an episode.
+  int _resumePositionMs(AddonMeta meta, AddonVideo? video) {
     try {
       // Rebuilt when a position is written (the player closing).
       ref.watch(watchHistoryProvider);
       final history = ref.watch(historyRepositoryProvider);
-      return addonHasResume(
-        video == null
-            ? history.getPosition(meta.id)
-            : history.getEpisodePosition(
-                video.id,
-                mainUrl: meta.id,
-                season: video.season,
-                episode: video.episode,
-              ),
-      );
+      return video == null
+          ? history.getPosition(meta.id)
+          : history.getEpisodePosition(
+              video.id,
+              mainUrl: meta.id,
+              season: video.season,
+              episode: video.episode,
+            );
     } catch (_) {
       // No history store (not opened): nothing to resume.
-      return false;
+      return 0;
     }
   }
 
@@ -998,7 +1002,38 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
     final activeSeason =
         _selectedSeason ?? (seasons.isEmpty ? 1 : seasons.first);
     final episodes = meta.episodesForSeason(activeSeason);
-    final firstVideo = episodes.isNotEmpty ? episodes.first : null;
+    var firstVideo = episodes.isNotEmpty ? episodes.first : null;
+
+    // Build 75: a show with an episode to continue (the one last
+    // watched while unfinished) resolves that episode, not the first
+    // of the season — unless another season was picked by hand. Build
+    // 74 taught only the banner's Play about resuming; this card, the
+    // button the page actually offers on a phone, kept opening the
+    // plain list for episode 1.
+    if (meta.isShow) {
+      AddonVideo? resumeTarget;
+      try {
+        resumeTarget = addonPlayTarget(
+          meta,
+          history: ref.watch(historyRepositoryProvider),
+          watched: ref.watch(episodeWatchRepositoryProvider),
+          lastWatched: ref
+              .watch(watchHistoryProvider)
+              .firstWhereOrNull((h) => h.item.url == meta.id),
+        );
+      } catch (_) {
+        resumeTarget = null;
+      }
+      if (resumeTarget != null &&
+          (_selectedSeason == null ||
+              resumeTarget.season == _selectedSeason) &&
+          _hasResume(meta, resumeTarget)) {
+        firstVideo = resumeTarget;
+      }
+    }
+    final resumeMs = _resumePositionMs(meta, meta.isShow ? firstVideo : null);
+    final resume =
+        addonHasResume(resumeMs) && (!meta.isShow || firstVideo != null);
 
     // A series resolves one episode - the first of the selected season - and
     // the label says which. Anything else is reached from the episode list
@@ -1008,6 +1043,14 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
     return StremioSourcesCard(
       compact: compact,
       merged: _mergedSources,
+      resumeLabel: resume
+          ? addonResumeLabel(
+              resume: AppLocalizations.of(context)!.resume,
+              positionMs: resumeMs,
+              season: isEpisode ? (firstVideo.season ?? activeSeason) : null,
+              episode: isEpisode ? (firstVideo.episode ?? 1) : null,
+            )
+          : null,
       // The page's one way to its streams: a remote starts here.
       autofocus: true,
       episode: isEpisode
@@ -1035,6 +1078,7 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
         episode: firstVideo?.toEpisode(),
         playlist: meta.videos,
         merged: _mergedSources,
+        resume: resume,
       ),
     );
   }
@@ -1611,6 +1655,9 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
     required AddonStreamRequest request,
     bool rowStyle = false,
   }) {
+    // Build 75: an episode with a saved position continues on the
+    // source the show last played on, as the page's own buttons do.
+    final resume = _hasResume(meta, video);
     void search() => AddonSourcesSheet.open(
       context,
       item: item,
@@ -1618,6 +1665,7 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
       episode: video.toEpisode(),
       playlist: meta.videos,
       merged: _mergedSources,
+      resume: resume,
     );
     return AddonEpisodeCard(
       key: ValueKey(video.id),
