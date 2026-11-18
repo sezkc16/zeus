@@ -288,6 +288,22 @@ class StorageService {
     }
   }
 
+  /// The providers pinned in the Select Provider dialog: package names
+  /// in the order they were pinned. This device only.
+  List<String> getPinnedProviders() {
+    final raw = _settingsBox.get('pinned_providers');
+    if (raw is! List) return const <String>[];
+    return raw.whereType<String>().toList(growable: false);
+  }
+
+  Future<void> setPinnedProviders(List<String> packageNames) async {
+    if (packageNames.isEmpty) {
+      await _settingsBox.delete('pinned_providers');
+    } else {
+      await _settingsBox.put('pinned_providers', List<String>.of(packageNames));
+    }
+  }
+
   Future<void> setDefaultHomeScreen(String path) async {
     await _settingsBox.put('default_home_screen', path);
   }

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'home_provider.dart';
+import 'provider_pins.dart';
+import '../../../core/utils/motion.dart';
 import 'home_row_prefs.dart';
 import 'home_row_prefs_provider.dart';
 import 'home_state.dart';
@@ -929,8 +931,54 @@ class _ProviderSelectorDialogState extends State<_ProviderSelectorDialog> {
   final ScrollController _chipsScrollController = ScrollController();
   bool _didInitialScroll = false;
 
+  /// v2 pins: after a pin tap, how many rows each provider moved (old
+  /// index − new index), so its row slides from where it was. Cleared
+  /// once the slide is over.
+  Map<String, int> _rowShift = const <String, int>{};
+  int _reorderGeneration = 0;
+  Timer? _reorderTimer;
+
+  /// The row order on screen, as package names (null = the None row).
+  List<String?> _shownOrder = const <String?>[];
+
+  void _togglePin(WidgetRef ref, String packageName) {
+    final before = _shownOrder;
+    final filter = ref.read(homeFilterProvider);
+    final pins = togglePin(ref.read(providerPinsProvider), packageName);
+    final filtered = filter == null
+        ? widget.providers
+        : widget.providers
+              .where((p) => p.supportedTypes.contains(filter))
+              .toList();
+    final after = <String?>[
+      if (filter == null) null,
+      for (final p in orderProvidersWithPins(filtered, pins)) p.packageName,
+    ];
+    final shift = <String, int>{};
+    if (!MediaQuery.disableAnimationsOf(context)) {
+      for (var i = 0; i < after.length; i++) {
+        final name = after[i];
+        if (name == null) continue;
+        final old = before.indexOf(name);
+        if (old != -1 && old != i) shift[name] = old - i;
+      }
+    }
+    _reorderTimer?.cancel();
+    setState(() {
+      _rowShift = shift;
+      _reorderGeneration++;
+    });
+    if (shift.isNotEmpty) {
+      _reorderTimer = Timer(kMotionPill, () {
+        if (mounted) setState(() => _rowShift = const <String, int>{});
+      });
+    }
+    unawaited(ref.read(providerPinsProvider.notifier).toggle(packageName));
+  }
+
   @override
   void dispose() {
+    _reorderTimer?.cancel();
     _scrollController.dispose();
     _chipsScrollController.dispose();
     super.dispose();
@@ -1043,11 +1091,21 @@ class _ProviderSelectorDialogState extends State<_ProviderSelectorDialog> {
                   );
                   final installedPlugins = extensionsState.installedPlugins;
 
-                  final filteredProviders = filter == null
-                      ? providers
-                      : providers
-                            .where((p) => p.supportedTypes.contains(filter))
-                            .toList();
+                  // v2: pinned providers first, in the order they were
+                  // pinned, then the rest as before.
+                  final pins = ref.watch(providerPinsProvider);
+                  final filteredProviders = orderProvidersWithPins(
+                    filter == null
+                        ? providers
+                        : providers
+                              .where((p) => p.supportedTypes.contains(filter))
+                              .toList(),
+                    pins,
+                  );
+                  _shownOrder = <String?>[
+                    if (filter == null) null,
+                    for (final p in filteredProviders) p.packageName,
+                  ];
 
                   // Auto-scroll to selected provider on initial show
                   int targetIndex = -1;
@@ -1153,17 +1211,50 @@ class _ProviderSelectorDialogState extends State<_ProviderSelectorDialog> {
                             pluginTag = plugin?.name ?? parentPackageName;
                           }
 
-                          return SizedBox(
+                          final pinned = pins.contains(p.packageName);
+                          final scheme = Theme.of(context).colorScheme;
+                          final row = SizedBox(
                             height: 56.0,
                             child: Center(
                               child: ListTile(
                                 autofocus: index == targetIndex,
+                                // The pin: its own 44 px target. A tap on
+                                // it pins or unpins only - it never picks
+                                // the provider or closes the dialog.
+                                trailing: IconButton(
+                                  key: ValueKey('provider-pin-${p.packageName}'),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints.tightFor(
+                                    width: 44,
+                                    height: 44,
+                                  ),
+                                  tooltip: pinned ? 'Unpin' : 'Pin',
+                                  icon: Icon(
+                                    pinned
+                                        ? Icons.push_pin
+                                        : Icons.push_pin_outlined,
+                                    size: 22,
+                                    color: pinned
+                                        ? scheme.primary
+                                        : scheme.onSurfaceVariant,
+                                  ),
+                                  onPressed: () =>
+                                      _togglePin(ref, p.packageName),
+                                ),
                                 title: Row(
                                   children: [
+                                    // A long name shrinks to fit; it is
+                                    // never cut off with an ellipsis.
                                     Flexible(
-                                      child: Text(
-                                        p.name,
-                                        overflow: TextOverflow.ellipsis,
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        alignment:
+                                            AlignmentDirectional.centerStart,
+                                        child: Text(
+                                          p.name,
+                                          maxLines: 1,
+                                          softWrap: false,
+                                        ),
                                       ),
                                     ),
                                     if (isSubprovider) ...[
@@ -1233,6 +1324,31 @@ class _ProviderSelectorDialogState extends State<_ProviderSelectorDialog> {
                                 },
                               ),
                             ),
+                          );
+                          // After a pin tap the row slides from where it
+                          // was to its new place (reduced motion: no
+                          // shift is recorded, so it jumps).
+                          final shift = _rowShift[p.packageName] ?? 0;
+                          if (shift == 0) {
+                            return KeyedSubtree(
+                              key: ValueKey('provider-row-${p.packageName}'),
+                              child: row,
+                            );
+                          }
+                          return TweenAnimationBuilder<double>(
+                            key: ValueKey(
+                              'provider-row-${p.packageName}'
+                              '#$_reorderGeneration',
+                            ),
+                            tween: Tween<double>(begin: shift * 56.0, end: 0),
+                            duration: kMotionPill,
+                            curve: kMotionPillCurve,
+                            builder: (context, dy, child) =>
+                                Transform.translate(
+                                  offset: Offset(0, dy),
+                                  child: child,
+                                ),
+                            child: row,
                           );
                         },
                       ),
