@@ -2350,7 +2350,8 @@ class _GoldenSeekBar extends StatelessWidget {
           // inside the track's own inset (it used to span the full box,
           // so it ended up to 14 px short and a small buffer hid under
           // the thumb), a little brighter and taller than the 4 px
-          // track, with a minimum visible length past the thumb.
+          // track. Build 76: its end is the real end of the buffer —
+          // no minimum length past the thumb.
           if (buffered != null)
             Positioned.fill(
               child: Padding(

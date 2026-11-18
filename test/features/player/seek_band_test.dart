@@ -47,34 +47,73 @@ void main() {
   group('seekBandWidth', () {
     test('maps the fraction onto the track', () {
       expect(
-        seekBandWidth(trackWidth: 800, bandFraction: 0.5, positionFraction: 0.2),
+        seekBandWidth(
+          trackWidth: 800,
+          bandFraction: 0.5,
+          positionFraction: 0.2,
+        ),
         400,
       );
     });
 
-    test('a short buffer still shows past the thumb', () {
-      // 12 s of a 23:40 film on an 880 px track is ~7 px: under the
-      // thumb. It gets the minimum visible length instead.
-      final position = 287 / 1420;
-      final band = 299.28 / 1420;
+    test('ends exactly where the buffer ends — no fixed minimum', () {
+      // Phone, build 75: 29:31 of 3:04:50 with 9.2 s buffered. On an
+      // 880 px track that is under a pixel past the playhead.
+      const length = 11090.0;
+      const position = 1771 / length;
+      const band = (1771 + 9.216) / length;
       final width = seekBandWidth(
         trackWidth: 880,
         bandFraction: band,
         positionFraction: position,
       );
-      expect(width, closeTo(position * 880 + kSeekBandMinVisibleAhead, 1e-6));
+      expect(width, closeTo(band * 880, 1e-9));
+      expect(width - position * 880, lessThan(1));
+    });
+
+    test('grows with the buffer and shrinks as it is used up', () {
+      // 60 s on a 23:40 episode is ~4% of the bar.
+      double ahead(double seconds) =>
+          seekBandWidth(
+            trackWidth: 880,
+            bandFraction: (287 + seconds) / 1420,
+            positionFraction: 287 / 1420,
+          ) -
+          287 / 1420 * 880;
+      expect(ahead(60), closeTo(60 / 1420 * 880, 1e-9));
+      expect(ahead(120), closeTo(2 * ahead(60), 1e-9));
+      expect(ahead(10), lessThan(ahead(60)));
+    });
+
+    test('never left of the playhead', () {
+      expect(
+        seekBandWidth(
+          trackWidth: 800,
+          bandFraction: 0.1,
+          positionFraction: 0.3,
+        ),
+        closeTo(240, 1e-9),
+      );
     });
 
     test('nothing ahead draws nothing ahead', () {
       expect(
-        seekBandWidth(trackWidth: 800, bandFraction: 0.3, positionFraction: 0.3),
+        seekBandWidth(
+          trackWidth: 800,
+          bandFraction: 0.3,
+          positionFraction: 0.3,
+        ),
         closeTo(240, 1e-9),
       );
     });
 
     test('never past the end of the track, never negative', () {
       expect(
-        seekBandWidth(trackWidth: 800, bandFraction: 1, positionFraction: 0.999),
+        seekBandWidth(
+          trackWidth: 800,
+          bandFraction: 1,
+          positionFraction: 0.999,
+        ),
         800,
       );
       expect(

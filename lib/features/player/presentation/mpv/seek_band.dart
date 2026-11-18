@@ -14,11 +14,6 @@ library;
 /// seen (phone screenshot 2026-11-18).
 const double kSeekBandTrackInset = 14;
 
-/// The smallest band drawn past the thumb when anything at all is
-/// buffered ahead, in px: the thumb (radius 7) covers the first 7 px
-/// after the playhead, so a real but short buffer still shows.
-const double kSeekBandMinVisibleAhead = 12;
-
 /// Where the buffered band ends, as a fraction of the film.
 ///
 /// [bufferedEnd] is mpv's `demuxer-cache-time` (media_kit's `buffer`
@@ -41,9 +36,14 @@ double seekBandFraction({
 /// width minus twice [kSeekBandTrackInset]).
 ///
 /// [bandFraction] is [seekBandFraction]; [positionFraction] is the
-/// playhead. A buffer that is ahead of the playhead by anything gets at
-/// least [kSeekBandMinVisibleAhead] px past the thumb's centre, capped
-/// at the end of the track.
+/// playhead. Build 76: the band ends exactly where the buffer ends —
+/// nothing is added. Build 72 gave any buffer at least 12 px past the
+/// thumb so that a short one could be seen; on a long film that made
+/// the band the same fixed stub whatever was buffered (phone, 9 s
+/// buffered of 3 h 04 min), which says nothing. The true length of a
+/// short buffer on a long film is under a pixel and hides under the
+/// thumb (radius 7): the band shows once the buffer is long enough to
+/// reach past it, and grows and shrinks with it.
 double seekBandWidth({
   required double trackWidth,
   required double bandFraction,
@@ -52,10 +52,7 @@ double seekBandWidth({
   if (trackWidth <= 0) return 0;
   final band = bandFraction.clamp(0.0, 1.0);
   final position = positionFraction.clamp(0.0, 1.0);
-  var width = band * trackWidth;
-  if (band > position) {
-    final least = position * trackWidth + kSeekBandMinVisibleAhead;
-    if (width < least) width = least;
-  }
-  return width.clamp(0.0, trackWidth);
+  // Never left of the playhead.
+  final end = band > position ? band : position;
+  return (end * trackWidth).clamp(0.0, trackWidth);
 }
