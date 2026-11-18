@@ -253,29 +253,28 @@ void main() {
     });
   });
 
-  // On a phone the shell hides the nav pill on the Settings branch and
-  // leaves only the real safe area in the media padding. With nothing to
-  // clear, the list must end with that safe area plus a small gap — not the
-  // 100 px floor the tab screens use, which left a blank block under the
-  // last row.
+  // Build 87: the shell shows the nav pill on every branch and inflates
+  // the media padding, so on the phone the screens always take the
+  // 100 px floor path (the first group above). The small-value path
+  // below is for a screen hosted WITHOUT the shell's inflated padding:
+  // with nothing to clear, the list must end with that safe area plus
+  // a small gap — not the 100 px floor the tab screens use, which left
+  // a blank block under the last row.
   for (final safeArea in <double>[34, 0]) {
     screens.forEach((name, screen) {
-      testWidgets(
-        '$name leaves no blank block when the pill is hidden '
-        '(safe area $safeArea)',
-        (tester) async {
-          await pump(tester, screen, mediaBottom: safeArea);
-          expect(
-            bottomPadding(tester),
-            // Build 67: just the safe area (34), or the 8 px floor with
-            // no inset at all. It was safe area + 16.
-            safeArea == 0 ? 8.0 : safeArea,
-            reason:
-                '$name still reserves room for a nav pill that is not on '
-                'screen',
-          );
-        },
-      );
+      testWidgets('$name leaves no blank block without the shell bar '
+          '(safe area $safeArea)', (tester) async {
+        await pump(tester, screen, mediaBottom: safeArea);
+        expect(
+          bottomPadding(tester),
+          // Build 67: just the safe area (34), or the 8 px floor with
+          // no inset at all. It was safe area + 16.
+          safeArea == 0 ? 8.0 : safeArea,
+          reason:
+              '$name still reserves room for a shell bar that is not on '
+              'screen',
+        );
+      });
     });
   }
 

@@ -13,6 +13,7 @@ import 'package:zorox/shared/widgets/custom_bottom_nav.dart';
 import 'package:zorox/shared/widgets/app_sidebar.dart';
 
 import 'package:zorox/l10n/generated/app_localizations.dart';
+
 import '../../features/settings/presentation/general_settings_provider.dart';
 import 'loading_indicator.dart';
 
@@ -35,6 +36,17 @@ class AppScaffold extends ConsumerStatefulWidget {
 
 class _AppScaffoldState extends ConsumerState<AppScaffold>
     with TickerProviderStateMixin {
+  // Build 87: the last tab branch (0-4) the shell was on. The pill
+  // stays on screen on the Settings branch too, and the package has
+  // no "no selection" state: passing 5 slides its highlight capsule
+  // off the bar's right edge (a gold sliver at the screen edge). So
+  // on branch 5 the pill keeps highlighting the tab the user came
+  // from — the honest "where you were" state — and the capsule never
+  // moves while on Settings. Updated in build whenever the shell is
+  // on a tab branch (covers pill taps, the Settings gear and the
+  // back button alike); a plain field, no setState, no rebuild loop.
+  int _lastTabIndex = 0;
+
   // Owned here so the content-area LEFT key handler can focus them directly,
   // crossing the Branch Navigator's FocusScope boundary. Count comes from
   // [kSidebarDestinationCount] in app_sidebar.dart — single source of truth.
@@ -381,25 +393,34 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
 
         // Mobile uses Bottom Navigation
         final mq = MediaQuery.of(context);
-        // The preview hides the pill on the Settings screens (Settings and
-        // its sub-routes — Player, Accounts, … — all live on branch 5), so
-        // the pill is only painted on the five tab branches. Hiding it also
-        // removes the surface the Settings text glitch warped through: a
-        // row scrolling under the translucent glass showed through it
-        // distorted. The Settings AppBar carries its own back button, so
-        // hiding the pill never strands the user on the branch.
-        final showNavBar = widget.navigationShell.currentIndex != 5;
+        // Build 87: the pill stays on EVERY branch, Settings included.
+        // It used to hide on branch 5 (the preview hid it, and hiding
+        // it removed the surface the Settings text glitch warped
+        // through), but the user saw the tab bar vanish for seconds on
+        // every Settings visit and return (2026-11-19) — the hiding
+        // itself was the complaint, and the return was already fast.
+        // The pill never leaves the tree now, so there is no gap in
+        // either direction. The Settings screens already clear a pill:
+        // pillFreeBottomContentPadding returns the shell's 100 px floor
+        // once the media padding below is inflated, so no row can read
+        // through the glass; and the shell's bottom clearance keeps
+        // the last row above the pill. The pill's look, and the
+        // Positioned-directly-under-Stack rule, are unchanged.
+        // The highlight stays on the last tab while on Settings (see
+        // _lastTabIndex): the package has no "no selection" state.
+        final currentIndex = widget.navigationShell.currentIndex;
+        if (currentIndex < 5) _lastTabIndex = currentIndex;
+        final pillIndex = currentIndex < 5 ? currentIndex : _lastTabIndex;
         // Content must clear the pill top (see
         // [CustomBottomNavBar.contentClearance]); the real safe-area
         // padding is already in mq.padding.bottom, so only the remainder
-        // is added. With the pill hidden there is nothing to clear, so the
-        // content keeps just the real safe area.
-        final navBarTotalHeight = showNavBar
-            ? math.max(
-                CustomBottomNavBar.contentClearance - mq.padding.bottom,
-                0.0,
-              )
-            : 0.0;
+        // is added. The pill is always on screen now, so the clearance
+        // always applies — including on the Settings branch, whose
+        // screens read it through pillFreeBottomContentPadding.
+        final navBarTotalHeight = math.max(
+          CustomBottomNavBar.contentClearance - mq.padding.bottom,
+          0.0,
+        );
 
         return PopScope(
           canPop: false,
@@ -452,20 +473,19 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
                 // slab is wrong in light mode too. The glass itself
                 // blurs whatever scrolls under it, and the shell's
                 // bottom clearance keeps the last row above the pill,
-                // so no row header can read through it. Hidden with
-                // the pill on the Settings branch.
-                if (showNavBar)
-                  MediaQuery(
-                    data: mq.copyWith(
-                      padding: mq.padding.copyWith(
-                        bottom: CustomBottomNavBar.navPaddingBottom(context),
-                      ),
-                    ),
-                    child: CustomBottomNavBar(
-                      currentIndex: widget.navigationShell.currentIndex,
-                      onTap: (index) => _onItemTapped(index, context),
+                // so no row header can read through it. Build 87: the
+                // pill is on screen on the Settings branch too.
+                MediaQuery(
+                  data: mq.copyWith(
+                    padding: mq.padding.copyWith(
+                      bottom: CustomBottomNavBar.navPaddingBottom(context),
                     ),
                   ),
+                  child: CustomBottomNavBar(
+                    currentIndex: pillIndex,
+                    onTap: (index) => _onItemTapped(index, context),
+                  ),
+                ),
               ],
             ),
           ),
