@@ -23,6 +23,7 @@ import 'core/theme/theme_variant.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/storage/storage_service.dart';
+import 'core/services/stream_cache/stream_cache_service.dart';
 import 'core/network/doh_service.dart';
 
 import 'package:dynamic_color/dynamic_color.dart';
@@ -124,6 +125,11 @@ void main() async {
   // Before any image is asked for: posters from a site behind a bot check go
   // with the clearance its plugin earned - see clearance_images.dart.
   installClearanceImageCache();
+
+  // Build 77: the player's stream cache keeps part of a film in a temp
+  // file while it plays and deletes it on close; a crash or a kill
+  // can leave one behind. Nothing can be playing yet, so clear them.
+  unawaited(StreamCacheService.sweepLeftovers());
 
   // Repaint rainbow for the flicker hunt - see player_debug_flags.dart. A
   // compile-time constant, so a normal build carries no trace of it.

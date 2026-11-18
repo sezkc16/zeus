@@ -71,6 +71,8 @@ import '../../../../core/domain/entity/multimedia_item.dart';
 import '../../../../core/providers/device_info_provider.dart';
 import '../../../../core/providers/thermal_state.dart';
 import '../../../../core/services/notification_service.dart';
+import '../../../../core/services/stream_cache/stream_cache_proxy.dart';
+import '../../../../core/services/stream_cache/stream_cache_service.dart';
 import '../../../../core/storage/episode_watch_repository.dart';
 import '../../../../core/storage/history_repository.dart';
 import '../../../../core/storage/settings_repository.dart';
@@ -105,6 +107,7 @@ import 'golden_video_drawer.dart' show PictureValues;
 import 'mpv_ios_options.dart';
 import 'mpv_pip_quality.dart';
 import 'mpv_pip_renderer.dart';
+import 'mpv_stream_proxy.dart';
 import 'seek_band.dart';
 import 'mpv_subtitle_style.dart';
 import 'mpv_thermal_quality.dart';
@@ -317,6 +320,28 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   bool _dataSaver = false;
   int _streamIndex = 0;
   final Set<int> _failedStreams = <int>{};
+
+  // Build 77: the stream cache proxy (see `mpv_stream_proxy.dart`).
+  /// The film as the proxy knows it, when the open went through it.
+  StreamCacheHandle? _proxyHandle;
+
+  /// Which source [_proxyHandle] belongs to.
+  int _proxyIndex = -1;
+
+  /// Why the current open is NOT through the proxy (overlay).
+  String? _proxyOff = 'platform';
+
+  /// Sources that failed through the proxy in this screen: they open
+  /// straight from the host from then on.
+  final Set<int> _proxyBlocked = <int>{};
+
+  /// Orders overlapping opens: only the newest goes on after the
+  /// proxy has answered.
+  int _proxyOpenToken = 0;
+
+  /// A straight-from-the-host retry is being decided: further failure
+  /// reports for the same open wait for it.
+  bool _proxyRetrying = false;
 
   /// What the reachability check found per source, while resolving: the
   /// original ZoroX's rows read "Checking…" (spinner) while a source is
@@ -851,6 +876,16 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _mpvStatsText.dispose();
     _pipWatchdog?.cancel();
     _pipDiagTimer?.cancel();
+    // Build 77: forget the film in the stream cache proxy (deletes its
+    // store file). A moment later, so the engine has stopped reading.
+    _proxyOpenToken++;
+    final proxyHandle = _proxyHandle;
+    _proxyHandle = null;
+    if (proxyHandle != null) {
+      Future<void>.delayed(const Duration(seconds: 2), () {
+        StreamCacheService.instance.close(proxyHandle.token);
+      });
+    }
     // The native side remembers the last synced playing state (see the
     // playing listener): clear it now, or a film left playing would make
     // MainActivity open a PiP window for a player that no longer exists
@@ -914,6 +949,12 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       unawaited(_noteHwdecBaseline());
     }
     if (_disposed || !mounted) return;
+    // Build 77: iOS may close the proxy's listening socket while the
+    // app is suspended; open it again (same port) before the engine
+    // needs its next connection.
+    if (state == AppLifecycleState.resumed && _proxyHandle != null) {
+      unawaited(StreamCacheService.instance.ensureListening());
+    }
     if (state == AppLifecycleState.inactive) {
       if (defaultTargetPlatform == TargetPlatform.iOS) {
         // iOS: `inactive` fires for a transient overlay too — Control
@@ -2358,6 +2399,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // "the host answering" and "reading and decoding". (Build 75
     // sampled `stream-pos`, which never moves back: all "?".)
     final waitStart = clock.elapsedMilliseconds;
+    // Build 77: wall-clock start of the whole move, to pick the
+    // proxy's requests that belong to it (2 s of slack for the steps
+    // before this point).
+    final moveWallStart =
+        DateTime.now().millisecondsSinceEpoch - waitStart - 2000;
     final samples = <DemuxSample>[];
     Future<void> sample() async {
       final reading = parseDemuxState(
@@ -2380,6 +2426,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     await sample();
     final cacheAfter = await _readMpvProperty(player, 'demuxer-cache-duration');
     final placeAfter = mpvTimePos(await _readMpvProperty(player, 'time-pos'));
+    // Build 77: where the request(s) of this move were answered from.
+    final proxyHandle = _proxyHandle;
+    final proxyStats = proxyHandle == null
+        ? null
+        : await StreamCacheService.instance.stats(proxyHandle.token);
     if (!live()) return false;
     _switchDetail = switchWaitLine(
       wait: splitSwitchWaitByDemux(
@@ -2396,7 +2447,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
             before: placeBefore,
             after: placeAfter,
           ) +
-          (samples.isEmpty ? ' no-state' : ''),
+          (samples.isEmpty ? ' no-state' : '') +
+          switchSourceNote(stats: proxyStats, sinceMs: moveWallStart),
     );
     if (!gotPicture) {
       lap('frame');
@@ -3241,15 +3293,55 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       _openStart = start != null && start > Duration.zero
           ? start
           : Duration.zero;
-      await _player.open(
-        Media(
-          stream.url,
-          httpHeaders: stream.headers,
-          start: start != null && start > Duration.zero ? start : null,
-        ),
-        // Build 73: a renderer move starts on its first frame.
-        play: skipPrebuffer && autoPlay,
+      // Build 77: a plain film file on the iPhone opens through the
+      // stream cache proxy, so a renderer move finds its bytes on the
+      // phone. Anything else — and any failure to get a proxied
+      // address — opens the film's own address, as before.
+      final previousProxy = _proxyHandle;
+      var mediaUrl = stream.url;
+      StreamCacheHandle? proxied;
+      final bypass = streamProxyBypassReason(
+        isIos: StreamCacheService.supported,
+        stream: stream,
+        item: widget.item,
+        blocked: _proxyBlocked.contains(index),
       );
+      if (bypass == null) {
+        final openToken = ++_proxyOpenToken;
+        proxied = await StreamCacheService.instance.open(stream.url);
+        if (_disposed || openToken != _proxyOpenToken) {
+          // Left, or a newer open overtook this one while waiting.
+          if (proxied != null) StreamCacheService.instance.close(proxied.token);
+          return;
+        }
+        if (proxied != null) mediaUrl = proxied.url;
+      } else {
+        _proxyOpenToken++;
+      }
+      _proxyHandle = proxied;
+      _proxyIndex = proxied != null ? index : -1;
+      _proxyOff = proxied != null
+          ? null
+          : (bypass ?? StreamCacheService.instance.lastFailure ?? 'start');
+      try {
+        await _player.open(
+          Media(
+            mediaUrl,
+            httpHeaders: stream.headers,
+            start: start != null && start > Duration.zero ? start : null,
+          ),
+          // Build 73: a renderer move starts on its first frame.
+          play: skipPrebuffer && autoPlay,
+        );
+      } finally {
+        // The film before this one is off the engine now (closing its
+        // proxy entry any earlier would hand the engine an error for a
+        // film it is still reading).
+        if (previousProxy != null &&
+            previousProxy.token != _proxyHandle?.token) {
+          StreamCacheService.instance.close(previousProxy.token);
+        }
+      }
     } catch (e) {
       if (kDebugMode) debugPrint('mpv open failed: $e');
       _failedStreams.add(index);
@@ -3385,6 +3477,9 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         _stallClock.reset();
         if (_stallRecoveries < _kStallMaxReopens) {
           _stallRecoveries++;
+          // Build 77: a second stall on the same source re-opens it
+          // straight from the host, in case the proxy is what stalls.
+          if (_stallRecoveries >= 2) _proxyBlocked.add(_streamIndex);
           unawaited(_openStream(_streamIndex, start: _position));
         } else {
           _tryNextStream();
@@ -4122,6 +4217,22 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
           ..writeln(_pipFeedLine);
       }
     }
+    // Build 77: the stream cache proxy.
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final handle = _proxyHandle;
+      final StreamCacheStats? proxyStats = handle == null
+          ? null
+          : await StreamCacheService.instance.stats(handle.token);
+      if (_disposed) return;
+      buffer.writeln(
+        streamProxyOverlayLine(
+          opened: handle != null,
+          bypassReason: _proxyOff,
+          stats: proxyStats,
+          duration: _duration,
+        ),
+      );
+    }
     final text = buffer.toString().trimRight();
     if (_mpvStatsText.value != text) _mpvStatsText.value = text;
   }
@@ -4160,8 +4271,38 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     });
   }
 
+  /// Build 77: a source that was opened through the proxy and did not
+  /// play gets one more try straight from the host before it is given
+  /// up — unless the proxy had already stepped aside (then the engine
+  /// was talking to the host itself and that is what failed).
+  Future<void> _retryWithoutProxy(int index, StreamCacheHandle handle) async {
+    final stats = await StreamCacheService.instance.stats(handle.token);
+    _proxyRetrying = false;
+    if (_disposed || _streamIndex != index) return;
+    if (stats != null && stats.dead) {
+      _tryNextStream();
+      return;
+    }
+    _failedStreams.remove(index);
+    _publishPanelData();
+    final resumeAt = _position > const Duration(seconds: 5)
+        ? _position
+        : _openStart;
+    unawaited(_openStream(index, start: resumeAt));
+  }
+
   void _tryNextStream() {
-    if (_disposed) return;
+    if (_disposed || _proxyRetrying) return;
+    final handle = _proxyHandle;
+    if (handle != null &&
+        _proxyIndex == _streamIndex &&
+        !_proxyBlocked.contains(_streamIndex)) {
+      _proxyBlocked.add(_streamIndex);
+      _proxyRetrying = true;
+      _watchdogTimer?.cancel();
+      unawaited(_retryWithoutProxy(_streamIndex, handle));
+      return;
+    }
     final next = _streamIndex + 1;
     if (next >= _streams.length) {
       setState(() {
@@ -4655,6 +4796,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _lastUsedIndex = -1;
     _dataSaver = false;
     _failedStreams.clear();
+    _proxyBlocked.clear();
     _probes.clear();
     _pickedIndex = null;
     _resolveDone = false;
@@ -5203,6 +5345,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
                                 _stage = _Stage.resolving;
                                 _error = null;
                                 _failedStreams.clear();
+                                _proxyBlocked.clear();
                               });
                               unawaited(_resolveAndOpen());
                             },
