@@ -30,6 +30,58 @@ const double kSettingsRowIconGap = 14;
 /// the next now that there is no card to do it.
 const double kSettingsGroupHeaderTopGap = 22;
 
+/// Build 74 (design A, picked by the user 2026-11-18): every Settings
+/// section sits in one thin rounded outline — a border only, no fill —
+/// with its CAPS header above it. The corner radius of that outline.
+const double kSettingsCardRadius = 18;
+
+/// The outline's thickness.
+const double kSettingsCardBorderWidth = 1;
+
+/// How strongly the outline shows: the theme's text colour at this
+/// opacity — the same family as the row hairline
+/// ([kSettingsRowDividerOpacity]), a step stronger so the box reads on
+/// Frost as well as on the dark themes.
+const double kSettingsCardBorderOpacity = 0.18;
+
+/// The space between the outline and the rows, left and right, so the
+/// icons and text sit inside the box.
+const double kSettingsCardInnerPadding = 12;
+
+/// The gap between a section's header and its outline.
+const double kSettingsCardHeaderGap = 8;
+
+/// The outline's colour for [scheme].
+Color settingsCardBorderColor(ColorScheme scheme) =>
+    scheme.onSurface.withValues(alpha: kSettingsCardBorderOpacity);
+
+/// The outline around one Settings section's rows and controls.
+class SettingsSectionCard extends StatelessWidget {
+  const SettingsSectionCard({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(kSettingsCardRadius),
+        border: Border.all(
+          color: settingsCardBorderColor(Theme.of(context).colorScheme),
+          width: kSettingsCardBorderWidth,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: kSettingsCardBorderWidth + kSettingsCardInnerPadding,
+          vertical: kSettingsCardBorderWidth,
+        ),
+        child: Column(children: children),
+      ),
+    );
+  }
+}
+
 class SettingsGroup extends StatelessWidget {
   final String title;
   final List<Widget> children;
@@ -66,7 +118,7 @@ class SettingsGroup extends StatelessWidget {
             // Inside a dialog (filled: false) the header keeps its old gap.
             filled ? kSettingsGroupHeaderTopGap : 8,
             LayoutConstants.spacingMd,
-            filled ? 2 : 8,
+            filled ? kSettingsCardHeaderGap : 8,
           ),
           child: Text(
             title.toUpperCase(),
@@ -86,10 +138,12 @@ class SettingsGroup extends StatelessWidget {
           margin: const EdgeInsets.symmetric(
             horizontal: LayoutConstants.spacingMd,
           ),
-          // Design B: no card background, border or rounded box — the
-          // rows sit on the page ([filled] is kept for callers; it no
-          // longer draws anything).
-          child: Column(children: children),
+          // Build 74 (design A): on a page the section's rows and
+          // controls sit in one thin outline — no fill. Inside a dialog
+          // ([filled] false) they stay bare, as before.
+          child: filled
+              ? SettingsSectionCard(children: children)
+              : Column(children: children),
         ),
       ],
     );

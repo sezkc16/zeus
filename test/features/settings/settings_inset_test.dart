@@ -208,12 +208,59 @@ void main() {
       );
       expect(
         tester.getTopLeft(firstCard()).dx,
-        LayoutConstants.spacingMd,
+        // Build 74: the rows sit inside the section's outline.
+        LayoutConstants.spacingMd +
+            kSettingsCardBorderWidth +
+            kSettingsCardInnerPadding,
         reason:
             '$name pays for the inset twice: SettingsGroup already applies '
             'spacingMd, so the surrounding ListView must not apply it again',
       );
     });
+  });
+
+  screens.forEach((name, screen) {
+    testWidgets('$name draws every section in one thin outline', (
+      tester,
+    ) async {
+      await pump(tester, screen);
+      final groups = find.byType(SettingsGroup).evaluate().length;
+      final cards = find.byType(SettingsSectionCard);
+      expect(cards.evaluate().length, groups);
+      // The outline starts on the header's left edge.
+      expect(tester.getTopLeft(cards.first).dx, LayoutConstants.spacingMd);
+      final box = tester.widget<DecoratedBox>(
+        find
+            .descendant(of: cards.first, matching: find.byType(DecoratedBox))
+            .first,
+      );
+      final decoration = box.decoration as BoxDecoration;
+      expect(decoration.color, isNull, reason: 'an outline, not a fill');
+      expect(
+        decoration.borderRadius,
+        BorderRadius.circular(kSettingsCardRadius),
+      );
+      final border = decoration.border! as Border;
+      expect(border.top.width, kSettingsCardBorderWidth);
+      final scheme = Theme.of(tester.element(cards.first)).colorScheme;
+      expect(border.top.color, settingsCardBorderColor(scheme));
+      expect(border.top.color.a, closeTo(kSettingsCardBorderOpacity, 0.001));
+    });
+  });
+
+  testWidgets('a group inside a dialog keeps no outline', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SettingsGroup(
+            title: 'In a dialog',
+            filled: false,
+            children: [SettingsTile(icon: Icons.tune, title: 'Row')],
+          ),
+        ),
+      ),
+    );
+    expect(find.byType(SettingsSectionCard), findsNothing);
   });
 
   testWidgets('all four agree, so the tree has one left edge', (tester) async {
