@@ -662,3 +662,66 @@ String switchWaitLine({
       'cache ${_seconds(cacheBefore)}>${_seconds(cacheAfter)}s '
       'paused ${paused ? 'yes' : 'no'}$extra';
 }
+
+// ---------------------------------------------------------------------------
+// Build 76: the picture comes back on a keyframe.
+// ---------------------------------------------------------------------------
+//
+// Phone result on build 75 (Avengers 4K): the picture wait was still
+// 11.6 s / 4.9 s / 1.8 s — holding the film did not shorten it.
+//
+// Read from the mpv 0.36.0 source: a video track switched on in a
+// running film is brought in by a refresh seek to one second BEFORE
+// the playhead (demux.c `initiate_refresh_seek`: `start_ts -= 1.0`),
+// which the demuxer rounds down to the keyframe before that; the new
+// video chain then decodes every frame from that keyframe and throws
+// each away until it reaches the playhead (video.c
+// `video_output_image`: "video was just enabled via track switching -
+// skip to current time"). All of that data has to arrive, and all of
+// those frames have to be decoded, before one picture is shown.
+//
+// A keyframe seek (`seek <t> absolute+keyframes`, playloop.c `mp_seek`
+// with no SEEK_FORWARD) lands on the keyframe at or before the
+// playhead and shows THAT frame: the first picture is the first
+// keyframe that arrives. The film then continues from the keyframe —
+// a jump back of at most one keyframe interval, never forward. The
+// viewer accepted that trade (2026-11-18). What it cannot remove: the
+// track switch has already emptied the buffer, so the host still has
+// to answer one request.
+
+/// Whether the move lands on a keyframe: a film with a known place
+/// that can be seeked. A live stream is left to mpv's own refresh.
+bool keyframeLandingForMove({
+  required bool seekable,
+  required Duration? position,
+}) => seekable && position != null && position > Duration.zero;
+
+/// The mpv command that lands on the keyframe at or before [position].
+List<String> keyframeSeekCommand(Duration position) => <String>[
+  'seek',
+  (position.inMilliseconds / 1000).toStringAsFixed(3),
+  'absolute+keyframes',
+];
+
+/// mpv's `time-pos` as a place in the film, or null.
+Duration? mpvTimePos(String? raw) {
+  final seconds = double.tryParse((raw ?? '').trim());
+  if (seconds == null || !seconds.isFinite || seconds < 0) return null;
+  return Duration(milliseconds: (seconds * 1000).round());
+}
+
+/// The overlay's note on the keyframe landing, appended to the
+/// `switch-wait` line: ` key -1.8s` — the film continued 1.8 s before
+/// where it was; ` key ?` — landed, place not read; ` key off` — not
+/// used (mpv's own refresh brought the picture).
+String keyframeLandingNote({
+  required bool used,
+  required Duration? before,
+  required Duration? after,
+}) {
+  if (!used) return ' key off';
+  if (before == null || after == null) return ' key ?';
+  final delta = (after - before).inMilliseconds / 1000;
+  final sign = delta > 0 ? '+' : '';
+  return ' key $sign${delta.toStringAsFixed(1)}s';
+}

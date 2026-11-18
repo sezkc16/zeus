@@ -2232,6 +2232,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       player,
       'demuxer-cache-duration',
     );
+    // Build 76: where the film is, for the keyframe landing below.
+    final placeBefore =
+        mpvTimePos(await _readMpvProperty(player, 'time-pos')) ??
+        (_position > Duration.zero ? _position : null);
     if (!live()) return false;
     debugPrint('[mpv] renderer move (in place) → '
         '${toSoftware ? 'software' : 'hardware'} at $_position '
@@ -2326,6 +2330,24 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     } catch (e) {
       debugPrint('[mpv] renderer swap: video track not restored: $e');
     }
+    // Build 76: the picture comes back on the keyframe at or before
+    // the playhead (see [keyframeSeekCommand]) instead of mpv decoding
+    // and discarding its way up to the playhead. Sent right behind the
+    // track switch so it takes the place of mpv's own refresh seek.
+    // The film continues from that keyframe — a little before where it
+    // was, never after. When it cannot be sent the move goes on as in
+    // build 75.
+    var keyLanding = false;
+    if (keyframeLandingForMove(seekable: _canSeek, position: placeBefore)) {
+      try {
+        await platform
+            .command(keyframeSeekCommand(placeBefore!))
+            .timeout(const Duration(seconds: 2));
+        keyLanding = true;
+      } catch (e) {
+        debugPrint('[mpv] renderer swap: keyframe landing not sent: $e');
+      }
+    }
     lap('vid');
     final after = toSoftware
         ? MpvRendererPhase.software
@@ -2357,6 +2379,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     final frameMs = clock.elapsedMilliseconds - waitStart;
     await sample();
     final cacheAfter = await _readMpvProperty(player, 'demuxer-cache-duration');
+    final placeAfter = mpvTimePos(await _readMpvProperty(player, 'time-pos'));
     if (!live()) return false;
     _switchDetail = switchWaitLine(
       wait: splitSwitchWaitByDemux(
@@ -2367,7 +2390,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       cacheBefore: cacheBefore,
       cacheAfter: cacheAfter,
       paused: held,
-      extra: samples.isEmpty ? ' no-state' : '',
+      extra:
+          keyframeLandingNote(
+            used: keyLanding,
+            before: placeBefore,
+            after: placeAfter,
+          ) +
+          (samples.isEmpty ? ' no-state' : ''),
     );
     if (!gotPicture) {
       lap('frame');

@@ -142,4 +142,71 @@ void main() {
       );
     });
   });
+
+  group('keyframe landing', () {
+    test('only a film with a known place that can be seeked', () {
+      expect(
+        keyframeLandingForMove(
+          seekable: true,
+          position: const Duration(minutes: 29, seconds: 31),
+        ),
+        isTrue,
+      );
+      expect(
+        keyframeLandingForMove(seekable: false, position: Duration.zero),
+        isFalse,
+      );
+      expect(
+        keyframeLandingForMove(
+          seekable: false,
+          position: const Duration(minutes: 1),
+        ),
+        isFalse,
+      );
+      expect(keyframeLandingForMove(seekable: true, position: null), isFalse);
+      expect(
+        keyframeLandingForMove(seekable: true, position: Duration.zero),
+        isFalse,
+      );
+    });
+
+    test('the command lands at or before the place, on a keyframe', () {
+      expect(
+        keyframeSeekCommand(
+          const Duration(minutes: 29, seconds: 31, milliseconds: 250),
+        ),
+        ['seek', '1771.250', 'absolute+keyframes'],
+      );
+    });
+
+    test('time-pos as mpv prints it', () {
+      expect(mpvTimePos('1771.250000'), const Duration(milliseconds: 1771250));
+      expect(mpvTimePos(''), isNull);
+      expect(mpvTimePos(null), isNull);
+      expect(mpvTimePos('-1'), isNull);
+    });
+
+    test('the note says how far back the film continued', () {
+      expect(
+        keyframeLandingNote(
+          used: true,
+          before: const Duration(milliseconds: 1771250),
+          after: const Duration(milliseconds: 1769450),
+        ),
+        ' key -1.8s',
+      );
+      expect(
+        keyframeLandingNote(used: true, before: null, after: null),
+        ' key ?',
+      );
+      expect(
+        keyframeLandingNote(
+          used: false,
+          before: const Duration(seconds: 5),
+          after: const Duration(seconds: 5),
+        ),
+        ' key off',
+      );
+    });
+  });
 }
