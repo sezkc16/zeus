@@ -613,6 +613,11 @@ class PlayerSettings {
 class PlayerSettingsNotifier extends _$PlayerSettingsNotifier {
   SettingsRepository get _repository => ref.read(settingsRepositoryProvider);
 
+  /// The last in-flight `player_sub_raise` persist (build 86): rapid
+  /// Manual-slider drags chain their writes behind it, so they persist
+  /// in order and the saved value is the last dragged one.
+  Future<void> _subtitleRaisePersist = Future<void>.value();
+
   /// Keychain (iOS/macOS) / Keystore (Android) / libsecret / Credentials API,
   /// with the one-shot migration out of the plaintext Hive box built in.
   ///
@@ -1261,22 +1266,50 @@ class PlayerSettingsNotifier extends _$PlayerSettingsNotifier {
   /// goes off with it and the saved raise is what the caption uses.
   /// Only writes the Auto-Adjust key when it was on: the common path (a
   /// swipe while it is already off) stays one write.
+  ///
+  /// Build 86: state FIRST, persist after. The Manual slider calls this
+  /// on every drag tick, and awaiting the repository write before the
+  /// state change made every tick wait on a disk write, so the caption
+  /// lagged and stuttered instead of following the finger. The state
+  /// change is synchronous now, so the caption moves on the same frame
+  /// as the drag; the writes still happen, chained behind the previous
+  /// persist, and the saved value is the dragged one (a later drag
+  /// overwrites an earlier in-flight write with a newer value, never an
+  /// older one). Awaiting the returned future still means persisted —
+  /// it resolves after this tick's write lands — so a caller that
+  /// reboots right after awaiting it reads the dragged value; the slider
+  /// never awaits it, it just fires per tick. Only this slider path
+  /// changes: the other setters still await their write first, as before.
   Future<void> setSubtitleRaise(double raise) async {
     final value = raise
         .clamp(kSubtitleRaises.first, kSubtitleRaises.last)
         .toDouble();
-    await _repository.setPlayerSetting('player_sub_raise', value);
-    if (state.value?.subtitleAutoAdjust ?? false) {
-      await _repository.setPlayerSetting('player_sub_auto_adjust', false);
-      _update(
-        (PlayerSettings c) => c.copyWith(
-          subtitleRaise: value,
-          subtitleAutoAdjust: false,
-        ),
-      );
-    } else {
-      _update((PlayerSettings c) => c.copyWith(subtitleRaise: value));
-    }
+    final wasAutoAdjust = state.value?.subtitleAutoAdjust ?? false;
+    _update(
+      (PlayerSettings c) => c.copyWith(
+        subtitleRaise: value,
+        subtitleAutoAdjust: false,
+      ),
+    );
+    // Chained behind the previous persist, so rapid drags persist in
+    // order and the saved value is always the last dragged one — never
+    // an earlier tick landing after a later one. A failed write never
+    // breaks the chain: the next drag re-persists the latest value.
+    final persist = _subtitleRaisePersist.then((_) async {
+      try {
+        await _repository.setPlayerSetting('player_sub_raise', value);
+        if (wasAutoAdjust) {
+          await _repository.setPlayerSetting(
+            'player_sub_auto_adjust',
+            false,
+          );
+        }
+      } catch (_) {
+        // A failed persist must never break the player or the chain.
+      }
+    });
+    _subtitleRaisePersist = persist;
+    await persist;
   }
 
   /// Auto-Adjust (+27): on, the caption positions itself and the saved

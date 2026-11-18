@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -773,6 +774,55 @@ void main() {
         playerSettingsProvider.future,
       );
       expect(settings.subtitleRaise, 0.1);
+    });
+
+    test('a manual raise moves state at once, and the persist follows it '
+        '(build 86)', () async {
+      // The Manual slider calls this on every drag tick: awaiting the
+      // repository write first made every tick wait on a disk write, so
+      // the caption lagged instead of following the finger. The state
+      // change is synchronous now — the call below is deliberately NOT
+      // awaited, and the state already reads the dragged value.
+      final ProviderContainer container = boot();
+      final PlayerSettingsNotifier notifier = await notifierOf(container);
+      unawaited(notifier.setSubtitleRaise(0.15));
+      expect(
+        container.read(playerSettingsProvider).requireValue.subtitleRaise,
+        0.15,
+      );
+
+      // The persist lands after, in the background: wait for it, then a
+      // fresh launch reads the dragged value.
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (storage.getPlayerSetting<num>('player_sub_raise') != 0.15 &&
+          DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(storage.getPlayerSetting<num>('player_sub_raise'), 0.15);
+      final PlayerSettings restored = await boot().read(
+        playerSettingsProvider.future,
+      );
+      expect(restored.subtitleRaise, 0.15);
+    });
+
+    test('rapid drags persist in order: the saved value is the last one '
+        '(build 86)', () async {
+      final ProviderContainer container = boot();
+      final PlayerSettingsNotifier notifier = await notifierOf(container);
+      unawaited(notifier.setSubtitleRaise(0.05));
+      unawaited(notifier.setSubtitleRaise(0.1));
+      unawaited(notifier.setSubtitleRaise(0.15));
+      expect(
+        container.read(playerSettingsProvider).requireValue.subtitleRaise,
+        0.15,
+      );
+
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (storage.getPlayerSetting<num>('player_sub_raise') != 0.15 &&
+          DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(storage.getPlayerSetting<num>('player_sub_raise'), 0.15);
     });
 
     test('size is saved on its own, held to 10..80, and survives the next '
