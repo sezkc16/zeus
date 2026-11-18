@@ -63,6 +63,13 @@ class ExploreCarousel extends ConsumerStatefulWidget {
   /// wide (desktop / TV) layout ignores this and stays a padded card.
   final bool fullBleed;
 
+  /// Phone layout only: render the Home hero (design A) — centred title
+  /// logo, meta line, badge row, one View Details pill, dots inside the
+  /// poster — with the same TMDB enrichment Home uses. Browse's TMDB
+  /// hero sets this; Home sets [showPreviewActions] instead, which
+  /// implies the same layout. Desktop keeps its own hero either way.
+  final bool showHomeHero;
+
   const ExploreCarousel({
     super.key,
     required this.movies,
@@ -71,6 +78,7 @@ class ExploreCarousel extends ConsumerStatefulWidget {
     this.onNavigateUp,
     this.onControllerReady,
     this.showPreviewActions = false,
+    this.showHomeHero = false,
     this.onPlay,
     this.fullBleed = false,
   });
@@ -356,7 +364,10 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
   /// Home's hero on a phone: the tall poster with the centred title, the
   /// meta line, the badge row, one View Details button and the dots
   /// (design A, build 82). The wide layout keeps the preview hero it had.
-  bool _isHomeHero(bool isDesktop) => widget.showPreviewActions && !isDesktop;
+  /// Browse's TMDB hero is the same layout ([showHomeHero]); only the
+  /// source of the items differs.
+  bool _isHomeHero(bool isDesktop) =>
+      (widget.showPreviewActions || widget.showHomeHero) && !isDesktop;
 
   /// Where the Home hero's dots sit, from the poster's bottom edge.
   static const double _homeDotsBottom = 26;

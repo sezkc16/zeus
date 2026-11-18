@@ -103,6 +103,11 @@ class _BrowseTmdbViewState extends ConsumerState<BrowseTmdbView> {
                         movies: value,
                         scrollController: _scrollController,
                         fullBleed: true,
+                        // The same hero Home shows (design A, build 86):
+                        // title logo, meta line, badge row, one View
+                        // Details pill, dots inside the poster. The rows,
+                        // switcher and TMDB default are untouched.
+                        showHomeHero: true,
                         onNavigateUp: () =>
                             widget.firstActionFocusNode.requestFocus(),
                       ),
