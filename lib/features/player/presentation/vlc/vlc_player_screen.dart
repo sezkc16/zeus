@@ -6097,6 +6097,17 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
     // Hands orientation back to the system: outside the player the app
     // follows the device, the user's rotation lock included.
     _platform.restoreOrientation();
+    // An Android phone is turned upright on the way out, whatever the
+    // sensor or auto-rotate say (user 2026-11-19: "kuch vi ho back anepe
+    // portrait hojaye"), as the mpv player does. Sent after the release
+    // above, so it is the one that stands. Tablets, TV, desktop and the
+    // iPhone keep the hand-back to the system.
+    if (defaultTargetPlatform == TargetPlatform.android &&
+        _form == PlayerFormFactor.phone) {
+      unawaited(
+        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]),
+      );
+    }
     SystemChrome.setEnabledSystemUIMode(
       SystemUiMode.manual,
       overlays: SystemUiOverlay.values,

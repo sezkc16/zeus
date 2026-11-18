@@ -62,6 +62,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart'
+    show ProviderListenable;
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:vlc_player/vlc_player.dart';
@@ -750,6 +752,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// golden chrome is unmounted, so the video is bare under the window.
   bool _inPip = false;
 
+  /// Set by the first Back, so a second one cannot pop the page under
+  /// the player as well.
+  bool _leaving = false;
+
   /// The PiP watchdog: if the window never opens after a successful
   /// request, the chrome comes back after 5 s instead of staying hidden
   /// forever (mirrors the VLC screen).
@@ -835,9 +841,24 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     videoUrl: _currentVideoUrl,
   );
 
+  /// The app's provider container, taken once in [initState].
+  ///
+  /// The progress recorder and the tracker write through this and not
+  /// through `ref`: `ref` throws once the widget is being unmounted, and
+  /// [dispose] forces a last progress write. With `ref.read` that write
+  /// threw, and everything after it in [dispose] — the engine stop, the
+  /// portrait turn, the system bars — never ran. The on-screen arrow hid
+  /// it by doing all three before the pop; Android's system Back (button
+  /// or swipe) pops the route directly, so the film kept playing with
+  /// the app left in landscape (user report 2026-11-19, v2 APK).
+  late final ProviderContainer _container;
+
+  T _read<T>(ProviderListenable<T> provider) => _container.read(provider);
+
   @override
   void initState() {
     super.initState();
+    _container = ProviderScope.containerOf(context, listen: false);
     WidgetsBinding.instance.addObserver(this);
     _currentEpisode = widget.episode;
     _currentVideoUrl = widget.videoUrl;
@@ -910,8 +931,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     }
     // Order matters: write first, tear down second. A stop after the write
     // halts the audio now — the async dispose alone left it running after
-    // the screen was gone.
-    _flushProgress();
+    // the screen was gone. Guarded: nothing in the write may keep the
+    // engine stop and the portrait turn below from running.
+    try {
+      _flushProgress();
+    } catch (_) {}
     try {
       _tracker?.finish();
     } catch (_) {
@@ -1391,6 +1415,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// stop and the portrait as a safety net for a route that went any other
   /// way.
   void _goBack() {
+    if (_leaving) return;
+    _leaving = true;
     _flushProgress();
     if (_engineReady) {
       unawaited(_player.stop().catchError((Object _) {}));
@@ -3187,7 +3213,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _resolveDone = false;
     try {
       final resolved = await resolvePlayback(
-        read: ref.read,
+        read: _read,
         item: widget.item,
         videoUrl: _currentVideoUrl,
         preloadedStreams: widget.preloadedStreams,
@@ -3211,7 +3237,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         },
       );
       final resume = await resolveResumePoint(
-        read: ref.read,
+        read: _read,
         item: widget.item,
         episode: _currentEpisode,
         videoUrl: _currentVideoUrl,
@@ -3244,14 +3270,14 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       final listPaintedAt = DateTime.now();
       unawaited(_loadSkipSegments(_currentEpisode));
       _tracker = PlaybackTracker(
-        read: ref.read,
+        read: _read,
         item: widget.item,
         episode: _currentEpisode,
         videoUrl: _currentVideoUrl,
         token: ++_sessionToken,
       );
       _recorder = PlaybackProgressRecorder(
-        read: ref.read,
+        read: _read,
         item: widget.item,
         episode: _currentEpisode,
         videoUrl: _currentVideoUrl,
@@ -3345,14 +3371,14 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     if (!keepSession || _tracker == null || _recorder == null) {
       _sessionToken++;
       _tracker = PlaybackTracker(
-        read: ref.read,
+        read: _read,
         item: widget.item,
         episode: _currentEpisode,
         videoUrl: _currentVideoUrl,
         token: _sessionToken,
       );
       _recorder = PlaybackProgressRecorder(
-        read: ref.read,
+        read: _read,
         item: widget.item,
         episode: _currentEpisode,
         videoUrl: _currentVideoUrl,
@@ -4451,7 +4477,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       try {
         start =
             resumePointFor(
-              read: ref.read,
+              read: _read,
               item: widget.item,
               episode: _currentEpisode,
               videoUrl: _currentVideoUrl,
@@ -4684,7 +4710,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       _skipEnrichmentDone = true;
     }
     final segments = await fetchSkipSegments(
-      read: ref.read,
+      read: _read,
       item: item,
       episode: episode,
     );
@@ -4877,7 +4903,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       try {
         _tracker?.finish();
       } catch (_) {}
-      rollForwardHistory(read: ref.read, item: widget.item, next: next);
+      rollForwardHistory(read: _read, item: widget.item, next: next);
       await _startEpisode(next);
     } finally {
       _advancing = false;
@@ -5309,7 +5335,18 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     final canRotate = playerCanRotate(profile);
     final isTv = form == PlayerFormFactor.tv;
 
-    return Scaffold(
+    // Android's system Back (button or swipe) leaves exactly as the
+    // on-screen arrow does: stop the film, portrait, then the pop. A
+    // panel or dialog is its own route and takes Back first.
+    // Android only: on the iPhone the route keeps popping as it always
+    // has (dispose now stops the film there too).
+    return PopScope(
+      canPop: defaultTargetPlatform != TargetPlatform.android,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _goBack();
+      },
+      child: Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
@@ -5666,6 +5703,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
               ),
             ),
         ],
+      ),
       ),
     );
   }
