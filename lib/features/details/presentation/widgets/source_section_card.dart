@@ -194,7 +194,35 @@ class SourceSectionAction extends StatelessWidget {
     required this.onTap,
     required this.maxWidth,
     this.autofocus = false,
+    this.secondary = false,
+    this.fitLabel = false,
   });
+
+  /// Build 76: an outlined, quieter look for the second action beside
+  /// the card's main one ("Change source" next to "Resume").
+  final bool secondary;
+
+  /// Build 76: the label shrinks to fit rather than ending in "…".
+  final bool fitLabel;
+
+  /// The width this action needs to show [label] whole at [style]'s
+  /// size: icon, gap, text, padding and border.
+  static double widthFor(BuildContext context, String label) {
+    final painter = TextPainter(
+      text: TextSpan(text: label, style: labelStyle),
+      maxLines: 1,
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width + 20 + 10 + 2 * LayoutConstants.spacingMd + 4 + 1;
+  }
+
+  static const TextStyle labelStyle = TextStyle(
+    fontWeight: FontWeight.w600,
+    fontSize: 14,
+  );
 
   final String label;
   final IconData icon;
@@ -222,10 +250,14 @@ class SourceSectionAction extends StatelessWidget {
           duration: const Duration(milliseconds: 150),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
-            color: cs.primary.withValues(alpha: isFocused ? 0.22 : 0.10),
+            color: secondary
+                ? cs.onSurface.withValues(alpha: isFocused ? 0.12 : 0.0)
+                : cs.primary.withValues(alpha: isFocused ? 0.22 : 0.10),
             border: Border.all(
               color: isFocused
                   ? cs.primary
+                  : secondary
+                  ? cs.onSurface.withValues(alpha: 0.28)
                   : cs.primary.withValues(alpha: 0.35),
               width: isFocused ? 2 : 1,
             ),
@@ -247,19 +279,33 @@ class SourceSectionAction extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(icon, size: 20, color: cs.primary),
+                    Icon(
+                      icon,
+                      size: 20,
+                      color: secondary ? cs.onSurface : cs.primary,
+                    ),
                     const SizedBox(width: 10),
                     Flexible(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: cs.primary,
-                        ),
-                      ),
+                      child: fitLabel
+                          ? FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                label,
+                                maxLines: 1,
+                                softWrap: false,
+                                style: labelStyle.copyWith(
+                                  color: secondary ? cs.onSurface : cs.primary,
+                                ),
+                              ),
+                            )
+                          : Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: labelStyle.copyWith(
+                                color: secondary ? cs.onSurface : cs.primary,
+                              ),
+                            ),
                     ),
                   ],
                 ),

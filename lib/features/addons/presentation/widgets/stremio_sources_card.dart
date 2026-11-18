@@ -30,7 +30,18 @@ class StremioSourcesCard extends ConsumerWidget {
     this.autofocus = false,
     this.merged = false,
     this.resumeLabel,
+    this.onChangeSource,
   });
+
+  /// Build 76 (design A): with a saved position the card offers a
+  /// second, outlined button beside Resume — "Change source" — that
+  /// opens the full list with nothing played by itself. Resume alone
+  /// went straight to the source the title last played on, with no way
+  /// to the list. Shown only together with [resumeLabel].
+  final VoidCallback? onChangeSource;
+
+  /// The second button's label.
+  static const String changeSourceLabel = 'Change source';
 
   /// Build 75: the action's label when the title (or [episode]) has a
   /// saved position — "Resume S1 E3 · 12:34" instead of "Find sources".
@@ -69,6 +80,30 @@ class StremioSourcesCard extends ConsumerWidget {
     if (addonCount == 0 && !merged) return const SizedBox.shrink();
 
     final target = episode;
+    final primary = SourceSectionAction(
+      label: resumeLabel != null
+          ? resumeLabel!
+          : merged
+          ? (target == null
+                ? l10n.sourcesFind
+                : l10n.sourcesFindForEpisode(target.season, target.episode))
+          : target == null
+          ? l10n.stremioSearchAddons
+          // (season, episode) - the order gen-l10n emits from the ARB
+          // placeholders. Both are ints, so getting it backwards compiles
+          // cleanly and renders the numbers swapped.
+          : l10n.stremioSearchAddonsForEpisode(target.season, target.episode),
+      icon: merged ? Icons.play_arrow_rounded : Icons.search_rounded,
+      onTap: onOpen,
+      fitLabel: resumeLabel != null && onChangeSource != null,
+      autofocus: autofocus,
+      // Full bleed on a phone; capped on a desktop, where the card sits in
+      // a hero column that can run past a thousand points and a button
+      // stretched across all of it reads as a banner.
+      maxWidth: compact && !(resumeLabel != null && onChangeSource != null)
+          ? kSourceActionDesktopWidth
+          : null,
+    );
     return SourceSectionCard(
       key: merged ? const ValueKey('merged-sources-card') : null,
       icon: merged
@@ -83,31 +118,62 @@ class StremioSourcesCard extends ConsumerWidget {
         padding: compact
             ? EdgeInsets.zero
             : const EdgeInsets.symmetric(horizontal: SourceSectionCard.gutter),
-        child: SourceSectionAction(
-          label: resumeLabel != null
-              ? resumeLabel!
-              : merged
-              ? (target == null
-                    ? l10n.sourcesFind
-                    : l10n.sourcesFindForEpisode(target.season, target.episode))
-              : target == null
-              ? l10n.stremioSearchAddons
-              // (season, episode) - the order gen-l10n emits from the ARB
-              // placeholders. Both are ints, so getting it backwards compiles
-              // cleanly and renders the numbers swapped.
-              : l10n.stremioSearchAddonsForEpisode(
-                  target.season,
-                  target.episode,
-                ),
-          icon: merged ? Icons.play_arrow_rounded : Icons.search_rounded,
-          onTap: onOpen,
-          autofocus: autofocus,
-          // Full bleed on a phone; capped on a desktop, where the card sits in
-          // a hero column that can run past a thousand points and a button
-          // stretched across all of it reads as a banner.
-          maxWidth: compact ? kSourceActionDesktopWidth : null,
-        ),
+        child: _actions(context, primary),
       ),
+    );
+  }
+
+  /// The card's action row: the main action alone, or — with a saved
+  /// position and [onChangeSource] — Resume and "Change source" side by
+  /// side, each as wide as its label needs. When the two do not fit in
+  /// one line (a narrow phone, a long label, large text) they stack;
+  /// neither label is ever cut with "…".
+  Widget _actions(BuildContext context, SourceSectionAction primary) {
+    final change = onChangeSource;
+    if (resumeLabel == null || change == null) return primary;
+    final second = SourceSectionAction(
+      key: const ValueKey('change-source'),
+      label: changeSourceLabel,
+      icon: Icons.swap_horiz_rounded,
+      onTap: change,
+      maxWidth: null,
+      secondary: true,
+      fitLabel: true,
+    );
+    const gap = 8.0;
+    final needFirst = SourceSectionAction.widthFor(context, primary.label);
+    final needSecond = SourceSectionAction.widthFor(context, changeSourceLabel);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cap = compact ? kSourceActionDesktopWidth * 1.6 : double.infinity;
+        final width = constraints.maxWidth < cap ? constraints.maxWidth : cap;
+        final sideBySide = needFirst + needSecond + gap <= width;
+        final Widget row = sideBySide
+            ? Row(
+                children: [
+                  Expanded(flex: needFirst.round(), child: primary),
+                  const SizedBox(width: gap),
+                  Expanded(flex: needSecond.round(), child: second),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  primary,
+                  const SizedBox(height: gap),
+                  second,
+                ],
+              );
+        if (!compact) return row;
+        return Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: width),
+            child: row,
+          ),
+        );
+      },
     );
   }
 }

@@ -900,10 +900,7 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
       var remembered = false;
       try {
         remembered =
-            readLastUsedSource(
-              ref.read(settingsRepositoryProvider),
-              meta.id,
-            ) !=
+            readLastUsedSource(ref.read(settingsRepositoryProvider), meta.id) !=
             null;
       } catch (_) {}
       unawaited(
@@ -1025,8 +1022,7 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
         resumeTarget = null;
       }
       if (resumeTarget != null &&
-          (_selectedSeason == null ||
-              resumeTarget.season == _selectedSeason) &&
+          (_selectedSeason == null || resumeTarget.season == _selectedSeason) &&
           _hasResume(meta, resumeTarget)) {
         firstVideo = resumeTarget;
       }
@@ -1039,6 +1035,33 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
     // the label says which. Anything else is reached from the episode list
     // further down, which opens the same sheet per episode.
     final isEpisode = meta.isShow && firstVideo != null;
+
+    // Build 76: [resume] plays the remembered source by itself;
+    // without it the same list opens and waits for a pick ("Change
+    // source") — the remembered source is still first, marked "Last
+    // used", and whichever is picked starts at the saved position and
+    // is the one remembered from then on.
+    void open({required bool resume}) => AddonSourcesSheet.open(
+      context,
+      item: item,
+      request: AddonStreamRequest(
+        // Preserve the meta's own type (other/tv/…) so bridges like
+        // CNCVerse answer /stream on the type they published.
+        type: meta.streamRequestType,
+        contentId: meta.id,
+        videoId: firstVideo?.id,
+        season: firstVideo?.season,
+        episode: firstVideo?.episode,
+        imdbId: meta.imdbId,
+        tmdbId: meta.moviedbId,
+        title: meta.name,
+        year: meta.year,
+      ),
+      episode: firstVideo?.toEpisode(),
+      playlist: meta.videos,
+      merged: _mergedSources,
+      resume: resume,
+    );
 
     return StremioSourcesCard(
       compact: compact,
@@ -1059,27 +1082,8 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
               episode: firstVideo.episode ?? 1,
             )
           : null,
-      onOpen: () => AddonSourcesSheet.open(
-        context,
-        item: item,
-        request: AddonStreamRequest(
-          // Preserve the meta's own type (other/tv/…) so bridges like
-          // CNCVerse answer /stream on the type they published.
-          type: meta.streamRequestType,
-          contentId: meta.id,
-          videoId: firstVideo?.id,
-          season: firstVideo?.season,
-          episode: firstVideo?.episode,
-          imdbId: meta.imdbId,
-          tmdbId: meta.moviedbId,
-          title: meta.name,
-          year: meta.year,
-        ),
-        episode: firstVideo?.toEpisode(),
-        playlist: meta.videos,
-        merged: _mergedSources,
-        resume: resume,
-      ),
+      onOpen: () => open(resume: resume),
+      onChangeSource: resume ? () => open(resume: false) : null,
     );
   }
 
