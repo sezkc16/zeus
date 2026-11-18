@@ -777,9 +777,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   Widget _buildCarouselShimmer(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final heroHeight = size.height * 0.60;
     final isDesktop =
         size.width > LayoutConstants.exploreCarouselDesktopBreakpoint;
+    // The same height as the hero that replaces it (0.66 on a phone since
+    // build 82), so nothing jumps when the feed arrives.
+    final heroHeight = size.height * (isDesktop ? 0.60 : 0.66);
 
     if (isDesktop) {
       return Padding(

@@ -18,6 +18,8 @@ import '../../../../core/utils/title_quality.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'home_hero_meta.dart';
+
 import '../../../../shared/widgets/thumbnail_error_placeholder.dart';
 import '../../../../core/domain/entity/multimedia_item.dart';
 import '../../../library/presentation/library_provider.dart';
@@ -242,12 +244,15 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
     if (widget.movies.isEmpty) return const SizedBox.shrink();
 
     final size = MediaQuery.sizeOf(context);
-    final heroHeight = size.height * 0.60;
     // The wide hero layout is a size decision. A television reports 960 dp,
     // which is already past this 900 dp breakpoint, so the device clause that
     // used to be OR-ed in here could never change the answer for one.
     final isDesktop =
         size.width > LayoutConstants.exploreCarouselDesktopBreakpoint;
+    // The Home hero on a phone (design A, build 82) is taller, and carries
+    // its dots inside the poster, under the button.
+    final homeHero = _isHomeHero(isDesktop);
+    final heroHeight = size.height * (homeHero ? 0.66 : 0.60);
 
     return VisibilityDetector(
       key: const Key('explore-carousel-visibility'),
@@ -336,7 +341,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
             mainAxisSize: MainAxisSize.min,
             children: [
               _buildHeroCard(context, heroHeight, isDesktop: isDesktop),
-              if (widget.movies.length > 1) ...[
+              if (widget.movies.length > 1 && !homeHero) ...[
                 const SizedBox(height: 12),
                 _buildProgressIndicators(),
               ],
@@ -346,6 +351,14 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
       ),
     );
   }
+
+  /// Home's hero on a phone: the tall poster with the centred title, the
+  /// meta line, the badge row, one View Details button and the dots
+  /// (design A, build 82). The wide layout keeps the preview hero it had.
+  bool _isHomeHero(bool isDesktop) => widget.showPreviewActions && !isDesktop;
+
+  /// Where the Home hero's dots sit, from the poster's bottom edge.
+  static const double _homeDotsBottom = 40;
 
   /// The hero as a card: rounded corners, the backdrop clipped inside and
   /// no outline (v8: the thin accent line around it was removed at the
@@ -445,13 +458,22 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
               )
             : _buildSlideForIndex(height, _currentSlide, isDesktop: isDesktop),
 
-        // The dots live below the card now (see build), not overlaid on
-        // the backdrop — v2 had them at bottom: 20 inside the slide.
+        // The dots live below the card (see build), not overlaid on the
+        // backdrop - except on Home's phone hero, where they sit inside the
+        // poster under the button. They are outside the slides, so they do
+        // not fade or scale with a slide change.
+        if (_isHomeHero(isDesktop) && widget.movies.length > 1)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: _homeDotsBottom,
+            child: IgnorePointer(child: _buildProgressIndicators(round: true)),
+          ),
       ],
     );
   }
 
-  Widget _buildProgressIndicators() {
+  Widget _buildProgressIndicators({bool round = false}) {
     return ValueListenableBuilder<int>(
       valueListenable: _currentIndexNotifier,
       builder: (context, currentIndex, _) {
@@ -463,6 +485,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
                 key: ValueKey('hcd_${entry.key}'),
                 isActive: currentIndex == entry.key,
                 fillController: _fillController,
+                round: round,
               ),
           ],
         );
@@ -602,6 +625,7 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
     final title = movie.title;
 
     const bleed = 60.0;
+    final homeHero = _isHomeHero(isDesktop);
 
     return ClipRect(
       child: Stack(
@@ -660,6 +684,16 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
                           Colors.black.withValues(alpha: 0.45),
                           Colors.black.withValues(alpha: 0.75),
                         ]
+                      : homeHero
+                      // Home: darker from the title down, so the white
+                      // title, meta and badges read on any poster and in
+                      // the light themes.
+                      ? [
+                          Colors.black.withValues(alpha: 0.35),
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.6),
+                          Colors.black.withValues(alpha: 0.9),
+                        ]
                       : [
                           Colors.black.withValues(alpha: 0.3),
                           Colors.transparent,
@@ -668,6 +702,8 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
                         ],
                   stops: isDesktop
                       ? const [0.0, 0.35, 0.75, 1.0]
+                      : homeHero
+                      ? const [0.0, 0.3, 0.62, 1.0]
                       : const [0.0, 0.4, 0.6, 1.0],
                 ),
               ),
@@ -679,7 +715,9 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
             bottom: -1,
             left: 0,
             right: 0,
-            height: 120,
+            // Home: a shorter fade, so the dots and the button stay on
+            // the dark part of the poster.
+            height: homeHero ? 84 : 120,
             child: IgnorePointer(
               child: Container(
                 decoration: BoxDecoration(
@@ -704,7 +742,10 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
           Positioned(
             left: 24,
             right: 24,
-            bottom: 48,
+            // Home: the content ends above the dots.
+            bottom: homeHero
+                ? (widget.movies.length > 1 ? _homeDotsBottom + 20 : 44)
+                : 48,
             child: Transform.translate(
               offset: Offset(0, contentOffset),
               child: opacity >= 0.999
@@ -739,6 +780,9 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
     required BuildContext context,
     required bool isFirstSlide,
   }) {
+    if (_isHomeHero(isDesktop)) {
+      return _buildHomeHeroContent(context, movie, theme);
+    }
     final l10n = AppLocalizations.of(context)!;
     final logoUrl = movie.logoUrl;
     final year = movie.year?.toString() ?? '';
@@ -920,6 +964,263 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
             child: Text(l10n.viewDetails),
           ),
       ],
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Home hero, design A (build 82): centred title logo, one small meta
+  // line, one small badge row, a white View Details pill. The dots are
+  // drawn by the card (see _buildCarouselStack).
+  // ---------------------------------------------------------------------
+
+  static const TextStyle _homeMetaStyle = TextStyle(
+    color: Colors.white,
+    fontSize: 13,
+    height: 1.2,
+    fontWeight: FontWeight.w600,
+  );
+
+  Widget _buildHomeHeroContent(
+    BuildContext context,
+    MultimediaItem movie,
+    ThemeData theme,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    final logoUrl = movie.logoUrl;
+    final badges = heroBadges(movie);
+    final hasMeta = heroMetaParts(movie).isNotEmpty;
+
+    return Column(
+      key: const ValueKey('home-hero-content'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // The title: its own logo when the item has one, else its name.
+        if (logoUrl != null && logoUrl.isNotEmpty)
+          _buildHomeLogo(logoUrl, movie.title, theme)
+        else
+          _buildHomeTitleText(movie.title, theme),
+        if (hasMeta) ...[const SizedBox(height: 10), _buildHomeMetaLine(movie)],
+        if (!badges.isEmpty) ...[
+          const SizedBox(height: 6),
+          _buildHomeBadgeRow(badges),
+        ],
+        const SizedBox(height: 12),
+        // View Details - same destination as tapping the poster.
+        ElevatedButton(
+          key: const ValueKey('home-hero-view-details'),
+          onPressed: () => _openMovie(context, movie),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            elevation: 0,
+            minimumSize: const Size(0, 40),
+            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 10),
+            shape: const StadiumBorder(),
+            tapTargetSize: MaterialTapTargetSize.padded,
+            textStyle: const TextStyle(
+              fontSize: 14.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          child: Text(l10n.viewDetails, maxLines: 1, softWrap: false),
+        ),
+      ],
+    );
+  }
+
+  /// The title as text: it wraps, then shrinks to fit the box - it is
+  /// never cut off with an ellipsis.
+  Widget _buildHomeTitleText(String title, ThemeData theme) {
+    return LayoutBuilder(
+      builder: (context, constraints) => ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 84),
+        child: FittedBox(
+          key: const ValueKey('home-hero-title'),
+          fit: BoxFit.scaleDown,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineMedium?.copyWith(
+                color: Colors.white,
+                fontSize: 30,
+                fontWeight: FontWeight.w800,
+                height: 1.05,
+                shadows: const [
+                  Shadow(color: Color(0x99000000), blurRadius: 12),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The title's logo. While it loads the space is kept; if it fails the
+  /// title's name stands in, so a slide is never left without a title.
+  Widget _buildHomeLogo(String logoUrl, String title, ThemeData theme) {
+    const height = 96.0;
+    const width = 260.0;
+    if (logoUrl.toLowerCase().endsWith('.svg')) {
+      return SvgPicture.network(
+        logoUrl,
+        height: height,
+        width: width,
+        fit: BoxFit.contain,
+        placeholderBuilder: (context) =>
+            const SizedBox(height: height, width: width),
+        errorBuilder: (context, error, stackTrace) =>
+            _buildHomeTitleText(title, theme),
+      );
+    }
+    return CachedNetworkImage(
+      imageUrl: logoUrl,
+      height: height,
+      width: width,
+      fit: BoxFit.contain,
+      alignment: Alignment.bottomCenter,
+      placeholder: (context, url) =>
+          const SizedBox(height: height, width: width),
+      errorWidget: (context, url, error) => _buildHomeTitleText(title, theme),
+    );
+  }
+
+  /// "Type • Genre • Runtime • Year" on ONE small line. A second genre is
+  /// shown only when the line still fits; if even one genre is too wide
+  /// the line scales down. It never wraps.
+  Widget _buildHomeMetaLine(MultimediaItem movie) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scaler = MediaQuery.textScalerOf(context);
+        var line = heroMetaLine(movie)!;
+        final wider = heroMetaLine(movie, maxGenres: 2)!;
+        if (wider != line) {
+          final painter = TextPainter(
+            text: TextSpan(text: wider, style: _homeMetaStyle),
+            textDirection: TextDirection.ltr,
+            textScaler: scaler,
+            maxLines: 1,
+          )..layout();
+          if (painter.width <= constraints.maxWidth) line = wider;
+          painter.dispose();
+        }
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            line,
+            key: const ValueKey('home-hero-meta'),
+            maxLines: 1,
+            softWrap: false,
+            style: _homeMetaStyle,
+          ),
+        );
+      },
+    );
+  }
+
+  /// The badge row on ONE small line: outlined chip, rating, language -
+  /// each only when the item carries it. On a narrow screen the language
+  /// goes first; after that the row scales down. It never wraps.
+  Widget _buildHomeBadgeRow(HeroBadges all) {
+    const text = TextStyle(
+      color: Colors.white,
+      fontSize: 11.5,
+      height: 1.0,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.4,
+    );
+    const gold = Color(0xFFF5C518);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final badges = constraints.maxWidth < 240 && all.count > 1
+            ? all.withoutLanguage()
+            : all;
+        final items = <Widget>[
+          if (badges.chip != null)
+            Container(
+              key: const ValueKey('home-hero-chip'),
+              height: 20,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 7),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.6)),
+              ),
+              child: Text(
+                badges.chip!,
+                maxLines: 1,
+                softWrap: false,
+                style: text.copyWith(letterSpacing: 0.8),
+              ),
+            ),
+          if (badges.score != null)
+            Row(
+              key: const ValueKey('home-hero-score'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (badges.scoreIsImdb)
+                  Container(
+                    key: const ValueKey('home-hero-imdb'),
+                    height: 16,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: gold,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: const Text(
+                      'IMDb',
+                      maxLines: 1,
+                      softWrap: false,
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 10,
+                        height: 1.0,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  )
+                else
+                  const Icon(Icons.star_rounded, size: 15, color: gold),
+                const SizedBox(width: 4),
+                Text(
+                  badges.score!,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: text.copyWith(color: gold, fontSize: 12),
+                ),
+              ],
+            ),
+          if (badges.language != null)
+            Text(
+              badges.language!,
+              key: const ValueKey('home-hero-language'),
+              maxLines: 1,
+              softWrap: false,
+              style: text,
+            ),
+        ];
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            key: const ValueKey('home-hero-badges'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < items.length; i++) ...[
+                if (i > 0)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6),
+                    child: Text('\u2022', style: text),
+                  ),
+                items[i],
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1135,10 +1436,14 @@ class _ProgressDot extends StatefulWidget {
   final bool isActive;
   final AnimationController fillController;
 
+  /// Home's hero (build 82): round 6 px dots, the active one a 22 px pill.
+  final bool round;
+
   const _ProgressDot({
     super.key,
     required this.isActive,
     required this.fillController,
+    this.round = false,
   });
 
   @override
@@ -1191,28 +1496,39 @@ class _ProgressDotState extends State<_ProgressDot>
       animation: _controller,
       builder: (context, _) {
         final t = _controller.value;
-        final width = _inactiveWidth + (_activeWidth - _inactiveWidth) * t;
+        final round = widget.round;
+        final activeWidth = round ? 22.0 : _activeWidth;
+        final inactiveWidth = round ? 6.0 : _inactiveWidth;
+        final height = round ? 6.0 : _height;
+        final radius = round ? 3.0 : 2.0;
+        final width = inactiveWidth + (activeWidth - inactiveWidth) * t;
 
         return Container(
           width: width,
-          height: _height,
+          height: height,
           margin: const EdgeInsets.symmetric(horizontal: 3.0),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(2),
-            color: Colors.white.withValues(alpha: widget.isActive ? 0.3 : 0.2),
+            borderRadius: BorderRadius.circular(radius),
+            color: Colors.white.withValues(
+              alpha: round
+                  ? (widget.isActive ? 0.45 : 0.85)
+                  : (widget.isActive ? 0.3 : 0.2),
+            ),
           ),
           child: widget.isActive
               ? ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(radius),
                   child: AnimatedBuilder(
                     animation: widget.fillController,
                     builder: (context, _) {
                       return Align(
                         alignment: Alignment.centerLeft,
                         child: Container(
-                          width: _activeWidth * widget.fillController.value,
-                          height: _height,
-                          color: Colors.white.withValues(alpha: 0.9),
+                          width: activeWidth * widget.fillController.value,
+                          height: height,
+                          color: Colors.white.withValues(
+                            alpha: round ? 1.0 : 0.9,
+                          ),
                         ),
                       );
                     },

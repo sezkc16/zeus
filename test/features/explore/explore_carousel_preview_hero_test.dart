@@ -130,11 +130,7 @@ void main() {
     testWidgets('the hero card has no outline (v8): rounded, no border', (
       tester,
     ) async {
-      await pumpCarousel(
-        tester,
-        movies: [_movie(0)],
-        showPreviewActions: true,
-      );
+      await pumpCarousel(tester, movies: [_movie(0)], showPreviewActions: true);
       final card = tester.widget<AnimatedContainer>(
         find.byKey(const ValueKey('hero-card')),
       );
@@ -163,30 +159,33 @@ void main() {
           tester.widget<AnimatedContainer>(finder).decoration! as BoxDecoration;
       expect(decoration.border, isNull);
       expect(decoration.borderRadius, BorderRadius.zero);
-      // Title and buttons never touch the screen edge.
-      for (final label in ['TITLE 0', 'Play', 'My List', 'Info']) {
+      // Title and button never touch the screen edge (design A on a
+      // phone: the title's name and one View Details button).
+      for (final label in ['Title 0', 'View Details']) {
         final r = tester.getRect(find.text(label));
         expect(r.left, greaterThanOrEqualTo(24), reason: label);
         expect(r.right, lessThanOrEqualTo(411 - 24), reason: label);
       }
     });
 
-    testWidgets('fullBleed is ignored on the wide layout: padded rounded card', (
-      tester,
-    ) async {
-      await pumpCarousel(
-        tester,
-        movies: [_movie(0)],
-        showPreviewActions: true,
-        fullBleed: true,
-        physicalSize: const Size(3600, 2400),
-      );
-      final finder = find.byKey(const ValueKey('hero-card'));
-      final decoration =
-          tester.widget<AnimatedContainer>(finder).decoration! as BoxDecoration;
-      expect(decoration.borderRadius, BorderRadius.circular(20));
-      expect(tester.getRect(finder).left, greaterThan(0));
-    });
+    testWidgets(
+      'fullBleed is ignored on the wide layout: padded rounded card',
+      (tester) async {
+        await pumpCarousel(
+          tester,
+          movies: [_movie(0)],
+          showPreviewActions: true,
+          fullBleed: true,
+          physicalSize: const Size(3600, 2400),
+        );
+        final finder = find.byKey(const ValueKey('hero-card'));
+        final decoration =
+            tester.widget<AnimatedContainer>(finder).decoration!
+                as BoxDecoration;
+        expect(decoration.borderRadius, BorderRadius.circular(20));
+        expect(tester.getRect(finder).left, greaterThan(0));
+      },
+    );
 
     testWidgets('big title, badge pill and all three actions render', (
       tester,
@@ -195,6 +194,9 @@ void main() {
         tester,
         movies: [_movie(0)],
         showPreviewActions: true,
+        // The wide layout keeps this preview hero; a phone shows
+        // design A (home_hero_design_a_test.dart).
+        physicalSize: const Size(3600, 2400),
       );
 
       expect(find.text('TITLE 0'), findsOneWidget);
@@ -214,6 +216,9 @@ void main() {
         tester,
         movies: [_movie(0), _movie(1)],
         showPreviewActions: true,
+        // The wide layout keeps this preview hero; a phone shows
+        // design A (home_hero_design_a_test.dart).
+        physicalSize: const Size(3600, 2400),
       );
 
       expect(find.text('#1 TRENDING TODAY'), findsOneWidget);
@@ -238,6 +243,9 @@ void main() {
         tester,
         movies: [_richMovie()],
         showPreviewActions: true,
+        // The wide layout keeps this preview hero; a phone shows
+        // design A (home_hero_design_a_test.dart).
+        physicalSize: const Size(3600, 2400),
       );
 
       // "★ 8.7 · 2024 · 2h 46m · Sci-Fi", as one clamped line — the
@@ -251,7 +259,10 @@ void main() {
       expect(find.textContaining('2024', findRichText: true), findsOneWidget);
       expect(find.textContaining('2h 46m', findRichText: true), findsOneWidget);
       expect(find.textContaining('4K', findRichText: true), findsNothing);
-      expect(find.textContaining('Dolby Vision', findRichText: true), findsNothing);
+      expect(
+        find.textContaining('Dolby Vision', findRichText: true),
+        findsNothing,
+      );
       expect(find.textContaining('Sci-Fi', findRichText: true), findsOneWidget);
       // The HTML in the description is stripped, not printed raw.
       expect(find.text('A short synopsis across lines.'), findsOneWidget);
@@ -273,9 +284,15 @@ void main() {
           ),
         ],
         showPreviewActions: true,
+        // The wide layout keeps this preview hero; a phone shows
+        // design A (home_hero_design_a_test.dart).
+        physicalSize: const Size(3600, 2400),
       );
       expect(find.textContaining('1080p', findRichText: true), findsWidgets);
-      expect(find.textContaining('Dolby Vision', findRichText: true), findsNothing);
+      expect(
+        find.textContaining('Dolby Vision', findRichText: true),
+        findsNothing,
+      );
       expect(find.textContaining(' · 4K', findRichText: true), findsNothing);
     });
 
@@ -288,6 +305,9 @@ void main() {
         tester,
         movies: [_movie(0)],
         showPreviewActions: true,
+        // The wide layout keeps this preview hero; a phone shows
+        // design A (home_hero_design_a_test.dart).
+        physicalSize: const Size(3600, 2400),
         onTap: tapped.add,
         onPlay: played.add,
       );
@@ -307,6 +327,9 @@ void main() {
         tester,
         movies: [_movie(0)],
         showPreviewActions: true,
+        // The wide layout keeps this preview hero; a phone shows
+        // design A (home_hero_design_a_test.dart).
+        physicalSize: const Size(3600, 2400),
         onTap: tapped.add,
       );
 
@@ -324,6 +347,9 @@ void main() {
         tester,
         movies: [_movie(0)],
         showPreviewActions: true,
+        // The wide layout keeps this preview hero; a phone shows
+        // design A (home_hero_design_a_test.dart).
+        physicalSize: const Size(3600, 2400),
         onTap: tapped.add,
       );
 
@@ -333,9 +359,7 @@ void main() {
       expect(tapped, [_movie(0)]);
     });
 
-    testWidgets('tapping My List saves, tapping again removes', (
-      tester,
-    ) async {
+    testWidgets('tapping My List saves, tapping again removes', (tester) async {
       final movie = _movie(0);
       expect(fakeStorage.isInLibrary(movie.url), isFalse);
 
@@ -343,6 +367,9 @@ void main() {
         tester,
         movies: [movie],
         showPreviewActions: true,
+        // The wide layout keeps this preview hero; a phone shows
+        // design A (home_hero_design_a_test.dart).
+        physicalSize: const Size(3600, 2400),
       );
 
       expect(find.byIcon(Icons.bookmark_add_outlined), findsOneWidget);
