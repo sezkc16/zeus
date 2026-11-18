@@ -33,6 +33,7 @@ import '../../../../core/models/torrent_status.dart';
 import '../../../../core/services/download_service.dart';
 import '../../../../core/services/local_proxy_service.dart';
 import '../../../../core/services/notification_service.dart';
+import '../../../../core/services/stream_cache/stream_cache_service.dart';
 import '../../../../core/storage/episode_watch_repository.dart';
 import '../../../../core/storage/history_repository.dart';
 import '../../../../core/utils/app_utils.dart';
@@ -50,6 +51,7 @@ import '../../domain/live_window.dart';
 import '../../domain/media_options.dart';
 import '../../domain/playback_progress.dart';
 import '../../domain/buffered_ahead.dart';
+import '../mpv/mpv_stream_proxy.dart';
 import '../../../../core/logger/app_logger.dart';
 import '../../domain/network_buffer.dart';
 import '../../domain/smoothness.dart';
@@ -592,6 +594,25 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
   /// The read-ahead the open in progress asked for (spec 1.2): what the
   /// buffered band measures against.
   BufferPlan? _bufferPlan;
+
+  /// The stream cache proxy session the open in progress plays through
+  /// (build 86), or null when this media opens straight from the host.
+  /// A plain film file on the iPhone opens through the same 1 GiB ring
+  /// mpv reads through, so libVLC's prefetch fills from the phone
+  /// instead of the host at the host's pace — the buffered band keeps up
+  /// with mpv's, and a ±10 s step lands inside data already held. The
+  /// service never throws and a failed open means the direct address,
+  /// as before; the previous session is closed once the new media is on
+  /// the engine (see [_openAttempt]), and this one on dispose.
+  StreamCacheHandle? _proxyHandle;
+
+  /// Guards a proxy open against a newer one: an open that waited while
+  /// another took over closes the handle it got instead of keeping it.
+  int _proxyOpenToken = 0;
+
+  /// Why this media is NOT on the proxy, or null when it is — for the
+  /// QoE log's `buffer` event.
+  String? _proxyOff;
 
   /// The live HLS playlist this attempt opened, until its target duration is
   /// read ([_maybeReadLiveSegment]).
@@ -2031,13 +2052,67 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
         await _planBuffer(stream, _bufferMediaFor(mediaUri), metered: metered);
     if (_disposed || generation != _generation) return;
     _bufferPlan = plan;
+    // Build 86: a plain film file on the iPhone opens through the stream
+    // cache proxy — the same 1 GiB ring mpv reads through — so libVLC's
+    // prefetch fills from the phone (localhost, full speed) instead of
+    // the host at the host's pace. That is the gap behind the small, late
+    // buffered band: the 512 MiB ring was correctly sized, but it filled
+    // slowly from the host, so a ±10 s step landed past what it held and
+    // re-fetched. The proxy's own ring holds the film around the read
+    // point and serves ranges from it, so the prefetch fills in seconds
+    // and the step lands inside held data. Only a plain remote http(s)
+    // file: the bypass rule is the mpv screen's (torrent, HLS/DASH, live,
+    // DRM, localhost and local files never proxy), and a media already on
+    // a local address (the header-injecting proxy from `_deliverableUri`)
+    // is never proxied again. A failed open means the direct address, as
+    // before — the service never throws. The previous session closes once
+    // the new media is on the engine, below.
+    final previousProxy = _proxyHandle;
+    var playUri = mediaUri;
+    StreamCacheHandle? proxied;
+    final proxyBypass = streamProxyBypassReason(
+      isIos: StreamCacheService.supported,
+      stream: stream,
+      item: widget.item,
+    );
+    final proxyUsable = proxyBypass == null &&
+        (mediaUri.scheme == 'http' || mediaUri.scheme == 'https') &&
+        mediaUri.host != '127.0.0.1' &&
+        mediaUri.host != 'localhost' &&
+        mediaUri.host != '::1' &&
+        mediaUri.host != '[::1]';
+    if (proxyUsable) {
+      final openToken = ++_proxyOpenToken;
+      proxied = await StreamCacheService.instance.open(mediaUri.toString());
+      if (_disposed ||
+          generation != _generation ||
+          openToken != _proxyOpenToken) {
+        // Left, or a newer open overtook this one while waiting.
+        if (proxied != null) StreamCacheService.instance.close(proxied.token);
+        return;
+      }
+      if (proxied != null) playUri = Uri.parse(proxied.url);
+    } else {
+      _proxyOpenToken++;
+    }
+    _proxyHandle = proxied;
+    _proxyOff = proxied != null
+        ? null
+        : (proxyBypass ?? StreamCacheService.instance.lastFailure ?? 'start');
+    _qoe.buffer(<String, Object?>{
+      'proxy': proxied != null ? 'on' : 'off(${_proxyOff ?? '-'})',
+    });
     final liveDelayMs =
         _nextLiveDelayMs ?? PlayerDiagnostics.liveDelayMs ?? kLiveDelayMs;
     _nextLiveDelayMs = null;
     _qoe.engine();
     await _controller.setMedia(
       VlcMediaSource(
-        uri: mediaUri,
+        // Build 86: through the stream cache proxy where one was opened
+        // (see above); the direct address otherwise. Everything else
+        // below still reads `mediaUri` — the real address — so the HLS
+        // and Quality bookkeeping never sees the localhost address.
+        uri: playUri,
         httpHeaders: headers,
         startPosition: startAt,
         // Each media carries its own start threshold, buffer and decoder
@@ -2072,7 +2147,16 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
       ),
       autoPlay: autoPlay,
       keepPicture: keep,
-    );
+    ).whenComplete(() {
+      // Build 86: the film before this one is off the engine now —
+      // whether this open landed or failed (closing its proxy entry any
+      // earlier would hand the engine an error for a film it is still
+      // reading).
+      if (previousProxy != null &&
+          previousProxy.token != _proxyHandle?.token) {
+        StreamCacheService.instance.close(previousProxy.token);
+      }
+    });
     if (_disposed || generation != _generation) return;
     // An output that couldn't hold - one that can't, or nothing there to hold
     // after all - shows the new media's opening: the start-up view covers it.
@@ -5437,6 +5521,12 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
       // However long the app was away is not time this source spent stalled,
       // and the engine needs a moment to get its position moving again.
       _resetStallClock();
+      // Build 86: iOS may have closed the stream cache proxy's listening
+      // socket while the app was suspended — re-open it on the same port,
+      // so the address the player already holds keeps working.
+      if (_proxyHandle != null) {
+        unawaited(StreamCacheService.instance.ensureListening());
+      }
       // A backstop behind `pipModeChanged`: returning to the foreground is
       // what ending PiP looks like, and the chrome must come back with it
       // whether or not the activity got round to telling us. The native
@@ -6018,6 +6108,12 @@ class _VlcPlayerScreenState extends ConsumerState<VlcPlayerScreen>
     _tracker?.finish();
     _disposed = true;
     _torrentPoll?.cancel();
+    // Build 86: the stream cache proxy session, if one is open.
+    final proxyHandle = _proxyHandle;
+    _proxyHandle = null;
+    if (proxyHandle != null) {
+      StreamCacheService.instance.close(proxyHandle.token);
+    }
     _waitAwake?.cancel();
     _pickCooldown?.cancel();
     _abandonPendingResolve();

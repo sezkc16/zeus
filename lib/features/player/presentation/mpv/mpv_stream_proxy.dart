@@ -1,6 +1,9 @@
 /// Build 77: when the mpv screen opens a film through the stream cache
 /// proxy (`core/services/stream_cache`), and what the QoE overlay says
-/// about it.
+/// about it. Build 86: the libVLC screen opens through the same proxy
+/// for the same plain files (see `streamProxyBypassReason`) — its
+/// prefetch fills from the phone instead of the host at the host's pace,
+/// so its buffered band keeps up with mpv's.
 ///
 /// The proxy exists for ONE case: a plain film file over HTTP(S) on the
 /// iPhone, where a renderer move (the PiP button, coming back from the
