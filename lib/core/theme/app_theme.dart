@@ -120,6 +120,9 @@ class AppTheme {
   static const Color lightTextSecondary = Color(0xFF5C5C5C); // onSurfaceVariant
   static const Color lightCoral = Color(0xFFC63523); // Coral Accent
 
+  /// Page background of Liquid Glass with Dark Mode off.
+  static const Color liquidGlassLightBackground = Color(0xFFEEF1F6);
+
   /// The variant's surface, when the caller builds a dark theme whose
   /// surface is not Arena Gold's (Midnight, Liquid Glass). Defaults to
   /// [surface] — the existing behaviour for every caller that does not
@@ -470,15 +473,12 @@ class AppTheme {
     );
   }
 
-  /// Builds the light theme — Frost, the only light variant.
+  /// Builds the light theme.
   ///
-  /// [variant] does not change the light palette: the light theme is
-  /// Frost whatever the variant, so a dark variant under a light system
-  /// still gets this exact palette (the variant picker also flips the
-  /// mode to dark when a dark variant is picked, so this is only reached
-  /// when the mode is later switched back). It does carry through to the
-  /// glass extension, so Liquid Glass keeps its glass treatment even on
-  /// a light system.
+  /// Frost is the warm light palette, and Arena Gold / Midnight (dark
+  /// only) get the same one if a light theme is ever asked of them.
+  /// Liquid Glass has its own cool light palette and carries the glass
+  /// flag in both modes.
   static ThemeData createLightTheme(
     ColorScheme? dynamicScheme, {
     Color? accent,
@@ -511,6 +511,28 @@ class AppTheme {
       surfaceContainerHigh: lightSurfaceHighlight,
       surfaceContainerHighest: Color(0xFFE4D9C8),
     );
+
+    // Liquid Glass with Dark Mode off: the same structure on cool,
+    // blue-grey paper instead of Frost's warm sand - the light
+    // counterpart of the cool dark Liquid Glass surfaces. Every colour
+    // is opaque, like the other variants.
+    if (variant == ZoroxThemeVariant.liquidGlass) {
+      colorScheme = colorScheme.copyWith(
+        surface: liquidGlassLightBackground,
+        onSurface: const Color(0xFF141821),
+        onSurfaceVariant: const Color(0xFF4A5261),
+        outline: const Color(0xFFB4BCCB),
+        outlineVariant: const Color(0xFFCBD2DE),
+        secondary: const Color(0xFF4F5B70),
+        secondaryContainer: const Color(0xFFDDE2EB),
+        onSecondaryContainer: const Color(0xFF141821),
+        surfaceContainerLowest: const Color(0xFFF8FAFD),
+        surfaceContainerLow: const Color(0xFFF3F5F9),
+        surfaceContainer: const Color(0xFFE6EAF1),
+        surfaceContainerHigh: const Color(0xFFDDE2EB),
+        surfaceContainerHighest: const Color(0xFFD3D9E4),
+      );
+    }
 
     // The accent drives the light theme's primary too, so the picker works
     // in both themes. Containers are a light tint of the accent; their "on"

@@ -46,7 +46,7 @@ enum ZoroxThemeVariant {
   ),
   liquidGlass(
     'Liquid Glass',
-    'Dark with a glass nav and cooler surfaces',
+    'Glass nav and cooler surfaces, dark or light',
     isDark: true,
   );
 
@@ -58,8 +58,14 @@ enum ZoroxThemeVariant {
   /// One line under the name in the picker dialog.
   final String detail;
 
-  /// Whether the variant is a dark theme. Frost is the only light one.
+  /// Whether the variant has a dark look. Frost is the only one
+  /// without.
   final bool isDark;
+
+  /// Whether the variant has both a dark and a light look, so the Dark
+  /// Mode switch can go either way without leaving it. Only Liquid
+  /// Glass.
+  bool get hasBothModes => this == ZoroxThemeVariant.liquidGlass;
 
   /// The saved variant name, or Liquid Glass for anything this release
   /// never wrote. Storage outlives downgrades and hand-editing, so an
@@ -127,15 +133,13 @@ class ThemeVariant extends _$ThemeVariant {
     return ZoroxThemeVariant.fromName(_repository.getThemeVariant());
   }
 
-  /// Applies the variant live, and flips the theme mode to match its
-  /// brightness so the tap is visible at once: picking Frost while the
-  /// mode is Dark would otherwise change nothing on screen, because the
-  /// dark theme is still the one in force. The App Theme row stays the
-  /// override — switching it back to System re-resolves brightness from
-  /// the device, and the variant follows per brightness (a dark variant
-  /// under a light system, or Frost under a dark one, falls back to the
-  /// matching side's palette — see [AppTheme.createDarkTheme] /
-  /// [AppTheme.createLightTheme]).
+  /// Applies the variant live.
+  ///
+  /// Arena Gold and Midnight exist only dark and Frost only light, so
+  /// picking one of them flips the theme mode to its side - otherwise
+  /// the tap would change nothing on screen. Liquid Glass has both a
+  /// dark and a light look, so picking it leaves Dark Mode exactly as
+  /// the user had it.
   Future<void> setVariant(ZoroxThemeVariant variant) async {
     state = variant;
     await _repository.saveThemeVariant(variant.name);
@@ -144,19 +148,27 @@ class ThemeVariant extends _$ThemeVariant {
     if (variant.isDark) {
       await _repository.saveLastDarkThemeVariant(variant.name);
     }
+    if (variant.hasBothModes) return;
     await ref
         .read(appThemeModeProvider.notifier)
         .setThemeMode(variant.isDark ? ThemeMode.dark : ThemeMode.light);
   }
 
-  /// The Dark Mode toggle (Settings → General, under the variant
-  /// picker). The variant stays the single source of truth, so the
-  /// toggle and the picker can never fight: picking a dark variant
-  /// turns the toggle on (its mode is dark); picking Frost turns it
-  /// off. Toggling off from a dark variant switches to the light look
-  /// (Frost); toggling on from Frost returns to the last dark variant
-  /// (Liquid Glass if none was ever picked).
+  /// The Dark Mode toggle (Settings -> General, under the variant
+  /// picker).
+  ///
+  /// On Liquid Glass the toggle only changes the mode: the theme stays
+  /// Liquid Glass, dark or light. On the single-sided variants the
+  /// toggle has to change the variant to have any effect: off from
+  /// Arena Gold / Midnight goes to Frost, on from Frost returns to the
+  /// last dark variant (Liquid Glass if none was ever picked).
   Future<void> setDarkMode(bool enabled) async {
+    if (state.hasBothModes) {
+      await ref
+          .read(appThemeModeProvider.notifier)
+          .setThemeMode(enabled ? ThemeMode.dark : ThemeMode.light);
+      return;
+    }
     if (enabled) {
       if (state.isDark) return;
       final lastDark = ZoroxThemeVariant.fromName(
@@ -165,6 +177,10 @@ class ThemeVariant extends _$ThemeVariant {
       await setVariant(
         lastDark.isDark ? lastDark : ZoroxThemeVariant.liquidGlass,
       );
+      // Liquid Glass does not move the mode by itself.
+      await ref
+          .read(appThemeModeProvider.notifier)
+          .setThemeMode(ThemeMode.dark);
     } else {
       if (!state.isDark) return;
       await setVariant(ZoroxThemeVariant.frost);

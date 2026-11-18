@@ -133,14 +133,11 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
         ),
-        // Dark Mode (v4): the on/off switch under the variant picker, so
-        // Liquid Glass works on all of them — the glass pill nav renders
-        // in every variant and both modes, its frost adapting to
-        // brightness. The variant stays the single source of truth, so
-        // the toggle and the picker stay in sync both ways: picking a
-        // dark variant turns it on, picking Frost turns it off, flipping
-        // it off goes to Frost, flipping it on returns to the last dark
-        // variant (Liquid Glass if none was ever picked).
+        // Dark Mode: the on/off switch under the variant picker. On
+        // Liquid Glass it only changes the mode (the theme has a dark
+        // and a light look). Arena Gold / Midnight are dark only and
+        // Frost is light only, so there the switch moves to Frost or
+        // back to the last dark variant (see ThemeVariant).
         SettingsTile(
           reicon: Reicon.moon,
           title: 'Dark Mode',

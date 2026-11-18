@@ -166,7 +166,10 @@ void main() {
         variant: ZoroxThemeVariant.liquidGlass,
       );
       expect(theme.brightness, Brightness.light);
-      expect(theme.scaffoldBackgroundColor, AppTheme.lightBackground);
+      expect(
+        theme.scaffoldBackgroundColor,
+        AppTheme.liquidGlassLightBackground,
+      );
       expect(theme.extension<ZoroxThemeExtension>()?.isGlass, isTrue);
     });
   });
@@ -425,12 +428,9 @@ void main() {
 
       await container
           .read(themeVariantProvider.notifier)
-          .setVariant(ZoroxThemeVariant.liquidGlass);
+          .setVariant(ZoroxThemeVariant.midnight);
 
-      expect(
-        container.read(themeVariantProvider),
-        ZoroxThemeVariant.liquidGlass,
-      );
+      expect(container.read(themeVariantProvider), ZoroxThemeVariant.midnight);
       expect(container.read(appThemeModeProvider), ThemeMode.dark);
     });
 
@@ -501,6 +501,173 @@ void main() {
           .setVariant(ZoroxThemeVariant.frost);
       await container.read(themeVariantProvider.notifier).setDarkMode(false);
       expect(container.read(themeVariantProvider), ZoroxThemeVariant.frost);
+    });
+
+    group('Liquid Glass with Dark Mode on and off (build 83)', () {
+      Future<void> pick(ProviderContainer c, ZoroxThemeVariant v) =>
+          c.read(themeVariantProvider.notifier).setVariant(v);
+      Future<void> dark(ProviderContainer c, bool on) =>
+          c.read(themeVariantProvider.notifier).setDarkMode(on);
+
+      test('Dark Mode off on Liquid Glass stays Liquid Glass, light',
+          () async {
+        final c = boot();
+        expect(c.read(themeVariantProvider), ZoroxThemeVariant.liquidGlass);
+        await dark(c, false);
+        expect(c.read(themeVariantProvider), ZoroxThemeVariant.liquidGlass);
+        expect(c.read(appThemeModeProvider), ThemeMode.light);
+        expect(storage.getThemeVariant() ?? 'liquidGlass', 'liquidGlass');
+        expect(storage.getThemeMode(), 'light');
+
+        await dark(c, true);
+        expect(c.read(themeVariantProvider), ZoroxThemeVariant.liquidGlass);
+        expect(c.read(appThemeModeProvider), ThemeMode.dark);
+      });
+
+      test('picking Liquid Glass from Frost keeps Dark Mode off', () async {
+        final c = boot();
+        await pick(c, ZoroxThemeVariant.frost);
+        await pick(c, ZoroxThemeVariant.liquidGlass);
+        expect(c.read(themeVariantProvider), ZoroxThemeVariant.liquidGlass);
+        expect(c.read(appThemeModeProvider), ThemeMode.light);
+      });
+
+      test('picking Liquid Glass from a dark variant keeps Dark Mode on',
+          () async {
+        final c = boot();
+        await pick(c, ZoroxThemeVariant.midnight);
+        await pick(c, ZoroxThemeVariant.liquidGlass);
+        expect(c.read(appThemeModeProvider), ThemeMode.dark);
+      });
+
+      test('his recording: Frost, Liquid Glass, Dark Mode on then off',
+          () async {
+        final c = boot();
+        await pick(c, ZoroxThemeVariant.frost);
+        await pick(c, ZoroxThemeVariant.liquidGlass);
+        await dark(c, true);
+        expect(c.read(appThemeModeProvider), ThemeMode.dark);
+        await dark(c, false);
+        expect(
+          c.read(themeVariantProvider),
+          ZoroxThemeVariant.liquidGlass,
+          reason: 'used to jump back to Frost',
+        );
+        expect(c.read(appThemeModeProvider), ThemeMode.light);
+      });
+
+      test('the full matrix: what each variant does with the switch',
+          () async {
+        // variant -> (after Dark Mode off, after Dark Mode on again)
+        const expected = {
+          ZoroxThemeVariant.arenaGold: [
+            ZoroxThemeVariant.frost,
+            ZoroxThemeVariant.arenaGold,
+          ],
+          ZoroxThemeVariant.midnight: [
+            ZoroxThemeVariant.frost,
+            ZoroxThemeVariant.midnight,
+          ],
+          ZoroxThemeVariant.liquidGlass: [
+            ZoroxThemeVariant.liquidGlass,
+            ZoroxThemeVariant.liquidGlass,
+          ],
+        };
+        for (final entry in expected.entries) {
+          final c = boot();
+          await pick(c, entry.key);
+          await dark(c, true);
+          expect(c.read(appThemeModeProvider), ThemeMode.dark);
+          await dark(c, false);
+          expect(c.read(themeVariantProvider), entry.value[0]);
+          expect(c.read(appThemeModeProvider), ThemeMode.light);
+          await dark(c, true);
+          expect(c.read(themeVariantProvider), entry.value[1]);
+          expect(c.read(appThemeModeProvider), ThemeMode.dark);
+        }
+      });
+
+      test('light Liquid Glass after Frost: Dark Mode on stays Liquid Glass',
+          () async {
+        final c = boot();
+        await pick(c, ZoroxThemeVariant.midnight);
+        await pick(c, ZoroxThemeVariant.frost);
+        await pick(c, ZoroxThemeVariant.liquidGlass);
+        await dark(c, true);
+        expect(c.read(themeVariantProvider), ZoroxThemeVariant.liquidGlass);
+        expect(c.read(appThemeModeProvider), ThemeMode.dark);
+      });
+
+      test('an existing user keeps what he had after the update', () async {
+        for (final saved in [
+          ['liquidGlass', 'dark'],
+          ['arenaGold', 'dark'],
+          ['midnight', 'dark'],
+          ['frost', 'light'],
+        ]) {
+          await storage.saveThemeVariant(saved[0]);
+          await storage.saveThemeMode(saved[1]);
+          final c = boot();
+          expect(c.read(themeVariantProvider).name, saved[0]);
+          expect(c.read(appThemeModeProvider).name, saved[1]);
+        }
+      });
+
+      test('the dark look is untouched and the light look is its own', () {
+        final darkTheme = AppTheme.createDarkTheme(
+          null,
+          variant: ZoroxThemeVariant.liquidGlass,
+        );
+        expect(darkTheme.scaffoldBackgroundColor, const Color(0xFF0B0D12));
+        expect(darkTheme.colorScheme.surface, const Color(0xFF15181F));
+
+        final light = AppTheme.createLightTheme(
+          null,
+          variant: ZoroxThemeVariant.liquidGlass,
+        );
+        final frost = AppTheme.createLightTheme(
+          null,
+          variant: ZoroxThemeVariant.frost,
+        );
+        expect(light.brightness, Brightness.light);
+        expect(light.scaffoldBackgroundColor, const Color(0xFFEEF1F6));
+        expect(frost.scaffoldBackgroundColor, AppTheme.lightBackground);
+        for (final v in [
+          ZoroxThemeVariant.arenaGold,
+          ZoroxThemeVariant.midnight,
+        ]) {
+          expect(
+            AppTheme.createLightTheme(null, variant: v).colorScheme,
+            frost.colorScheme,
+          );
+        }
+      });
+
+      test('light Liquid Glass text is readable on every surface', () {
+        final cs = AppTheme.createLightTheme(
+          null,
+          variant: ZoroxThemeVariant.liquidGlass,
+        ).colorScheme;
+        double lum(Color c) => c.computeLuminance();
+        double ratio(Color a, Color b) {
+          final hi = lum(a) > lum(b) ? lum(a) : lum(b);
+          final lo = lum(a) > lum(b) ? lum(b) : lum(a);
+          return (hi + 0.05) / (lo + 0.05);
+        }
+
+        for (final surface in [
+          cs.surface,
+          cs.surfaceContainerLowest,
+          cs.surfaceContainerLow,
+          cs.surfaceContainer,
+          cs.surfaceContainerHigh,
+          cs.surfaceContainerHighest,
+        ]) {
+          expect(ratio(cs.onSurface, surface), greaterThan(7.0));
+          expect(ratio(cs.onSurfaceVariant, surface), greaterThan(4.5));
+          expect(surface.a, 1.0);
+        }
+      });
     });
   });
 }
