@@ -2086,6 +2086,25 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       final platform = player.platform;
       if (platform is NativePlayer) {
         await applyMpvAndroidOptions(platform);
+        // v2: the Video drawer's HDR choice and PICTURE sliders on
+        // Android too. Android renders through mpv's own GPU output
+        // (vo=gpu), which applies `tone-mapping` and the brightness /
+        // contrast / saturation equalizers itself. The default choice
+        // (Bright = `clip`) and sliders at 0 are exactly what the
+        // Android options above already set, so an untouched install
+        // plays as before.
+        await applyVideoOutputPresetOptions(
+          platform,
+          settings.videoOutputPreset,
+          customToneMapping: settings.videoCustomToneMapping,
+          customTargetPeak: settings.videoCustomTargetPeak,
+        );
+        await applyPictureOptions(
+          platform,
+          brightness: settings.pictureBrightness,
+          contrast: settings.pictureContrast,
+          saturation: settings.pictureSaturation,
+        );
       }
     }
     // iOS-only mpv options (see mpv_ios_options.dart): the VideoToolbox
@@ -5538,15 +5557,16 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
                 onEnterPip: _pipAvailable
                     ? () => unawaited(_enterPip(fromButton: true))
                     : null,
-                // Video output presets (+57): iOS mpv only — the panel
-                // and its live apply exist on no other platform, so the
-                // button never renders elsewhere.
+                // Video output presets (+57) and PICTURE sliders: iOS
+                // mpv, and since v2 Android mpv (see
+                // [videoPanelSupportedOn]). Null elsewhere, so the panel
+                // never renders there.
                 onVideoPresetChanged:
-                    defaultTargetPlatform == TargetPlatform.iOS
+                    videoPanelSupportedOn(defaultTargetPlatform)
                     ? _applyVideoOutputPreset
                     : null,
                 onPictureChanged:
-                    defaultTargetPlatform == TargetPlatform.iOS
+                    videoPanelSupportedOn(defaultTargetPlatform)
                     ? (values) => unawaited(_applyPicture(values))
                     : null,
                 videoIsHdr: _videoIsHdr,

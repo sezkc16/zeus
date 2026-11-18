@@ -198,3 +198,11 @@ Future<void> logMpvDecodeInfo(Player player) async {
     debugPrint('[mpv] decode read-back failed: $e');
   }
 }
+
+/// Whether the player's Video drawer offers the HDR choice and the
+/// PICTURE sliders on [platform] (v2): iOS, and Android — both run mpv
+/// with a renderer that honours `tone-mapping`, `brightness`, `contrast`
+/// and `saturation` (Android: mpv's own `vo=gpu`). Pure, so it is
+/// unit-tested.
+bool videoPanelSupportedOn(TargetPlatform platform) =>
+    platform == TargetPlatform.iOS || platform == TargetPlatform.android;

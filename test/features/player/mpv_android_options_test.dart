@@ -77,4 +77,12 @@ void main() {
       expect(kMpvSubtitleOptions.containsKey('sub-ass'), isFalse);
     });
   });
+
+  test('v2: the Video drawer (HDR choice + PICTURE) is on iOS and Android only', () {
+    expect(videoPanelSupportedOn(TargetPlatform.iOS), isTrue);
+    expect(videoPanelSupportedOn(TargetPlatform.android), isTrue);
+    expect(videoPanelSupportedOn(TargetPlatform.macOS), isFalse);
+    expect(videoPanelSupportedOn(TargetPlatform.windows), isFalse);
+    expect(videoPanelSupportedOn(TargetPlatform.linux), isFalse);
+  });
 }
