@@ -55,6 +55,8 @@ public class MediaKitVideoPlugin: NSObject, FlutterPlugin {
       handleCreateMethodCall(call.arguments, result)
     case "VideoOutputManager.SetSize":
       handleSetSizeMethodCall(call.arguments, result)
+    case "VideoOutputManager.SetRenderer":
+      handleSetRendererMethodCall(call.arguments, result)
     case "VideoOutputManager.Dispose":
       handleDisposeMethodCall(call.arguments, result)
     case "Utils.EnterNativeFullscreen":
@@ -123,6 +125,34 @@ public class MediaKitVideoPlugin: NSObject, FlutterPlugin {
     )
 
     result(nil)
+  }
+
+  // Zeus fork (build 74): swaps the renderer under the same mpv core.
+  private func handleSetRendererMethodCall(
+    _ arguments: Any?,
+    _ result: @escaping FlutterResult
+  ) {
+    guard
+      let args = arguments as? [String: Any],
+      let handleStr = args["handle"] as? String,
+      let handle = Int64(handleStr),
+      let hardware = args["hardware"] as? Bool
+    else {
+      result(false)
+      return
+    }
+    let width: Int64? = Int64((args["width"] as? String) ?? "")
+    let height: Int64? = Int64((args["height"] as? String) ?? "")
+
+    self.videoOutputManager.setRenderer(
+      handle: handle,
+      hardware: hardware,
+      width: width,
+      height: height,
+      completion: { ok in
+        result(ok)
+      }
+    )
   }
 
   private func handleDisposeMethodCall(

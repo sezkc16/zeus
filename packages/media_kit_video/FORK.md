@@ -59,3 +59,28 @@ this note current.
   `vImageMatrixMultiply_ARGB8888` pass (only when not 0), brightness and
   contrast folded into the existing per-channel LUT pass, ahead of the
   transfer curve. All three at 0 leaves the frame exactly as before.
+
+## Zeus 1.0.1 build 74 — renderer swap under one core (iOS only)
+
+- `ios/Classes/plugin/common/VideoOutput.swift`: new
+  `setRenderer(hardware:width:height:completion:)`. On the render
+  worker it frees the current mpv render context
+  (`ResizableTextureProtocol.disposeRenderer()`), creates the other
+  texture type on the same core and keeps the SAME Flutter texture id:
+  the registered texture is now `SwitchableTexture`, a wrapper that
+  forwards to the current renderer and, across a swap, keeps handing
+  out the outgoing renderer's last frame until the incoming one has
+  drawn real picture (`video-out-params` set, third render — or 0.35 s
+  after the first for a paused film). Nothing is rendered while the
+  video output is not configured.
+- `TextureHW.swift`, `common/TextureSW.swift`: `disposeRenderer()`
+  (idempotent free of the render context); `render` is a no-op without
+  a context. `TextureSW` guards the context with a lock because it is
+  created on the main queue.
+- `common/VideoOutputManager.swift`, `common/MediaKitVideoPlugin.swift`:
+  channel method `VideoOutputManager.SetRenderer`.
+- Dart: `VideoController.setRenderer` / `PlatformVideoController
+  .setRenderer` (false everywhere but iOS).
+- mpv shuts its video chain down when the context is freed; the app
+  then sets `hwdec` and `vid` again (see `_switchRendererInPlace` in
+  the player screen). The macOS copies are untouched.

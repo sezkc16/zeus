@@ -156,6 +156,20 @@ class VideoController {
     );
   }
 
+  /// Zeus fork (build 74): see [PlatformVideoController.setRenderer].
+  Future<bool> setRenderer({
+    required bool hardware,
+    int? width,
+    int? height,
+  }) async {
+    final instance = await platform.future;
+    return instance.setRenderer(
+      hardware: hardware,
+      width: width,
+      height: height,
+    );
+  }
+
   /// A [Future] that completes when the first video frame has been rendered.
   Future<void> get waitUntilFirstFrameRendered async {
     final instance = await platform.future;

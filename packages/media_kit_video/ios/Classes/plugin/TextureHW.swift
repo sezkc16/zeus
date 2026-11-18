@@ -9,6 +9,9 @@ public class TextureHW: NSObject, FlutterTexture, ResizableTextureProtocol {
   private let context: EAGLContext
   private let textureCache: CVOpenGLESTextureCache
   private var renderContext: OpaquePointer?
+  // Zeus fork (build 74): the render context can be freed ahead of
+  // deinit (see disposeRenderer), exactly once.
+  private var rendererDisposed = false
   private var textureContexts = SwappableObjectManager<TextureGLESContext>(
     objects: [],
     skipCheckArgs: true
@@ -97,7 +100,16 @@ public class TextureHW: NSObject, FlutterTexture, ResizableTextureProtocol {
     )
   }
 
+  public func disposeRenderer() {
+    disposeMPV()
+  }
+
   private func disposeMPV() {
+    if rendererDisposed {
+      return
+    }
+    rendererDisposed = true
+
     EAGLContext.setCurrent(context)
     defer {
       OpenGLESHelpers.checkError("disposeMPV")
@@ -106,6 +118,7 @@ public class TextureHW: NSObject, FlutterTexture, ResizableTextureProtocol {
 
     mpv_render_context_set_update_callback(renderContext, nil, nil)
     mpv_render_context_free(renderContext)
+    renderContext = nil
   }
 
   public func resize(_ size: CGSize) {
@@ -147,6 +160,10 @@ public class TextureHW: NSObject, FlutterTexture, ResizableTextureProtocol {
   }
 
   public func render(_ size: CGSize) {
+    if rendererDisposed || renderContext == nil {
+      return
+    }
+
     let textureContext = textureContexts.nextAvailable()
     if textureContext == nil {
       return

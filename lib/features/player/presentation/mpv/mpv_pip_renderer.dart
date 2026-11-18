@@ -287,3 +287,108 @@ String switchTimingLine({
   final total = steps.values.fold<int>(0, (a, b) => a + b);
   return 'switch $direction: $parts = ${total}ms $outcome'.trimRight();
 }
+
+// ---------------------------------------------------------------------------
+// Build 74: the renderer is swapped under the SAME engine.
+// ---------------------------------------------------------------------------
+//
+// Phone result on build 73 (2026-11-18, Avengers 4K, PiP mode mpv):
+// the PiP window opened at once but stayed black for as long as it was
+// up, and the return sat 10 s (once 25 s) on the held picture before
+// the film played.
+//
+// Both are the same thing: every move was a second engine and a fresh
+// open of the source, and on that host an open takes many seconds —
+// the new engine's overlay read `cache: 0.000000s 1 KiB/s` with no
+// decoded frame for the whole wait. Build 73 only hid that: the
+// software engine's texture was pre-sized, so "it has a picture" was
+// true 154 ms in, before a single frame existed, and the window opened
+// on an empty layer.
+//
+// Build 74 does not open anything. The native side frees the current
+// mpv render context and creates the other renderer's on the same core
+// (libmpv allows one at a time, not one for ever); mpv answers the free
+// by shutting its video chain down while audio, the demuxer and the
+// connection keep running; the screen then sets `hwdec` for the new
+// renderer and switches the video track back on, which mpv brings up
+// on the new context with one seek in the stream it already has open.
+// The re-open move of builds 72/73 stays as the fallback.
+
+/// How a renderer move is carried out.
+enum RendererMoveRoute {
+  /// Same engine, the other renderer (build 74).
+  inPlace,
+
+  /// A second engine and a re-open of the source (builds 72/73).
+  reopen,
+}
+
+/// The route a move tries first.
+///
+/// In place whenever the same stream stays: a PiP quality drop that is
+/// already in force ([qualityDropped]) opened a different file, and
+/// getting back to the original one is a re-open by definition.
+RendererMoveRoute rendererMoveRoute({required bool qualityDropped}) =>
+    qualityDropped ? RendererMoveRoute.reopen : RendererMoveRoute.inPlace;
+
+/// The value `vid` is set back to after the swap: the track that was
+/// selected (mpv reports its number), else `auto`.
+///
+/// mpv reads `no` once the render context is freed — that is the free
+/// working, not a selection to keep.
+String inPlaceVideoTrack(String? raw) {
+  final value = (raw ?? '').trim();
+  final id = int.tryParse(value);
+  return id != null && id > 0 ? '$id' : 'auto';
+}
+
+/// Whether mpv's `vo-configured` says the video output has been set up
+/// for a decoded frame — the one honest "there is a picture" signal.
+/// A texture size is not: a fixed-size software texture has one before
+/// any frame exists (build 73's black PiP window).
+bool voConfigured(String? raw) {
+  final value = (raw ?? '').trim().toLowerCase();
+  return value == 'yes' || value == 'true';
+}
+
+/// Why a move is still waiting for its picture, for the QoE overlay:
+/// the video output, the buffer ahead, whether mpv is paused for the
+/// buffer and the download rate — together they say "no data" apart
+/// from "data but no frame".
+String switchWaitReason({
+  required String? voConfiguredRaw,
+  required String? cacheSeconds,
+  required String? pausedForCache,
+  required String? cacheSpeed,
+}) {
+  final cache = double.tryParse(cacheSeconds ?? '');
+  final speed = double.tryParse(cacheSpeed ?? '');
+  final parts = <String>[
+    'vo=${voConfigured(voConfiguredRaw) ? 'yes' : 'no'}',
+    'cache=${cache == null ? '?' : cache.toStringAsFixed(1)}s',
+    'net=${speed == null ? '?' : (speed / 1024).toStringAsFixed(0)}K',
+    'pfc=${voConfigured(pausedForCache) ? 'yes' : 'no'}',
+  ];
+  return parts.join(' ');
+}
+
+/// The QoE overlay's line for the last PiP window's feed, read from
+/// the native plugin's diagnostic string when the window closes:
+/// frames the software renderer handed over (`in`), frames that
+/// reached the window (`shown`), frames dropped on the way (`drop`),
+/// how often the layer failed, and the last software render time.
+///
+/// `in 0` = the renderer drew nothing (no data, or no video chain);
+/// `in` high with `shown 0` = the window's layer refused the frames.
+String pipFeedLine(String? diag) {
+  final text = diag ?? '';
+  String field(String key) {
+    final match = RegExp('(?:^|\\s)$key=(\\S+)').firstMatch(text);
+    return match?.group(1) ?? '?';
+  }
+
+  if (text.trim().isEmpty) return 'pip-feed: -';
+  return 'pip-feed: in ${field('ingest')} shown ${field('liveEnq')} '
+      'drop ${field('liveDrop')} fail ${field('layerFail')} '
+      'render ${field('rendMs')}ms';
+}

@@ -255,6 +255,16 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// Build 73: the last PiP window, for the QoE overlay — how long it
   /// was up and how many frames the renderer dropped under it.
   String _pipLastLine = 'pip-last: -';
+
+  /// Build 74: what the last PiP window's feed did, read from the
+  /// native plugin when the window closes (see [pipFeedLine]).
+  String _pipFeedLine = 'pip-feed: -';
+
+  /// Build 74: the move in flight keeps the SAME engine (see
+  /// [_switchRendererInPlace]) — the video widget stays mounted and
+  /// holds the outgoing picture itself, so the move overlay of the
+  /// re-open route is not drawn over it.
+  bool _inPlaceMove = false;
   DateTime? _pipStartedAt;
   int? _pipStartDrops;
 
@@ -1527,7 +1537,9 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     }
     // The PiP layer is primed from a software-rendered frame: give the
     // new renderer a moment to produce one.
-    await Future<void>.delayed(const Duration(milliseconds: 700));
+    // Build 74: the move now ends on a real frame (`vo-configured`),
+    // so this is only the prime's own refresh (5 a second).
+    await Future<void>.delayed(const Duration(milliseconds: 400));
     if (_disposed || !mounted) return;
     if (_rendererPhase != MpvRendererPhase.software) return;
     await _enterIosMpvPip(fromButton: fromButton);
@@ -1620,6 +1632,14 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         _pipEndWasPlaying = _playing;
         unawaited(_notePipWindowStats(_player, _pipStartedAt!));
         _pipStartedAt = null;
+        // Build 74: the feed's counters, read before the bridge is
+        // suspended (that resets them).
+        unawaited(
+          pip.diag.then((diag) {
+            if (_disposed) return;
+            _pipFeedLine = pipFeedLine(diag);
+          }),
+        );
       }
       if (restored) {
         _pipRestoring = true;
@@ -2119,6 +2139,204 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     } catch (_) {}
   }
 
+  /// One mpv property as text, or null when it cannot be read.
+  Future<String?> _readMpvProperty(Player player, String name) async {
+    try {
+      final platform = player.platform;
+      if (platform is! NativePlayer) return null;
+      return (await platform.getProperty(name)).toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Build 74: why a move has no picture yet (see [switchWaitReason]).
+  Future<String> _switchWaitReason(Player player) async => switchWaitReason(
+    voConfiguredRaw: await _readMpvProperty(player, 'vo-configured'),
+    cacheSeconds: await _readMpvProperty(player, 'demuxer-cache-duration'),
+    pausedForCache: await _readMpvProperty(player, 'paused-for-cache'),
+    cacheSpeed: await _readMpvProperty(player, 'cache-speed'),
+  );
+
+  /// Build 74: moves the session to the other renderer on the SAME
+  /// engine — no second player, no re-open, the connection and the
+  /// buffer position stay.
+  ///
+  /// The fork's native side frees the current mpv render context and
+  /// creates the other renderer's on the same core; mpv answers the
+  /// free by shutting its video chain down (audio and the demuxer keep
+  /// running). `hwdec` is then set for the new renderer (the software
+  /// one needs the copy flavour) and the video track is switched back
+  /// on, which mpv brings up on the new context with one seek in the
+  /// stream it already has open. The video widget keeps the outgoing
+  /// picture on the same texture until the new renderer has drawn, so
+  /// there is no black and nothing to cover it with.
+  ///
+  /// Returns true/false when the move was carried out here (false: it
+  /// was abandoned — the screen went away), and null when it could not
+  /// be done in place or brought no picture: the caller then runs the
+  /// re-open move.
+  Future<bool?> _switchRendererInPlace({
+    required bool toSoftware,
+    required bool? playing,
+    required int token,
+  }) async {
+    final player = _player;
+    final controller = _videoController;
+    final platform = player.platform;
+    if (platform is! NativePlayer) return null;
+    bool live() =>
+        !_disposed &&
+        mounted &&
+        token == _switchToken &&
+        identical(player, _player);
+    final clock = Stopwatch()..start();
+    final steps = <String, int>{};
+    var lapStart = 0;
+    void lap(String name) {
+      final now = clock.elapsedMilliseconds;
+      steps[name] = now - lapStart;
+      lapStart = now;
+    }
+
+    final direction = toSoftware ? '>sw' : '>hw';
+    void finish(String outcome) {
+      _switchDirection = direction;
+      _switchSteps = steps;
+      _switchOutcome = outcome;
+    }
+
+    final before = _rendererPhase;
+    final wasPlaying = playing ?? _playing;
+    // A PiP window opens on a playing film; the way back does what the
+    // film was doing in the window.
+    final resume = toSoftware || wasPlaying;
+    final params = player.state.videoParams;
+    final width = params.dw ?? params.w;
+    final height = params.dh ?? params.h;
+    final size = toSoftware
+        ? softwareRenderSize(
+            videoWidth: width,
+            videoHeight: height,
+            is4K: is4KVideo(width: width, height: height),
+          )
+        : null;
+    // Read BEFORE the swap: once the render context is freed mpv
+    // reports `no`.
+    final vid = inPlaceVideoTrack(await _readMpvProperty(player, 'vid'));
+    if (!live()) return false;
+    debugPrint('[mpv] renderer move (in place) → '
+        '${toSoftware ? 'software' : 'hardware'} at $_position '
+        '(vid $vid, size $size)');
+    _adapter.holdTimeline(
+      position: _position,
+      duration: _duration,
+      playing: resume,
+    );
+    setState(() {
+      _inPlaceMove = true;
+      _rendererPhase = toSoftware
+          ? MpvRendererPhase.toSoftware
+          : MpvRendererPhase.toHardware;
+    });
+    // Everything that watched the decoder stands down for the move.
+    _hwdecWatchToken++;
+    _hwdecWatchPending = false;
+    _hwdecSeenAlive = false;
+    _resumeStallTimer?.cancel();
+    _resumeStallTimer = null;
+    _prevMpvDrops.clear();
+    lap('hold');
+
+    void stand(MpvRendererPhase phase) {
+      _adapter.releaseTimeline();
+      setState(() {
+        _inPlaceMove = false;
+        _rendererPhase = phase;
+      });
+    }
+
+    var swapped = false;
+    try {
+      swapped = await controller
+          .setRenderer(
+            hardware: !toSoftware,
+            width: size?.width,
+            height: size?.height,
+          )
+          .timeout(const Duration(seconds: 8));
+    } catch (e) {
+      debugPrint('[mpv] renderer swap failed: $e');
+    }
+    lap('swap');
+    if (!live()) return false;
+    if (!swapped) {
+      // Nothing changed (an old native side, or no video output yet).
+      finish('n/a');
+      stand(before);
+      return null;
+    }
+    _iosMpvPipEnabled = toSoftware;
+    _pipRenderCapped = toSoftware && size != null;
+    try {
+      await platform.setProperty(
+        'hwdec',
+        mpvIosHwdec(pipEnabled: toSoftware),
+      );
+      if (toSoftware && size != null) {
+        await _applyFastSoftwareScaler(platform);
+      }
+      await platform.setProperty('vid', vid);
+    } catch (e) {
+      debugPrint('[mpv] renderer swap: video track not restored: $e');
+    }
+    lap('vid');
+    final after = toSoftware
+        ? MpvRendererPhase.software
+        : MpvRendererPhase.hardware;
+    var gotPicture = false;
+    while (live() && clock.elapsedMilliseconds < 15000) {
+      if (voConfigured(await _readMpvProperty(player, 'vo-configured'))) {
+        gotPicture = true;
+        break;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    if (!live()) return false;
+    if (!gotPicture) {
+      lap('frame');
+      finish('no-frame(${await _switchWaitReason(player)})');
+      if (!live()) return false;
+      stand(after);
+      return null;
+    }
+    // The held picture leaves on the third frame the new renderer
+    // draws (native side); a beat for those to reach the screen.
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    lap('frame');
+    if (!live()) return false;
+    if (resume && !player.state.playing) {
+      unawaited(player.play().catchError((Object _) {}));
+    }
+    if (player.state.position > Duration.zero) {
+      _position = player.state.position;
+    }
+    finish('ok');
+    stand(after);
+    // The swap handed the hardware renderer the film's own size; a
+    // thermal lighten that was in force is put back.
+    if (!toSoftware && _thermalGovernor.isLightened) {
+      unawaited(_setIosRenderCap(true));
+    }
+    _syncIosPipState();
+    _publishAdapter();
+    debugPrint(
+      '[mpv] renderer move done (in place): $_rendererPhase '
+      '${switchTimingLine(direction: direction, steps: steps, outcome: _switchOutcome)}',
+    );
+    return true;
+  }
+
   /// Moves the session to the other renderer (build 72): a new engine
   /// and a re-open of the same source at the same position — libmpv
   /// allows one render context per core and the fork's VideoOutput
@@ -2160,6 +2378,20 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // Only a 4K picture is dropped: below 4K the software renderer
     // carries the stream as it is, and keeping it is what lets the
     // return from PiP continue with no re-open at all.
+    // Build 74: the same engine, the other renderer — nothing is
+    // opened. Only when that cannot be done (or brings no picture)
+    // does the re-open move below run.
+    if (rendererMoveRoute(qualityDropped: _pipDroppedFrom != null) ==
+        RendererMoveRoute.inPlace) {
+      final moved = await _switchRendererInPlace(
+        toSoftware: toSoftware,
+        playing: playing,
+        token: token,
+      );
+      if (moved != null) return moved;
+      if (_disposed || !mounted || !_engineReady) return false;
+      if (token != _switchToken) return false;
+    }
     final is4KNow = toSoftware && await _isCurrentVideo4K();
     if (_disposed || !mounted || !_engineReady) return false;
     if (rendererSwitching(_rendererPhase)) return false;
@@ -2249,8 +2481,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _subs.clear();
     lap('hold');
 
+    var outgoingReleased = false;
     void releaseOutgoing() {
       _outgoingController = null;
+      if (outgoingReleased) return;
+      outgoingReleased = true;
       // Paused since the first line of the move: the stop and the
       // dispose run behind the new picture, not in front of it.
       unawaited(_disposeEngine(old));
@@ -2318,24 +2553,38 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     }
     // Hold the old picture until the new engine has one of its own.
     final deadline = DateTime.now().add(const Duration(seconds: 25));
-    var firstFrame = false;
-    unawaited(
-      _videoController.waitUntilFirstFrameRendered.then((_) {
-        firstFrame = true;
-      }).catchError((Object _) {}),
-    );
+    // Build 74: "has a picture" is mpv's own word for it
+    // (`vo-configured`), not the texture's size — the software texture
+    // is pre-sized, so on build 73 this was true 154 ms in, before a
+    // single frame existed, and PiP opened on an empty layer.
+    final waitStart = clock.elapsedMilliseconds;
     var gotPicture = false;
     while (live() && DateTime.now().isBefore(deadline)) {
       if (_stage == _Stage.failed) break;
-      final rect = _videoController.rect.value;
-      final hasPicture =
-          firstFrame || (rect != null && rect.width > 0 && rect.height > 0);
+      final hasPicture = voConfigured(
+        await _readMpvProperty(_player, 'vo-configured'),
+      );
+      if (!live()) break;
       if (hasPicture && (_startedPlaying || !play)) {
         gotPicture = true;
         break;
       }
+      // Build 74: the phone showed the new engine with no data at all
+      // (`cache: 0.000000s 1 KiB/s`) for as long as the old one was
+      // kept. If that is the old engine's connection in the way, this
+      // ends it; the overlay's `old-off` step says whether a picture
+      // followed.
+      if (!outgoingReleased &&
+          clock.elapsedMilliseconds - waitStart > 6000) {
+        steps['old-off'] = clock.elapsedMilliseconds - lapStart;
+        lapStart = clock.elapsedMilliseconds;
+        setState(releaseOutgoing);
+      }
       await Future<void>.delayed(const Duration(milliseconds: 50));
     }
+    final waitReason = gotPicture || !live()
+        ? ''
+        : await _switchWaitReason(_player);
     if (!live()) {
       releaseOutgoing();
       return false;
@@ -2367,7 +2616,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         succeeded: software == toSoftware,
       );
     });
-    finish(gotPicture ? 'ok' : 'no-frame');
+    finish(gotPicture ? 'ok' : 'no-frame($waitReason)');
     _syncIosPipState();
     debugPrint(
       '[mpv] renderer move done: $_rendererPhase '
@@ -3766,7 +4015,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
               outcome: _switchOutcome,
             ),
           )
-          ..writeln(_pipLastLine);
+          ..writeln(_pipLastLine)
+          ..writeln(_pipFeedLine);
       }
     }
     final text = buffer.toString().trimRight();
@@ -4748,7 +4998,9 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
           // Build 73: the picture is the OLD engine's own texture —
           // still alive, paused — so there is no capture to wait for
           // and no moment without a picture.
-          if (rendererSwitching(_rendererPhase))
+          // Build 74: not during an in-place move — the video widget
+          // above is still the same engine's and holds the picture.
+          if (rendererSwitching(_rendererPhase) && !_inPlaceMove)
             IgnorePointer(
               child: ColoredBox(
                 color: Colors.black,

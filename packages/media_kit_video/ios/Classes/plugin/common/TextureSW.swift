@@ -11,6 +11,11 @@ public class TextureSW: NSObject, FlutterTexture, ResizableTextureProtocol {
   private let handle: OpaquePointer
   private let updateCallback: UpdateCallback
   private var renderContext: OpaquePointer?
+  // Zeus fork (build 74): the render context is created on the main
+  // queue (see init) and can be freed ahead of deinit from the render
+  // worker (see disposeRenderer); this lock orders the two.
+  private let rendererLock = NSLock()
+  private var rendererDisposed = false
   private var textureContexts = SwappableObjectManager<TextureSWContext>(
     objects: [],
     skipCheckArgs: true
@@ -93,6 +98,12 @@ public class TextureSW: NSObject, FlutterTexture, ResizableTextureProtocol {
   }
 
   private func initMPV() {
+    rendererLock.lock()
+    defer { rendererLock.unlock() }
+    if rendererDisposed {
+      return
+    }
+
     let api = UnsafeMutableRawPointer(
       mutating: (MPV_RENDER_API_TYPE_SW as NSString).utf8String
     )
@@ -121,9 +132,30 @@ public class TextureSW: NSObject, FlutterTexture, ResizableTextureProtocol {
     )
   }
 
+  public func disposeRenderer() {
+    disposeMPV()
+  }
+
   private func disposeMPV() {
+    rendererLock.lock()
+    defer { rendererLock.unlock() }
+    if rendererDisposed {
+      return
+    }
+    rendererDisposed = true
+    if renderContext == nil {
+      return
+    }
+
     mpv_render_context_set_update_callback(renderContext, nil, nil)
     mpv_render_context_free(renderContext)
+    renderContext = nil
+  }
+
+  private func currentRenderContext() -> OpaquePointer? {
+    rendererLock.lock()
+    defer { rendererLock.unlock() }
+    return rendererDisposed ? nil : renderContext
   }
 
   public func resize(_ size: CGSize) {
@@ -153,6 +185,13 @@ public class TextureSW: NSObject, FlutterTexture, ResizableTextureProtocol {
   }
 
   public func render(_ size: CGSize) {
+    // Zeus fork (build 74): no context yet (created on the main queue)
+    // or already freed — nothing to draw with.
+    let renderContext = currentRenderContext()
+    if renderContext == nil {
+      return
+    }
+
     let textureContext = textureContexts.nextAvailable()
     if textureContext == nil {
       return

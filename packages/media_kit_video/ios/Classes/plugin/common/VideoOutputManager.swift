@@ -43,6 +43,27 @@ public class VideoOutputManager: NSObject {
     )
   }
 
+  // Zeus fork (build 74): see VideoOutput.setRenderer.
+  public func setRenderer(
+    handle: Int64,
+    hardware: Bool,
+    width: Int64?,
+    height: Int64?,
+    completion: @escaping (Bool) -> Void
+  ) {
+    guard let videoOutput = self.videoOutputs[handle] else {
+      completion(false)
+      return
+    }
+
+    videoOutput.setRenderer(
+      hardware: hardware,
+      width: width,
+      height: height,
+      completion: completion
+    )
+  }
+
   public func destroy(
     handle: Int64
   ) {

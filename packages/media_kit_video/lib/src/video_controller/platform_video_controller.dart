@@ -51,6 +51,18 @@ abstract class PlatformVideoController {
     int? height,
   });
 
+  /// Zeus fork (build 74): swaps the renderer (hardware <-> software)
+  /// under the same player, without a re-open. [width] and [height]
+  /// fix the output size (both null = the video's own size). Returns
+  /// false where the platform cannot do it; the caller then switches
+  /// the video track back on (the native side has to shut mpv's video
+  /// chain down to swap). iOS only.
+  Future<bool> setRenderer({
+    required bool hardware,
+    int? width,
+    int? height,
+  }) async => false;
+
   /// A [Future] that completes when the first video frame has been rendered.
   Future<void> get waitUntilFirstFrameRendered =>
       waitUntilFirstFrameRenderedCompleter.future;

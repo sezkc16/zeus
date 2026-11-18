@@ -33,6 +33,12 @@ public class SafeResizableTexture:
     return child.copyPixelBuffer()
   }
 
+  public func disposeRenderer() {
+    return locked {
+      return child.disposeRenderer()
+    }
+  }
+
   private func locked<T>(do block: () -> T) -> T {
     lock.lock()
     defer {

@@ -258,6 +258,44 @@ class NativeVideoController extends PlatformVideoController {
   }
 
   /// Disposes the instance. Releases allocated resources back to the system.
+  /// Zeus fork (build 74): see [PlatformVideoController.setRenderer].
+  ///
+  /// The native side frees the current mpv render context (mpv shuts
+  /// its video chain down; audio and the demuxer keep running),
+  /// creates the other renderer's context on the same core and keeps
+  /// the outgoing picture on the same texture id until the incoming
+  /// renderer has drawn. The caller sets `hwdec` and switches `vid`
+  /// back on afterwards.
+  @override
+  Future<bool> setRenderer({
+    required bool hardware,
+    int? width,
+    int? height,
+  }) => _sizeLock.synchronized(() async {
+    if (!Platform.isIOS) return false;
+    final handle = await player.handle;
+    final fixed = width != null && height != null;
+    try {
+      final ok = await _channel.invokeMethod<bool>(
+        'VideoOutputManager.SetRenderer',
+        {
+          'handle': handle.toString(),
+          'hardware': hardware,
+          'width': fixed ? width.toString() : 'null',
+          'height': fixed ? height.toString() : 'null',
+        },
+      );
+      if (ok != true) return false;
+    } catch (_) {
+      return false;
+    }
+    // Mirror the size the native side now uses, so a later [setSize]
+    // and the video-parameter listener see the truth.
+    this.width = fixed ? width : null;
+    this.height = fixed ? height : null;
+    return true;
+  });
+
   Future<void> _dispose() async {
     super.dispose();
     await videoParamsSubscription?.cancel();

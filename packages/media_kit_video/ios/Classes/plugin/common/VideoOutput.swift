@@ -26,6 +26,15 @@ public class VideoOutput: NSObject {
 
   private let handle: OpaquePointer
   private let enableHardwareAcceleration: Bool
+  // Zeus fork (build 74): the renderer in use right now — it can be
+  // swapped under a playing core (see setRenderer). Worker thread only.
+  private var hardwareRenderer: Bool = false
+  // The one texture Flutter knows about. It shows the current
+  // renderer's frames, and across a swap the outgoing renderer's last
+  // frame until the incoming one has drawn real picture.
+  private var host: SwitchableTexture!
+  private var holding: Bool = false
+  private var holdRenders: Int = 0
   private let registry: FlutterTextureRegistry
   private let textureUpdateCallback: TextureUpdateCallback
   private let worker: Worker = .init()
@@ -87,8 +96,21 @@ public class VideoOutput: NSObject {
       )
     }
 
-    if enableHardwareAcceleration {
-      texture = SafeResizableTexture(
+    texture = makeTexture(hardware: enableHardwareAcceleration)
+    hardwareRenderer = enableHardwareAcceleration
+    host = SwitchableTexture(texture)
+
+    DispatchQueue.main.sync { [weak self]() in
+      guard let that = self else {
+        return
+      }
+      that.registerTextureId()
+    }
+  }
+
+  private func makeTexture(hardware: Bool) -> ResizableTextureProtocol {
+    if hardware {
+      return SafeResizableTexture(
         TextureHW(
           handle: handle,
           // Use `weak self` to prevent memory leaks
@@ -100,33 +122,93 @@ public class VideoOutput: NSObject {
           }
         )
       )
-    } else {
-      texture = SafeResizableTexture(
-        TextureSW(
-          handle: handle,
-          // Use `weak self` to prevent memory leaks
-          updateCallback: { [weak self]() in
-            guard let that = self else {
-              return
-            }
-            that.updateCallback()
+    }
+    return SafeResizableTexture(
+      TextureSW(
+        handle: handle,
+        // Use `weak self` to prevent memory leaks
+        updateCallback: { [weak self]() in
+          guard let that = self else {
+            return
           }
-        )
+          that.updateCallback()
+        }
       )
+    )
+  }
+
+  // Zeus fork (build 74): swaps the renderer (hardware <-> software)
+  // under the SAME mpv core, so a PiP round trip no longer needs a
+  // second player and a re-open of the source.
+  //
+  // libmpv allows one render context per core, so the outgoing
+  // context is freed first — mpv answers that by shutting its video
+  // chain down (audio and the demuxer keep running) — and the caller
+  // then switches the video track back on, which mpv brings up on the
+  // new context. `completion` runs on the main thread once the new
+  // context exists (the software one is created on the main queue,
+  // and this completion is queued behind it).
+  public func setRenderer(
+    hardware: Bool,
+    width: Int64?,
+    height: Int64?,
+    completion: @escaping (Bool) -> Void
+  ) {
+    worker.enqueue {
+      let ok = self._setRenderer(
+        hardware: hardware,
+        width: width,
+        height: height
+      )
+      DispatchQueue.main.async {
+        completion(ok)
+      }
+    }
+  }
+
+  private func _setRenderer(
+    hardware: Bool,
+    width: Int64?,
+    height: Int64?
+  ) -> Bool {
+    let want = VideoOutput.isSimulator ? false : hardware
+    if disposed || texture == nil || host == nil {
+      return false
     }
 
-    DispatchQueue.main.sync { [weak self]() in
-      guard let that = self else {
-        return
-      }
-      that.registerTextureId()
+    self.width = width
+    self.height = height
+
+    if want == hardwareRenderer {
+      // Same renderer: only the size changed; the next frame applies it.
+      return true
     }
+
+    NSLog("VideoOutput: setRenderer: hardware: \(want)")
+
+    // The outgoing picture stays on screen from here.
+    host.beginHold()
+    holding = true
+    holdRenders = 0
+
+    // Frees the mpv render context; returns once mpv's video output
+    // is gone.
+    let old: ResizableTextureProtocol = texture
+    old.disposeRenderer()
+
+    let next = makeTexture(hardware: want)
+    texture = next
+    hardwareRenderer = want
+    currentSize = CGSize.zero
+    host.setChild(next)
+
+    return true
   }
 
   // Must be run on the main thread
   private func registerTextureId() {
     // Textures must be registered on the platform thread.
-    textureId = registry.register(texture)
+    textureId = registry.register(host)
     // textureUpdateCallback must run on the main thread
     textureUpdateCallback(textureId, CGSize(width: 0, height: 0))
   }
@@ -148,6 +230,21 @@ public class VideoOutput: NSObject {
   }
 
   private func _updateCallback() {
+    if disposed || texture == nil {
+      return
+    }
+
+    // Zeus fork (build 74): across a renderer swap nothing is drawn
+    // until mpv's video output is configured again — a render before
+    // that is a black frame, and with a fixed size it would both end
+    // the held picture and prime the PiP layer with black.
+    if holding {
+      let params = MPVHelpers.getVideoOutParams(handle)
+      if params.dw <= 0 || params.dh <= 0 {
+        return
+      }
+    }
+
     let size = videoSize
 
     if size.width == 0 || size.height == 0 {
@@ -170,9 +267,40 @@ public class VideoOutput: NSObject {
     }
 
     texture.render(size)
+    if holding {
+      // The first draws after a reconfigure can still be empty; the
+      // held picture goes on the third — or, for a paused film (mpv
+      // draws its one frame and stops), a moment after the first.
+      holdRenders += 1
+      if holdRenders >= 3 {
+        holding = false
+        host.endHold()
+      } else if holdRenders == 1 {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+          guard let that = self else { return }
+          that.worker.enqueue {
+            that.endHoldIfNeeded()
+          }
+        }
+      }
+    }
     DispatchQueue.main.sync { [weak self] in
       guard let that = self else { return }
       // Textures must be marked as available from the main thread
+      that.registry.textureFrameAvailable(that.textureId)
+    }
+  }
+
+  // Worker thread. Ends a hold that the render count did not end (a
+  // paused film) and shows the incoming renderer's frame.
+  private func endHoldIfNeeded() {
+    if disposed || !holding {
+      return
+    }
+    holding = false
+    host.endHold()
+    DispatchQueue.main.sync { [weak self] in
+      guard let that = self else { return }
       that.registry.textureFrameAvailable(that.textureId)
     }
   }
@@ -195,5 +323,65 @@ public class VideoOutput: NSObject {
                                       ? params.dh
                                       : params.dw))
         )
+  }
+}
+
+// Zeus fork (build 74): the texture registered with Flutter. It
+// forwards to the current renderer's texture; across a renderer swap
+// it keeps handing out the outgoing renderer's last frame until the
+// incoming one has drawn real picture (see VideoOutput.setRenderer),
+// so the swap shows no black and the texture id never changes.
+public class SwitchableTexture: NSObject, FlutterTexture {
+  private let lock = NSLock()
+  private var child: FlutterTexture
+  private var held: CVPixelBuffer?
+  private var holding = false
+
+  init(_ child: FlutterTexture) {
+    self.child = child
+  }
+
+  public func setChild(_ child: FlutterTexture) {
+    lock.lock()
+    self.child = child
+    lock.unlock()
+  }
+
+  public func beginHold() {
+    lock.lock()
+    let current = child
+    lock.unlock()
+
+    let frame = current.copyPixelBuffer()?.takeRetainedValue()
+
+    lock.lock()
+    held = frame
+    holding = true
+    lock.unlock()
+  }
+
+  public func endHold() {
+    lock.lock()
+    holding = false
+    held = nil
+    lock.unlock()
+  }
+
+  public func copyPixelBuffer() -> Unmanaged<CVPixelBuffer>? {
+    lock.lock()
+    let frame = holding ? held : nil
+    let isHolding = holding
+    let current = child
+    lock.unlock()
+
+    if let frame = frame {
+      return Unmanaged.passRetained(frame)
+    }
+    if isHolding {
+      // Nothing was captured: draw nothing rather than the incoming
+      // renderer's empty frames.
+      return nil
+    }
+    return current.copyPixelBuffer()
   }
 }
