@@ -140,6 +140,132 @@ void main() {
     });
   });
 
+  group('pickHeroAltMatch', () {
+    // What TMDB's search for "Last Meal" returns (2026-11-19): several
+    // films of that name, and the Turkish film "Son Yemek", listed in
+    // English as "Last Dinner" — the most popular of them.
+    final lastMealResults = [
+      {'id': 1426874, 'title': 'Last Meal', 'original_title': 'Last Meal',
+        'release_date': '2017-01-01', 'popularity': 0.6455},
+      {'id': 1723859, 'title': 'Last Meal', 'original_title': 'Last Meal',
+        'release_date': '2026-06-30', 'popularity': 0.5058},
+      {'id': 1561834, 'title': 'Last Dinner', 'original_title': 'Son Yemek',
+        'release_date': '2026-11-18', 'popularity': 0.9375},
+    ];
+    final lastMealAlternates = {
+      1561834: ['Last Meal', 'Last Meal'],
+    };
+
+    test('the title match finds nothing; the alternate title does', () {
+      expect(
+        pickHeroMatch(lastMealResults, title: 'Last Meal', year: null),
+        isNull,
+      );
+      expect(
+        pickHeroAltMatch(
+          lastMealResults,
+          lastMealAlternates,
+          title: 'Last Meal',
+          year: null,
+        )?['id'],
+        1561834,
+      );
+    });
+
+    test('a stated year must still agree within one', () {
+      expect(
+        pickHeroAltMatch(
+          lastMealResults,
+          lastMealAlternates,
+          title: 'Last Meal',
+          year: 2026,
+        )?['id'],
+        1561834,
+      );
+      expect(
+        pickHeroAltMatch(
+          lastMealResults,
+          lastMealAlternates,
+          title: 'Last Meal',
+          year: 2010,
+        ),
+        isNull,
+      );
+    });
+
+    test('a near name is not an alternate-title match', () {
+      expect(
+        pickHeroAltMatch(
+          lastMealResults,
+          lastMealAlternates,
+          title: 'Last Meals',
+          year: null,
+        ),
+        isNull,
+      );
+      expect(
+        pickHeroAltMatch(
+          lastMealResults,
+          lastMealAlternates,
+          title: 'Last Dinner',
+          year: null,
+        ),
+        isNull,
+        reason: 'that is the title itself, not an alternate title',
+      );
+    });
+
+    test('two alternate-title matches need the same wide lead', () {
+      final two = {
+        1561834: ['Last Meal'],
+        1426874: ['Last Meal'],
+      };
+      expect(
+        pickHeroAltMatch(
+          lastMealResults,
+          two,
+          title: 'Last Meal',
+          year: null,
+        ),
+        isNull,
+        reason: '0.9375 is not three times 0.6455',
+      );
+      final lead = {
+        1561834: ['Last Meal'],
+        1426874: ['Something Else'],
+      };
+      expect(
+        pickHeroAltMatch(
+          lastMealResults,
+          lead,
+          title: 'Last Meal',
+          year: null,
+        )?['id'],
+        1561834,
+      );
+    });
+
+    test('alternate titles come from the movie and the TV shapes', () {
+      expect(
+        heroAlternateTitles({
+          'titles': [
+            {'iso_3166_1': 'US', 'title': 'Last Meal'},
+          ],
+        }),
+        ['Last Meal'],
+      );
+      expect(
+        heroAlternateTitles({
+          'results': [
+            {'iso_3166_1': 'GB', 'title': 'Son Yemek'},
+          ],
+        }),
+        ['Son Yemek'],
+      );
+      expect(heroAlternateTitles({}), isEmpty);
+    });
+  });
+
   group('details to hero', () {
     test('every field, and the art without lettering', () {
       final e = heroEnrichmentFromDetails(
@@ -296,6 +422,78 @@ void main() {
       final n = calls.length;
       expect(await s.lookup(item('Guarding Stars (2026)')), isNull);
       expect(calls.length, greaterThan(n));
+    });
+
+    test('"Last Meal" is found by its alternate title', () async {
+      final calls = <String>[];
+      final s = HeroEnrichmentService(
+        apiKey: () => 'k',
+        get: (url, query) async {
+          calls.add(url);
+          if (url.contains('/search/')) {
+            return {
+              'results': [
+                {'id': 1426874, 'title': 'Last Meal',
+                  'original_title': 'Last Meal', 'release_date': '2017-01-01',
+                  'popularity': 0.6455},
+                {'id': 1723859, 'title': 'Last Meal',
+                  'original_title': 'Last Meal', 'release_date': '2026-06-30',
+                  'popularity': 0.5058},
+                {'id': 1561834, 'title': 'Last Dinner',
+                  'original_title': 'Son Yemek', 'release_date': '2026-11-18',
+                  'popularity': 0.9375},
+              ],
+            };
+          }
+          if (url.contains('/alternative_titles')) {
+            return {
+              'titles': url.contains('/1561834/')
+                  ? [
+                      {'iso_3166_1': 'SG', 'title': 'Last Meal'},
+                      {'iso_3166_1': 'US', 'title': 'Last Meal'},
+                    ]
+                  : const <Map<String, String>>[],
+            };
+          }
+          if (url.contains('cinemeta')) {
+            return {'meta': <String, dynamic>{}};
+          }
+          return {
+            'id': 1561834,
+            'genres': [
+              {'id': 10749, 'name': 'Romance'},
+              {'id': 18, 'name': 'Drama'},
+            ],
+            'release_date': '2026-11-18',
+            'status': 'Released',
+            'original_language': 'tr',
+            'vote_average': 0.0,
+            'vote_count': 0,
+            'release_dates': {'results': const <Map<String, dynamic>>[]},
+            'images': {
+              'logos': const <Map<String, dynamic>>[],
+              'posters': const <Map<String, dynamic>>[],
+            },
+          };
+        },
+      );
+      final e = await s.lookup(item('Last Meal'));
+      expect(e, isNotNull);
+      expect(e?.genres, ['Romance', 'Drama']);
+      expect(e?.year, 2026);
+      expect(e?.language, 'tr');
+      expect(e?.status, 'RELEASED');
+      expect(e?.imdbScore, isNull);
+      expect(e?.tmdbScore, isNull);
+      expect(calls.any((u) => u.contains('/alternative_titles')), isTrue);
+      final shown = e!.applyTo(item('Last Meal'));
+      expect(
+        heroMetaLine(shown),
+        'Movie${kHeroDot}Romance${kHeroDot}2026',
+      );
+      final n = calls.length;
+      expect((await s.lookup(item('Last Meal')))?.year, 2026);
+      expect(calls.length, n, reason: 'memory cache');
     });
   });
 }

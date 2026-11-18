@@ -163,6 +163,49 @@ String heroTitleKey(String title) {
   return t.replaceAll(RegExp(r'\s+'), ' ');
 }
 
+/// The release year of a TMDB search result, or null.
+int? _heroResultYear(Map<String, dynamic> r) {
+  final d = (r['release_date'] ?? r['first_air_date'] ?? '').toString();
+  return d.length >= 4 ? int.tryParse(d.substring(0, 4)) : null;
+}
+
+/// A TMDB search result's popularity, or 0.
+double _heroResultPopularity(Map<String, dynamic> r) =>
+    (r['popularity'] as num?)?.toDouble() ?? 0;
+
+/// The one result among [same] that is confidently the title: a stated
+/// year must agree within one (closest wins); without one, a single
+/// result wins, or the most popular must lead the next by a wide margin.
+/// Null when unsure. Shared by the title match and the alternate-title
+/// match, so both hold the same bar.
+Map<String, dynamic>? _disambiguateHeroMatches(
+  List<Map<String, dynamic>> same, {
+  required int? year,
+}) {
+  if (same.isEmpty) return null;
+  if (year != null) {
+    final dated = same.where((r) {
+      final y = _heroResultYear(r);
+      return y != null && (y - year).abs() <= 1;
+    }).toList();
+    if (dated.isEmpty) return null;
+    dated.sort(
+      (a, b) => ((_heroResultYear(a)! - year).abs()).compareTo(
+        (_heroResultYear(b)! - year).abs(),
+      ),
+    );
+    return dated.first;
+  }
+  if (same.length == 1) return same.first;
+  same.sort(
+    (a, b) => _heroResultPopularity(b).compareTo(_heroResultPopularity(a)),
+  );
+  return _heroResultPopularity(same[0]) >= 3 * _heroResultPopularity(same[1]) &&
+          _heroResultPopularity(same[0]) > 0
+      ? same.first
+      : null;
+}
+
 /// The one search result that is confidently [title]: the same name
 /// (title or original title), and a release year within one of [year]
 /// when the plugin states it. Without a stated year the name must match
@@ -175,11 +218,6 @@ Map<String, dynamic>? pickHeroMatch(
 }) {
   final key = heroTitleKey(title);
   if (key.isEmpty) return null;
-  int? yearOf(Map<String, dynamic> r) {
-    final d = (r['release_date'] ?? r['first_air_date'] ?? '').toString();
-    return d.length >= 4 ? int.tryParse(d.substring(0, 4)) : null;
-  }
-
   final same = results.where((r) {
     for (final f in ['title', 'name', 'original_title', 'original_name']) {
       final v = r[f];
@@ -187,25 +225,42 @@ Map<String, dynamic>? pickHeroMatch(
     }
     return false;
   }).toList();
-  if (same.isEmpty) return null;
-  if (year != null) {
-    final dated = same.where((r) {
-      final y = yearOf(r);
-      return y != null && (y - year).abs() <= 1;
-    }).toList();
-    if (dated.isEmpty) return null;
-    dated.sort(
-      (a, b) => ((yearOf(a)! - year).abs()).compareTo((yearOf(b)! - year).abs()),
-    );
-    return dated.first;
-  }
-  if (same.length == 1) return same.first;
-  double pop(Map<String, dynamic> r) =>
-      (r['popularity'] as num?)?.toDouble() ?? 0;
-  same.sort((a, b) => pop(b).compareTo(pop(a)));
-  return pop(same[0]) >= 3 * pop(same[1]) && pop(same[0]) > 0
-      ? same.first
-      : null;
+  return _disambiguateHeroMatches(same, year: year);
+}
+
+/// The alternate titles TMDB lists for a film or show: the movie
+/// endpoint answers `titles`, the TV endpoint `results`. Each entry's
+/// `title` is a name the film is known by somewhere.
+List<String> heroAlternateTitles(Map<String, dynamic> alt) {
+  final list =
+      (alt['titles'] as List?) ?? (alt['results'] as List?) ?? const [];
+  return [
+    for (final t in list)
+      if (t is Map && t['title'] is String) t['title'] as String,
+  ];
+}
+
+/// The alternate-title matches among [results]: candidates whose
+/// alternate titles (by TMDB id, from [alternates]) include [title]
+/// exactly after cleaning. A film may be listed under another name:
+/// "Last Meal" is TMDB's "Last Dinner", whose original title is
+/// "Son Yemek" — the title match finds nothing, the alternate title
+/// does. The same year and popularity rules as [pickHeroMatch] apply;
+/// nothing fuzzy, no wrong-film data.
+Map<String, dynamic>? pickHeroAltMatch(
+  List<Map<String, dynamic>> results,
+  Map<int, List<String>> alternates, {
+  required String title,
+  required int? year,
+}) {
+  final key = heroTitleKey(title);
+  if (key.isEmpty) return null;
+  final matched = results.where((r) {
+    final id = (r['id'] as num?)?.toInt();
+    if (id == null) return false;
+    return (alternates[id] ?? const []).any((n) => heroTitleKey(n) == key);
+  }).toList();
+  return _disambiguateHeroMatches(matched, year: year);
 }
 
 /// TMDB's status word as the badge prints it, or null.
@@ -443,9 +498,47 @@ class HeroEnrichmentService {
     }
   }
 
+  /// How many search results the alternate-title pass asks TMDB about:
+  /// the most popular few. TMDB's search already ranks by relevance,
+  /// and the right film is near the top; eight bounds the extra calls
+  /// a miss costs, and a miss is remembered for a day.
+  static const _altTitleCandidates = 8;
+
+  /// (match, whether TMDB answered at all). For the most popular few
+  /// [results], fetches each one's alternate titles and keeps the ones
+  /// the plugin title equals exactly after cleaning, under the same
+  /// year and popularity rules as the title match. A network failure
+  /// is not an answer: the miss is not remembered, it is tried again.
+  Future<(Map<String, dynamic>?, bool)> _matchByAlternateTitle(
+    List<Map<String, dynamic>> results, {
+    required String title,
+    required int? year,
+    required bool tv,
+  }) async {
+    final ordered = [...results]
+      ..sort(
+        (a, b) =>
+            _heroResultPopularity(b).compareTo(_heroResultPopularity(a)),
+      );
+    final alternates = <int, List<String>>{};
+    for (final r in ordered.take(_altTitleCandidates)) {
+      final id = (r['id'] as num?)?.toInt();
+      if (id == null) continue;
+      final alt = await _get(
+        '${TmdbConfig.baseUrl}/${tv ? 'tv' : 'movie'}/$id/alternative_titles',
+        {'api_key': _apiKey()},
+      );
+      if (alt == null) return (null, false);
+      alternates[id] = heroAlternateTitles(alt);
+    }
+    return (
+      pickHeroAltMatch(results, alternates, title: title, year: year),
+      true,
+    );
+  }
+
   /// (details, whether TMDB answered at all).
-  Future<(HeroEnrichment?, bool)> _fetch(MultimediaItem item) async {
-    final clean = cleanHeroTitle(item.title);
+  Future<(HeroEnrichment?, bool)> _fetch(MultimediaItem item) async {    final clean = cleanHeroTitle(item.title);
     if (clean.name.length < 2) return (null, true);
     final year = item.year ?? clean.year;
     var tv = _isTv(item);
@@ -469,16 +562,42 @@ class HeroEnrichmentService {
             .toList();
       }
 
-      var results = await search(tv);
+      final results = await search(tv);
       if (results == null) return (null, false);
       var match = pickHeroMatch(results, title: clean.name, year: year);
       // A plugin that calls everything a movie: try the other kind, but
       // only with a stated year to hold the match to.
+      List<Map<String, dynamic>>? otherResults;
       if (match == null && year != null) {
-        results = await search(!tv);
-        if (results == null) return (null, false);
-        match = pickHeroMatch(results, title: clean.name, year: year);
+        otherResults = await search(!tv);
+        if (otherResults == null) return (null, false);
+        match = pickHeroMatch(otherResults, title: clean.name, year: year);
         if (match != null) tv = !tv;
+      }
+      // Last resort: the film may be listed under another name. The
+      // title match above found nothing, so ask TMDB for the
+      // candidates' alternate titles and accept one that is the plugin
+      // title, under the same strict rules.
+      if (match == null) {
+        final (alt, answered) = await _matchByAlternateTitle(
+          results,
+          title: clean.name,
+          year: year,
+          tv: tv,
+        );
+        if (!answered) return (null, false);
+        match = alt;
+        if (match == null && otherResults != null) {
+          final (otherAlt, otherAnswered) = await _matchByAlternateTitle(
+            otherResults,
+            title: clean.name,
+            year: year,
+            tv: !tv,
+          );
+          if (!otherAnswered) return (null, false);
+          match = otherAlt;
+          if (match != null) tv = !tv;
+        }
       }
       id = (match?['id'] as num?)?.toInt();
       if (id == null) return (null, true);
