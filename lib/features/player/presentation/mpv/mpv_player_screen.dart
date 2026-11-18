@@ -253,7 +253,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   String _switchOutcome = '';
 
   /// Build 75: where the picture wait of the last in-place move went
-  /// (see [switchDetailLine]).
+  /// (see [switchWaitLine]).
   String _switchDetail = 'switch-wait: -';
 
   /// Build 73: the last PiP window, for the QoE overlay — how long it
@@ -2306,8 +2306,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       stand(before);
       return null;
     }
-    final posBefore = int.tryParse(
-      (await _readMpvProperty(player, 'stream-pos') ?? '').trim(),
+    // Build 76: the reader's state before the video track comes back —
+    // what the wait is measured against (see [splitSwitchWaitByDemux]).
+    final demuxBefore = parseDemuxState(
+      await _readMpvProperty(player, 'demuxer-cache-state'),
+      ms: 0,
     );
     _iosMpvPipEnabled = toSoftware;
     _pipRenderCapped = toSoftware && size != null;
@@ -2328,41 +2331,43 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         ? MpvRendererPhase.software
         : MpvRendererPhase.hardware;
     var gotPicture = false;
-    // Build 75: the reader's place in the file, sampled while waiting —
-    // it jumps back when the source seek lands, which splits the wait
-    // into "the host answering" and "reading and decoding".
+    // Build 76: the reader's state, sampled while waiting — the seek
+    // count going up and the buffer filling again split the wait into
+    // "the host answering" and "reading and decoding". (Build 75
+    // sampled `stream-pos`, which never moves back: all "?".)
     final waitStart = clock.elapsedMilliseconds;
-    final samples = <(int, int)>[];
+    final samples = <DemuxSample>[];
+    Future<void> sample() async {
+      final reading = parseDemuxState(
+        await _readMpvProperty(player, 'demuxer-cache-state'),
+        ms: clock.elapsedMilliseconds - waitStart,
+      );
+      if (reading != null) samples.add(reading);
+    }
+
     while (live() && clock.elapsedMilliseconds < 15000) {
       if (voConfigured(await _readMpvProperty(player, 'vo-configured'))) {
         gotPicture = true;
         break;
       }
-      final pos = int.tryParse(
-        (await _readMpvProperty(player, 'stream-pos') ?? '').trim(),
-      );
-      if (pos != null) {
-        samples.add((clock.elapsedMilliseconds - waitStart, pos));
-      }
+      await sample();
       await Future<void>.delayed(const Duration(milliseconds: 50));
     }
     if (!live()) return false;
     final frameMs = clock.elapsedMilliseconds - waitStart;
-    final posAtFrame = int.tryParse(
-      (await _readMpvProperty(player, 'stream-pos') ?? '').trim(),
-    );
-    if (posAtFrame != null) samples.add((frameMs, posAtFrame));
+    await sample();
     final cacheAfter = await _readMpvProperty(player, 'demuxer-cache-duration');
     if (!live()) return false;
-    _switchDetail = switchDetailLine(
-      split: splitSwitchWait(
-        beforePos: posBefore,
+    _switchDetail = switchWaitLine(
+      wait: splitSwitchWaitByDemux(
+        before: demuxBefore,
         samples: samples,
         frameMs: frameMs,
       ),
       cacheBefore: cacheBefore,
       cacheAfter: cacheAfter,
       paused: held,
+      extra: samples.isEmpty ? ' no-state' : '',
     );
     if (!gotPicture) {
       lap('frame');

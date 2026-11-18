@@ -44,8 +44,7 @@ bool rendererSwitching(MpvRendererPhase phase) =>
 /// Whether the engine that exists (or is being created) in [phase] is
 /// the software renderer.
 bool rendererIsSoftware(MpvRendererPhase phase) =>
-    phase == MpvRendererPhase.toSoftware ||
-    phase == MpvRendererPhase.software;
+    phase == MpvRendererPhase.toSoftware || phase == MpvRendererPhase.software;
 
 /// The `hwdec` value the engine of [phase] is created with.
 String rendererHwdec(MpvRendererPhase phase) =>
@@ -507,4 +506,159 @@ String switchDetailLine({
       'back ${_megabytes(split.backBytes)} got ${_megabytes(split.fetchedBytes)} '
       'cache ${_seconds(cacheBefore)}>${_seconds(cacheAfter)}s '
       'paused ${paused ? 'yes' : 'no'}';
+}
+
+// ---------------------------------------------------------------------------
+// Build 76: the split of the picture wait, measured for real.
+// ---------------------------------------------------------------------------
+//
+// Phone result on build 75: `switch-wait: net ? dec ? back ? got ?` on
+// every move. Cause, read from the mpv 0.36.0 source: build 75 looked
+// for mpv's `stream-pos` jumping BACK when the source seek landed. But
+// `stream-pos` is `demuxer->filepos`, the file offset of the last
+// packet HANDED TO A DECODER, and it is only ever raised
+// (demux.c: `if (pkt->pos >= in->d_user->filepos) filepos = pkt->pos`);
+// the refresh seek of a track switch does not reset it. It never goes
+// back, so no sample was ever "behind" and nothing was measured.
+//
+// What does move is the reader's own state, `demuxer-cache-state`: the
+// count of source seeks (`debug-low-level-seeks`), of requests at the
+// byte level (`debug-byte-level-seeks`), and the bytes held ahead
+// (`fw-bytes`), which the seek empties and the first data fills again.
+
+/// One reading of mpv's `demuxer-cache-state` while a move waits.
+class DemuxSample {
+  const DemuxSample({
+    required this.ms,
+    required this.lowLevelSeeks,
+    required this.byteLevelSeeks,
+    required this.forwardBytes,
+    required this.totalBytes,
+  });
+
+  /// Since the video track was switched back on.
+  final int ms;
+  final int? lowLevelSeeks;
+  final int? byteLevelSeeks;
+  final int? forwardBytes;
+  final int? totalBytes;
+}
+
+int? _jsonInt(String json, String key) {
+  final match = RegExp('"${RegExp.escape(key)}"\\s*:\\s*(-?\\d+)')
+      .firstMatch(json);
+  return match == null ? null : int.tryParse(match.group(1)!);
+}
+
+/// Reads [raw] — `demuxer-cache-state` as mpv prints it (JSON) — into
+/// a sample taken [ms] into the wait. Null when it is not that.
+DemuxSample? parseDemuxState(String? raw, {required int ms}) {
+  final json = (raw ?? '').trim();
+  if (!json.startsWith('{')) return null;
+  final sample = DemuxSample(
+    ms: ms,
+    lowLevelSeeks: _jsonInt(json, 'debug-low-level-seeks'),
+    byteLevelSeeks: _jsonInt(json, 'debug-byte-level-seeks'),
+    forwardBytes: _jsonInt(json, 'fw-bytes'),
+    totalBytes: _jsonInt(json, 'total-bytes'),
+  );
+  if (sample.forwardBytes == null && sample.totalBytes == null) return null;
+  return sample;
+}
+
+/// Where the picture wait of a move went, from the reader's state.
+class SwitchWait {
+  const SwitchWait({
+    required this.netMs,
+    required this.decodeMs,
+    required this.gotBytes,
+    required this.seeks,
+    required this.requests,
+  });
+
+  /// From "video track on" until the first data after the source seek
+  /// is in the buffer — the host answering. Null: not seen.
+  final int? netMs;
+
+  /// From that first data to the first picture.
+  final int? decodeMs;
+
+  /// What the reader held at the picture (all of it read for the move:
+  /// the seek emptied the buffer).
+  final int? gotBytes;
+
+  /// Source seeks the move cost, and requests at the byte level.
+  final int? seeks;
+  final int? requests;
+}
+
+/// Splits the wait. [before] is the reading just before the video
+/// track was switched back on, [samples] those taken while waiting
+/// (oldest first), [frameMs] when the picture was there.
+///
+/// The data "after the seek" is the first sample that holds bytes
+/// ahead once the seek has been seen — the seek counter above
+/// [before]'s, or the buffer seen empty.
+SwitchWait splitSwitchWaitByDemux({
+  required DemuxSample? before,
+  required List<DemuxSample> samples,
+  required int frameMs,
+}) {
+  if (samples.isEmpty) {
+    return const SwitchWait(
+      netMs: null,
+      decodeMs: null,
+      gotBytes: null,
+      seeks: null,
+      requests: null,
+    );
+  }
+  final seeksBefore = before?.lowLevelSeeks;
+  var seekSeen = false;
+  int? netMs;
+  for (final sample in samples) {
+    final seeks = sample.lowLevelSeeks;
+    if (!seekSeen) {
+      if ((seeksBefore != null && seeks != null && seeks > seeksBefore) ||
+          (sample.forwardBytes ?? -1) == 0) {
+        seekSeen = true;
+      }
+    }
+    if (seekSeen && (sample.forwardBytes ?? 0) > 0) {
+      netMs = sample.ms;
+      break;
+    }
+  }
+  final last = samples.last;
+  int? delta(int? now, int? then) =>
+      now == null || then == null ? null : now - then;
+  return SwitchWait(
+    netMs: netMs,
+    decodeMs: netMs == null ? null : (frameMs > netMs ? frameMs - netMs : 0),
+    gotBytes: last.totalBytes ?? last.forwardBytes,
+    seeks: delta(last.lowLevelSeeks, before?.lowLevelSeeks),
+    requests: delta(last.byteLevelSeeks, before?.byteLevelSeeks),
+  );
+}
+
+/// The QoE overlay's second line for the last in-place move (build
+/// 76): `net` — ms until the host's first data after the seek; `dec` —
+/// ms from there to the picture; `got` — what was read for it; `seek
+/// a/b` — source seeks / byte-level requests the move cost; `cache
+/// a>b` — the buffer ahead before the move and at the picture;
+/// `paused` — whether the film was held for the move. [extra] is
+/// appended as is (build 76's keyframe landing).
+String switchWaitLine({
+  required SwitchWait? wait,
+  required String? cacheBefore,
+  required String? cacheAfter,
+  required bool paused,
+  String extra = '',
+}) {
+  if (wait == null) return 'switch-wait: -';
+  return 'switch-wait: net ${wait.netMs ?? '?'} dec ${wait.decodeMs ?? '?'} '
+      'got ${_megabytes(wait.gotBytes)} '
+      'seek ${wait.seeks ?? '?'}/${wait.requests ?? '?'} '
+      'cache ${_seconds(cacheBefore)}>${_seconds(cacheAfter)}s '
+      'paused ${paused ? 'yes' : 'no'}$extra';
 }
