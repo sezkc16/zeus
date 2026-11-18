@@ -335,6 +335,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// straight from the host from then on.
   final Set<int> _proxyBlocked = <int>{};
 
+  /// Build 78: sources that kept stopping to buffer through the proxy
+  /// (overlay `proxy: off(slow)`), and the watch that notices it.
+  final Set<int> _proxySlow = <int>{};
+  final StreamProxySlowWatch _proxySlowWatch = StreamProxySlowWatch();
+
   /// Orders overlapping opens: only the newest goes on after the
   /// proxy has answered.
   int _proxyOpenToken = 0;
@@ -3049,8 +3054,16 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       }),
     );
     _subs.add(
-      _player.stream.buffering.listen((_) {
+      _player.stream.buffering.listen((buffering) {
         if (_disposed) return;
+        if (_proxyWatching &&
+            _proxySlowWatch.onBuffering(
+              buffering: buffering,
+              position: _position,
+              nowMs: DateTime.now().millisecondsSinceEpoch,
+            )) {
+          _leaveSlowProxy();
+        }
         _publishAdapter();
         setState(() {});
       }),
@@ -3305,6 +3318,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         stream: stream,
         item: widget.item,
         blocked: _proxyBlocked.contains(index),
+        slow: _proxySlow.contains(index),
       );
       if (bypass == null) {
         final openToken = ++_proxyOpenToken;
@@ -3320,6 +3334,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       }
       _proxyHandle = proxied;
       _proxyIndex = proxied != null ? index : -1;
+      if (proxied != null) {
+        _proxySlowWatch.arm(DateTime.now().millisecondsSinceEpoch);
+      } else {
+        _proxySlowWatch.disarm();
+      }
       _proxyOff = proxied != null
           ? null
           : (bypass ?? StreamCacheService.instance.lastFailure ?? 'start');
@@ -3444,6 +3463,15 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     if (_disposed || !_startedPlaying || _awaitingPrebuffer) return;
     if (!_engineReady || rendererSwitching(_rendererPhase)) return;
     final state = _player.state;
+    if (_proxyWatching &&
+        _proxySlowWatch.onTick(
+          buffering: state.buffering,
+          position: _position,
+          nowMs: DateTime.now().millisecondsSinceEpoch,
+        )) {
+      _leaveSlowProxy();
+      return;
+    }
     if (!state.playing && !state.buffering) {
       _stallClock.restart();
       _stallLastAction = StallAction.none;
@@ -4271,6 +4299,28 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     });
   }
 
+  /// Build 78: whether the slow-proxy watch should be listening: the
+  /// film on screen is playing through the proxy, has started, and is
+  /// not in the middle of a renderer move or its opening pre-buffer.
+  bool get _proxyWatching =>
+      _proxyHandle != null &&
+      _proxyIndex == _streamIndex &&
+      _startedPlaying &&
+      !_awaitingPrebuffer &&
+      _engineReady &&
+      !rendererSwitching(_rendererPhase);
+
+  /// Build 78: the film keeps stopping to buffer through the proxy:
+  /// open it straight from the host, where it was fine before build 77.
+  void _leaveSlowProxy() {
+    if (_disposed) return;
+    final index = _streamIndex;
+    _proxySlowWatch.disarm();
+    _proxySlow.add(index);
+    _proxyBlocked.add(index);
+    unawaited(_openStream(index, start: _position));
+  }
+
   /// Build 77: a source that was opened through the proxy and did not
   /// play gets one more try straight from the host before it is given
   /// up — unless the proxy had already stepped aside (then the engine
@@ -4797,6 +4847,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _dataSaver = false;
     _failedStreams.clear();
     _proxyBlocked.clear();
+    _proxySlow.clear();
     _probes.clear();
     _pickedIndex = null;
     _resolveDone = false;
@@ -5346,6 +5397,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
                                 _error = null;
                                 _failedStreams.clear();
                                 _proxyBlocked.clear();
+    _proxySlow.clear();
                               });
                               unawaited(_resolveAndOpen());
                             },

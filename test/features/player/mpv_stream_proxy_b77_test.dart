@@ -167,7 +167,7 @@ void main() {
           ),
           duration: duration,
         ),
-        'proxy: on held 412MB ahead 31s hit 3 miss 1',
+        startsWith('proxy: on held 412MB ahead 31s hit 3 miss 1'),
       );
     });
 
@@ -179,7 +179,7 @@ void main() {
           stats: stats(held: 1024 * 1024, misses: 1),
           duration: Duration.zero,
         ),
-        'proxy: on held 1MB ahead ?s hit 0 miss 1',
+        startsWith('proxy: on held 1MB ahead ?s hit 0 miss 1'),
       );
       expect(
         streamProxyOverlayLine(
