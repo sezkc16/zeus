@@ -39,9 +39,23 @@ public class TextureSW: NSObject, FlutterTexture, ResizableTextureProtocol {
   // BT.2390 EETF rolled diffuse white off and made PiP ON ~11%
   // darker than PiP OFF on HDR files; a clip matches the hardware
   // path exactly.)
+  // Build 87: the SDR LUT is now the EXACT curve, not the pure-power
+  // approximation it was. pow(v, source/2.2) is the sRGB curve
+  // without its linear toe, so it lifted shadows (bt.1886 code
+  // 26/255: 21, true sRGB 13) and shifted dark tones warm — PiP
+  // looked slightly warmer and washed-out next to the hardware path
+  // on SDR films (user 2026-11-19, "Under Your Feet"). The LUT now
+  // decodes the source power to linear and encodes with the exact
+  // piecewise sRGB curve (srgbEncode, the helper the PQ/HLG LUTs
+  // already use) — the same conversion gl_video applies.
   // The TRC is read once per video size from video-params/gamma;
   // unknown defaults to bt.1886, the TRC mpv itself guesses for SDR.
-  private var swLutExponent: Double?
+  /// Build 87: the source TRC's power (bt.1886 -> 2.4), or 1.0 as the
+  /// "decided, no LUT" marker (HDR branches and sRGB-like sources).
+  /// Was the LUT exponent (source / 2.2) until build 87 — the pure
+  /// power is only the sRGB curve without its toe, so the LUT now
+  /// keeps the source power and encodes with srgbEncode instead.
+  private var swLutSourceExponent: Double?
   /// +46: the file's peak luminance in nits while the PQ tone map is
   /// active (nil otherwise). Cached per video size next to the exponent.
   private var swLutPQPeak: Double?
@@ -627,7 +641,8 @@ public class TextureSW: NSObject, FlutterTexture, ResizableTextureProtocol {
 
   /// Maps the rendered frame's transfer function to sRGB, in place.
   /// Three cases, decided once per video size: a pure-power TRC
-  /// (bt.1886 and friends) gets a power LUT, PQ (HDR) gets a
+  /// (bt.1886 and friends) gets an exact decode-then-sRGB-encode LUT
+  /// (build 87 — the old pure-power map lifted shadows), PQ (HDR) gets a
   /// tone-mapping LUT (see pqToneMapLut / pqToneMapLutEetf), and HLG
   /// (HDR) gets its own tone-mapping LUT (see hlgToneMapLut /
   /// hlgToneMapLutEetf, +47). Which HDR curve — the hard clip or the
@@ -651,7 +666,7 @@ public class TextureSW: NSObject, FlutterTexture, ResizableTextureProtocol {
     // A new size is a new video, which may carry a different TRC.
     if swLutSize != size {
       swLutSize = size
-      swLutExponent = nil
+      swLutSourceExponent = nil
       swLutPQPeak = nil
       swLutHLGPeak = nil
       swLut = nil
@@ -666,26 +681,26 @@ public class TextureSW: NSObject, FlutterTexture, ResizableTextureProtocol {
     let toneMapping = readToneMapping()
     if swLutToneMapping != toneMapping {
       swLutToneMapping = toneMapping
-      swLutExponent = nil
+      swLutSourceExponent = nil
       swLutPQPeak = nil
       swLutHLGPeak = nil
       swLut = nil
       swPictureLut = nil
     }
-    if swLutExponent == nil {
+    if swLutSourceExponent == nil {
       if readVideoGammaName() == "pq" {
         // +46: HDR (PQ) — tone-map, don't gamma-correct. The exponent
         // stays 1.0 as the "decided" marker; the peak rides alongside.
         swLutPQPeak = readSigPeakNits()
-        swLutExponent = 1.0
+        swLutSourceExponent = 1.0
       } else if readVideoGammaName() == "hlg" {
         // +47: HDR (HLG) — tone-map with its own LUT, don't
         // gamma-correct. Same "decided" marker and peak as PQ.
         swLutHLGPeak = readSigPeakNits()
-        swLutExponent = 1.0
+        swLutSourceExponent = 1.0
       } else {
         let source = readVideoGammaExponent()
-        swLutExponent = source > 2.21 ? source / 2.2 : 1.0
+        swLutSourceExponent = source > 2.21 ? source : 1.0
       }
     }
     if let peak = swLutPQPeak {
@@ -704,12 +719,27 @@ public class TextureSW: NSObject, FlutterTexture, ResizableTextureProtocol {
           ? Self.hlgToneMapLutEetf(peakNits: hlgPeak)
           : Self.hlgToneMapLut(peakNits: hlgPeak)
       }
-    } else if let exponent = swLutExponent, exponent > 1.0 {
+    } else if let exponent = swLutSourceExponent, exponent > 2.21 {
       if swLut == nil {
         swPictureLut = nil
+        // Build 87: exact, not a pure power. The old LUT mapped the
+        // source code straight to sRGB with pow(v, source/2.2) — the
+        // sRGB curve without its linear toe. That lifts shadows
+        // (bt.1886 code 26/255: 21, true sRGB 13; code 13: 10 vs 3)
+        // and shifts dark tones warm, so PiP (this buffer) looked
+        // washed-out next to the hardware path on SDR films (user
+        // 2026-11-19, "Under Your Feet"). gl_video converts
+        // bt.1886 -> sRGB with the exact piecewise curve, so this
+        // LUT now does the same: decode the source power to linear,
+        // then srgbEncode — the same helper the PQ/HLG LUTs already
+        // use. Midtones and highlights are unchanged (code 128:
+        // 120 -> 121); only the shadow lift goes away. The
+        // tone-mapping preset does not touch this LUT (SDR is never
+        // tone-mapped).
         swLut = (0...255).map { i in
-          let v = pow(Double(i) / 255.0, exponent)
-          return UInt8(max(0, min(255, (v * 255.0).rounded())))
+          let v = Double(i) / 255.0
+          let s = Self.srgbEncode(pow(v, exponent))
+          return UInt8(max(0, min(255, (s * 255.0).rounded())))
         }
       }
     }

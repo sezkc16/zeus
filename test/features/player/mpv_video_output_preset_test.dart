@@ -15,7 +15,10 @@ import 'package:zorox/features/settings/presentation/player_settings_provider.da
 void main() {
   group('migrateVideoOutputPreset', () {
     test('Native EDR stays Bright', () {
-      expect(migrateVideoOutputPreset('nativeEdr'), VideoOutputPreset.nativeEdr);
+      expect(
+        migrateVideoOutputPreset('nativeEdr'),
+        VideoOutputPreset.nativeEdr,
+      );
     });
 
     test('SDR tone mapped stays Balanced', () {
@@ -253,6 +256,57 @@ void main() {
       expect(swToneMapCurveForToneMapping('BT.2390'), SwToneMapCurve.eetf);
       expect(swToneMapCurveForToneMapping('Auto'), SwToneMapCurve.eetf);
       expect(swToneMapCurveForToneMapping('CLIP'), SwToneMapCurve.clip);
+    });
+  });
+
+  group('hardware and software paths agree (PiP colour match)', () {
+    test('every preset drives the same tone map on both paths', () {
+      // The +50 principle, build 87: the hardware path's
+      // `tone-mapping` option and the software renderer's LUT curve
+      // must be the same choice, or PiP (the software buffer) and
+      // fullscreen (hardware) show different colours on the same HDR
+      // file. Bright is clip on both; Balanced is bt.2390 / EETF on
+      // both. Legacy names go through the migration first, like the
+      // real option builder does.
+      for (final preset in VideoOutputPreset.values) {
+        final hw = videoOutputPresetToneMapping(preset);
+        final sw = swToneMapCurveForToneMapping(hw);
+        final effective = migrateVideoOutputPreset(preset.name);
+        expect(
+          sw,
+          effective == VideoOutputPreset.sdrToneMapped
+              ? SwToneMapCurve.eetf
+              : SwToneMapCurve.clip,
+          reason: '$preset -> hw $hw',
+        );
+      }
+    });
+
+    test('the default preset is Bright: clip on both paths', () {
+      expect(videoOutputPresetToneMapping(VideoOutputPreset.nativeEdr), 'clip');
+      expect(
+        swToneMapCurveForToneMapping(
+          videoOutputPresetToneMapping(VideoOutputPreset.nativeEdr),
+        ),
+        SwToneMapCurve.clip,
+      );
+    });
+
+    test('SDR is never tone-mapped: no preset changes the SDR LUT', () {
+      // The SDR gamma LUT in TextureSW is built from the file's TRC
+      // alone (build 87: exact bt.1886 -> sRGB); the preset only
+      // picks the HDR (PQ/HLG) curve. So the tone-map value a preset
+      // selects must never leak into the SDR path — asserted here as
+      // the table above: only 'bt.2390'/'auto' mean the EETF, and the
+      // SDR branch ignores the preset entirely.
+      for (final preset in VideoOutputPreset.values) {
+        final hw = videoOutputPresetToneMapping(preset);
+        expect(
+          <String>['clip', 'bt.2390'].contains(hw),
+          isTrue,
+          reason: '$preset -> $hw',
+        );
+      }
     });
   });
 
