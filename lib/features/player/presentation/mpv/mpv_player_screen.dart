@@ -252,6 +252,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   Map<String, int> _switchSteps = const <String, int>{};
   String _switchOutcome = '';
 
+  /// Build 75: where the picture wait of the last in-place move went
+  /// (see [switchDetailLine]).
+  String _switchDetail = 'switch-wait: -';
+
   /// Build 73: the last PiP window, for the QoE overlay — how long it
   /// was up and how many frames the renderer dropped under it.
   String _pipLastLine = 'pip-last: -';
@@ -2224,6 +2228,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // Read BEFORE the swap: once the render context is freed mpv
     // reports `no`.
     final vid = inPlaceVideoTrack(await _readMpvProperty(player, 'vid'));
+    final cacheBefore = await _readMpvProperty(
+      player,
+      'demuxer-cache-duration',
+    );
     if (!live()) return false;
     debugPrint('[mpv] renderer move (in place) → '
         '${toSoftware ? 'software' : 'hardware'} at $_position '
@@ -2247,6 +2255,27 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _resumeStallTimer = null;
     _prevMpvDrops.clear();
     lap('hold');
+    // Build 75: the film stands still for the move. Switching the
+    // video track back on makes mpv seek the source to just before the
+    // playhead and decode up to it; on a playing film that playhead
+    // keeps moving while the data arrives — the long, uneven waits of
+    // build 74. Held here, the picture has a fixed point to reach, and
+    // playback starts again as soon as it is there.
+    final held = pauseForInPlaceMove(playing: player.state.playing);
+    if (held) {
+      try {
+        await player.pause().timeout(const Duration(seconds: 2));
+      } catch (e) {
+        debugPrint('[mpv] renderer swap: pause failed: $e');
+      }
+      if (!live()) return false;
+    }
+    lap('pause');
+    void unhold() {
+      if (held && resume) {
+        unawaited(player.play().catchError((Object _) {}));
+      }
+    }
 
     void stand(MpvRendererPhase phase) {
       _adapter.releaseTimeline();
@@ -2273,9 +2302,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     if (!swapped) {
       // Nothing changed (an old native side, or no video output yet).
       finish('n/a');
+      unhold();
       stand(before);
       return null;
     }
+    final posBefore = int.tryParse(
+      (await _readMpvProperty(player, 'stream-pos') ?? '').trim(),
+    );
     _iosMpvPipEnabled = toSoftware;
     _pipRenderCapped = toSoftware && size != null;
     try {
@@ -2295,14 +2328,42 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         ? MpvRendererPhase.software
         : MpvRendererPhase.hardware;
     var gotPicture = false;
+    // Build 75: the reader's place in the file, sampled while waiting —
+    // it jumps back when the source seek lands, which splits the wait
+    // into "the host answering" and "reading and decoding".
+    final waitStart = clock.elapsedMilliseconds;
+    final samples = <(int, int)>[];
     while (live() && clock.elapsedMilliseconds < 15000) {
       if (voConfigured(await _readMpvProperty(player, 'vo-configured'))) {
         gotPicture = true;
         break;
       }
+      final pos = int.tryParse(
+        (await _readMpvProperty(player, 'stream-pos') ?? '').trim(),
+      );
+      if (pos != null) {
+        samples.add((clock.elapsedMilliseconds - waitStart, pos));
+      }
       await Future<void>.delayed(const Duration(milliseconds: 50));
     }
     if (!live()) return false;
+    final frameMs = clock.elapsedMilliseconds - waitStart;
+    final posAtFrame = int.tryParse(
+      (await _readMpvProperty(player, 'stream-pos') ?? '').trim(),
+    );
+    if (posAtFrame != null) samples.add((frameMs, posAtFrame));
+    final cacheAfter = await _readMpvProperty(player, 'demuxer-cache-duration');
+    if (!live()) return false;
+    _switchDetail = switchDetailLine(
+      split: splitSwitchWait(
+        beforePos: posBefore,
+        samples: samples,
+        frameMs: frameMs,
+      ),
+      cacheBefore: cacheBefore,
+      cacheAfter: cacheAfter,
+      paused: held,
+    );
     if (!gotPicture) {
       lap('frame');
       finish('no-frame(${await _switchWaitReason(player)})');
@@ -2310,14 +2371,17 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       stand(after);
       return null;
     }
-    // The held picture leaves on the third frame the new renderer
-    // draws (native side); a beat for those to reach the screen.
-    await Future<void>.delayed(const Duration(milliseconds: 200));
     lap('frame');
-    if (!live()) return false;
+    // Playing again at once: the held picture leaves on the third
+    // frame the new renderer draws (native side), and those only come
+    // from a running film.
     if (resume && !player.state.playing) {
       unawaited(player.play().catchError((Object _) {}));
     }
+    // A beat for those frames to reach the screen.
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    lap('show');
+    if (!live()) return false;
     if (player.state.position > Duration.zero) {
       _position = player.state.position;
     }
@@ -2381,11 +2445,15 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // Build 74: the same engine, the other renderer — nothing is
     // opened. Only when that cannot be done (or brings no picture)
     // does the re-open move below run.
+    // Build 75: read before the in-place move, which pauses the film
+    // for its length — the re-open fallback must not take that pause
+    // for what the film was doing.
+    final playingAtStart = playing ?? _playing;
     if (rendererMoveRoute(qualityDropped: _pipDroppedFrom != null) ==
         RendererMoveRoute.inPlace) {
       final moved = await _switchRendererInPlace(
         toSoftware: toSoftware,
-        playing: playing,
+        playing: playingAtStart,
         token: token,
       );
       if (moved != null) return moved;
@@ -2413,7 +2481,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     }
     final old = _player;
     final oldController = _videoController;
-    final wasPlaying = playing ?? _playing;
+    final wasPlaying = playingAtStart;
     final carry = RendererCarryOver(
       position: _position,
       duration: _duration,
@@ -4015,6 +4083,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
               outcome: _switchOutcome,
             ),
           )
+          ..writeln(_switchDetail)
           ..writeln(_pipLastLine)
           ..writeln(_pipFeedLine);
       }

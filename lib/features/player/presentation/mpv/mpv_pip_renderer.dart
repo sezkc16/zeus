@@ -392,3 +392,119 @@ String pipFeedLine(String? diag) {
       'drop ${field('liveDrop')} fail ${field('layerFail')} '
       'render ${field('rendMs')}ms';
 }
+
+// ---------------------------------------------------------------------------
+// Build 75: the picture wait after an in-place swap is bounded and split.
+// ---------------------------------------------------------------------------
+//
+// Phone result on build 74 (2026-11-18, Avengers 4K): the swap itself
+// took 0.06–0.28 s, but the wait for the first picture after it took
+// 2.6–9.5 s, with the buffer ahead reading ~0 s for the whole wait.
+//
+// Read from the mpv 0.36.0 source the app ships (not from memory):
+//  * freeing the render context deselects the video track
+//    (client.c `do_kill` → `error_on_track`), and a deselected track's
+//    packets are thrown away (demux.c `update_stream_selection_state`);
+//  * selecting it again runs `initiate_refresh_seek`, which clears the
+//    queues of EVERY stream (the audio buffer ahead too) and seeks the
+//    source itself to one second before the playhead — a new range
+//    request, never served from the buffer;
+//  * the new video chain then decodes and drops frames until it
+//    reaches the playhead (video.c `video_output_image`).
+// So one request to the host per swap cannot be avoided on this
+// engine. What could: build 74 left the film playing, so the picture
+// was chasing a playhead that kept moving while the data came in at
+// about the speed it plays. Build 75 pauses for the move — the target
+// stands still — and plays again the moment the picture is there.
+
+/// Whether the film is paused for the length of an in-place move.
+/// Only a playing film: one already paused has a still target.
+bool pauseForInPlaceMove({required bool playing}) => playing;
+
+/// What the picture wait of an in-place move was spent on.
+class SwitchWaitSplit {
+  const SwitchWaitSplit({
+    required this.netMs,
+    required this.decodeMs,
+    required this.backBytes,
+    required this.fetchedBytes,
+  });
+
+  /// From "video track on" to the first packet after the source seek
+  /// (the host answering the range request). Null: never seen.
+  final int? netMs;
+
+  /// From that first packet to the first picture.
+  final int? decodeMs;
+
+  /// How far behind the reader the seek landed.
+  final int? backBytes;
+
+  /// Bytes read past the landing point until the picture.
+  final int? fetchedBytes;
+}
+
+/// Splits the picture wait from the reader-position samples taken
+/// while waiting. [samples] are (ms since the video track was switched
+/// on, mpv `stream-pos`), oldest first; [beforePos] is `stream-pos`
+/// just before it. The seek has landed at the first sample that lies
+/// behind [beforePos]; [frameMs] is when the picture was there.
+SwitchWaitSplit splitSwitchWait({
+  required int? beforePos,
+  required List<(int, int)> samples,
+  required int frameMs,
+}) {
+  if (beforePos == null) {
+    return const SwitchWaitSplit(
+      netMs: null,
+      decodeMs: null,
+      backBytes: null,
+      fetchedBytes: null,
+    );
+  }
+  for (var i = 0; i < samples.length; i++) {
+    final (ms, pos) = samples[i];
+    if (pos < beforePos) {
+      final last = samples.last.$2;
+      return SwitchWaitSplit(
+        netMs: ms,
+        decodeMs: frameMs > ms ? frameMs - ms : 0,
+        backBytes: beforePos - pos,
+        fetchedBytes: last > pos ? last - pos : 0,
+      );
+    }
+  }
+  return const SwitchWaitSplit(
+    netMs: null,
+    decodeMs: null,
+    backBytes: null,
+    fetchedBytes: null,
+  );
+}
+
+String _megabytes(int? bytes) =>
+    bytes == null ? '?' : '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
+
+String _seconds(String? raw) {
+  final value = double.tryParse((raw ?? '').trim());
+  return value == null ? '?' : value.toStringAsFixed(1);
+}
+
+/// The QoE overlay's second line for the last in-place move: where the
+/// picture wait went. `net` — the host answering; `dec` — reading and
+/// decoding up to the playhead; `back` — how far back the source seek
+/// went; `got` — how much was read for it; `cache a>b` — the buffer
+/// ahead before the move and at the picture; `paused` — whether the
+/// film was held for the move.
+String switchDetailLine({
+  required SwitchWaitSplit? split,
+  required String? cacheBefore,
+  required String? cacheAfter,
+  required bool paused,
+}) {
+  if (split == null) return 'switch-wait: -';
+  return 'switch-wait: net ${split.netMs ?? '?'} dec ${split.decodeMs ?? '?'} '
+      'back ${_megabytes(split.backBytes)} got ${_megabytes(split.fetchedBytes)} '
+      'cache ${_seconds(cacheBefore)}>${_seconds(cacheAfter)}s '
+      'paused ${paused ? 'yes' : 'no'}';
+}
