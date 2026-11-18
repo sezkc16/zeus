@@ -49,6 +49,12 @@ class AddonSourcesSheet extends ConsumerStatefulWidget {
   /// which belong to no plugin.
   final bool merged;
 
+  /// Build 74: opened to resume — the source this title last played on
+  /// is played by itself as soon as it answers (the player then
+  /// continues from the saved position). When it does not answer the
+  /// sheet simply stays open for a pick.
+  final bool resume;
+
   const AddonSourcesSheet({
     super.key,
     required this.item,
@@ -57,6 +63,7 @@ class AddonSourcesSheet extends ConsumerStatefulWidget {
     this.playlist = const [],
     this.mode = SourcesMode.play,
     this.merged = false,
+    this.resume = false,
   });
 
   static Future<void> open(
@@ -67,6 +74,7 @@ class AddonSourcesSheet extends ConsumerStatefulWidget {
     List<AddonVideo> playlist = const [],
     SourcesMode mode = SourcesMode.play,
     bool merged = false,
+    bool resume = false,
   }) {
     return showDialog<void>(
       context: context,
@@ -79,6 +87,7 @@ class AddonSourcesSheet extends ConsumerStatefulWidget {
         playlist: playlist,
         mode: mode,
         merged: merged,
+        resume: resume,
       ),
     );
   }
@@ -274,7 +283,25 @@ class _AddonSourcesSheetState extends ConsumerState<AddonSourcesSheet> {
       if (_disposed) return;
       _main = progress;
       setState(() => _result = _merged());
+      _maybeResume();
     });
+  }
+
+  /// Build 74: a resume plays the last used source once, by itself.
+  bool _resumeTried = false;
+
+  void _maybeResume() {
+    if (!widget.resume || _resumeTried || _downloadMode) return;
+    final source = resumeSourceFor(_playable, _lastUsedKey);
+    if (source == null) return;
+    _resumeTried = true;
+    setState(() => _debridStatus = 'Resuming on the last used source…');
+    unawaited(
+      _play(source).whenComplete(() {
+        if (_disposed || !mounted) return;
+        setState(() => _debridStatus = null);
+      }),
+    );
   }
 
   List<ManagedAddon> get _streamAddons => AddonStreamService.streamProvidersOf(

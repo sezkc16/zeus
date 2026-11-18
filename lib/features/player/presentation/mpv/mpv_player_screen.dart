@@ -4084,7 +4084,26 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     if (_disposed || index < 0 || index >= _streams.length) return;
     if (index == _streamIndex && !_startedPlaying) return;
     _pickedIndex = index;
-    unawaited(_openStream(index, start: _position));
+    // Build 74: a row tapped in the startup list before anything has
+    // played starts from the saved position, as the automatic pick
+    // does — it used to start at 00:00, because the resume point is
+    // only read after the resolve this tap cuts short.
+    var start = _position;
+    if (start <= Duration.zero && !_startedPlaying) {
+      try {
+        start =
+            resumePointFor(
+              read: ref.read,
+              item: widget.item,
+              episode: _currentEpisode,
+              videoUrl: _currentVideoUrl,
+            )?.position ??
+            Duration.zero;
+      } catch (_) {
+        start = Duration.zero;
+      }
+    }
+    unawaited(_openStream(index, start: start));
   }
 
   /// A source picked in the panel's Sources tab: open it from where the

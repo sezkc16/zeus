@@ -15,6 +15,7 @@ import 'package:zorox/core/utils/image_fallbacks.dart';
 import 'package:zorox/core/utils/layout_constants.dart';
 
 import '../../../../core/extensions/extension_manager.dart';
+import '../../../addons/presentation/addon_resume_intent.dart';
 import '../../../details/presentation/playback_launcher.dart';
 import '../../../../shared/widgets/cards_wrapper.dart';
 import '../../../../shared/widgets/loading_dialog.dart';
@@ -251,6 +252,10 @@ class _ContinueWatchingCardState extends ConsumerState<ContinueWatchingCard> {
         // Add-on content has no plugin behind it — reopen it in the add-on
         // stack, which knows how to resolve its streams.
         if (item.source == kAddonItemSource) {
+          // Build 74: and continue it there — the page opens its
+          // sources in resume mode (see [AddonResumeIntent]), as a
+          // plugin title's page does with `autoPlay`.
+          AddonResumeIntent.request(item.url);
           unawaited(_addonPage(item).push<void>(context));
           return;
         }

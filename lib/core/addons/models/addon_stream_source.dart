@@ -707,3 +707,21 @@ extension on AddonStreamSource {
     return year != null && RegExp('\\b$year\\b').hasMatch(text);
   }
 }
+
+/// Build 74: the source a resume plays by itself — the first of
+/// [playable] that is the source this title last played on
+/// ([lastUsedKey], see [addonSourceKey]), or null when there is no
+/// memory of one or it is not among the answers (yet).
+///
+/// The key is the add-on / plugin, its provider and the quality — not
+/// the link — so it still matches after the old link has expired.
+AddonStreamSource? resumeSourceFor(
+  List<AddonStreamSource> playable,
+  String? lastUsedKey,
+) {
+  if (lastUsedKey == null || lastUsedKey.isEmpty) return null;
+  for (final source in playable) {
+    if (addonSourceKey(source) == lastUsedKey) return source;
+  }
+  return null;
+}

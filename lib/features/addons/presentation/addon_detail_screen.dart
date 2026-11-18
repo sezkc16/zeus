@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -30,6 +31,9 @@ import '../../library/presentation/history_provider.dart';
 import 'addon_direct_play.dart';
 import 'addon_own_links.dart';
 import 'addon_providers.dart';
+import '../../../core/storage/settings_repository.dart';
+import '../../sources/domain/last_used_source.dart';
+import 'addon_resume_intent.dart';
 import 'addon_sources_sheet.dart';
 import 'widgets/addon_episode_card.dart';
 import 'widgets/addon_play_button.dart';
@@ -154,6 +158,7 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
               'metadata add-on such as Cinemeta.',
             );
           }
+          _resumeIfAsked(meta);
           return _buildBody(context, meta);
         },
       ),
@@ -825,7 +830,10 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
         target = episodes.isNotEmpty ? episodes.first : null;
       }
     }
-    var label = l10n.play;
+    // Build 74: a title with a saved position says Resume, and the
+    // press continues on the source it last played on.
+    final resume = _hasResume(meta, target);
+    var label = resume ? l10n.resume : l10n.play;
     if (target != null) {
       label = meta.seasons.length <= 1
           ? l10n.playEpisodeOnly(label, target.episode ?? 1)
@@ -834,12 +842,79 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
     final video = target;
     return DetailsPlayFab(
       label: label,
-      onPressed: () => _openSources(meta, video),
+      onPressed: () => _openSources(meta, video, resume: resume),
     );
   }
 
+  /// Whether the film, or [video] of a show, has a position to resume.
+  bool _hasResume(AddonMeta meta, AddonVideo? video) {
+    try {
+      // Rebuilt when a position is written (the player closing).
+      ref.watch(watchHistoryProvider);
+      final history = ref.watch(historyRepositoryProvider);
+      return addonHasResume(
+        video == null
+            ? history.getPosition(meta.id)
+            : history.getEpisodePosition(
+                video.id,
+                mainUrl: meta.id,
+                season: video.season,
+                episode: video.episode,
+              ),
+      );
+    } catch (_) {
+      // No history store (not opened): nothing to resume.
+      return false;
+    }
+  }
+
+  /// Build 74: Continue Watching asked for this title (see
+  /// [AddonResumeIntent]) — the sources open in resume mode for the
+  /// film, or for the episode to continue with.
+  void _resumeIfAsked(AddonMeta meta) {
+    if (!AddonResumeIntent.consume(meta.id)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      AddonVideo? target;
+      if (meta.isShow) {
+        target = addonPlayTarget(
+          meta,
+          history: ref.read(historyRepositoryProvider),
+          watched: ref.read(episodeWatchRepositoryProvider),
+          lastWatched: ref
+              .read(watchHistoryProvider)
+              .firstWhereOrNull((h) => h.item.url == meta.id),
+        );
+        if (target == null) return;
+      }
+      // Continue Watching reopens the page by its add-on alone, so a
+      // title that was played from Browse on a plugin's source would
+      // be asked of the add-ons only and its source would never
+      // answer. With a remembered source the list is the full one
+      // (plugins, Nuvio providers and add-ons — the add-ons' own
+      // sources are in it too).
+      var remembered = false;
+      try {
+        remembered =
+            readLastUsedSource(
+              ref.read(settingsRepositoryProvider),
+              meta.id,
+            ) !=
+            null;
+      } catch (_) {}
+      unawaited(
+        _openSources(meta, target, resume: true, forceMerged: remembered),
+      );
+    });
+  }
+
   /// Opens the sources list for the film, or for [video] of a show.
-  Future<void> _openSources(AddonMeta meta, AddonVideo? video) {
+  Future<void> _openSources(
+    AddonMeta meta,
+    AddonVideo? video, {
+    bool resume = false,
+    bool forceMerged = false,
+  }) {
     return AddonSourcesSheet.open(
       context,
       item: _itemOf(meta),
@@ -856,7 +931,8 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
       ),
       episode: video?.toEpisode(),
       playlist: meta.videos,
-      merged: _mergedSources,
+      merged: _mergedSources || forceMerged,
+      resume: resume,
     );
   }
 

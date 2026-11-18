@@ -3,6 +3,8 @@
 /// which episode a show's Play button plays.
 library;
 
+import 'dart:async';
+
 import 'package:collection/collection.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +18,8 @@ import '../../../core/addons/models/addon_stream_source.dart';
 import '../../../core/domain/entity/multimedia_item.dart';
 import '../../../core/storage/episode_watch_repository.dart';
 import '../../../core/storage/history_repository.dart';
+import '../../../core/storage/settings_repository.dart';
+import '../../sources/domain/last_used_source.dart';
 import '../../details/presentation/playback_launcher.dart';
 import '../../settings/presentation/player_settings_provider.dart';
 
@@ -68,6 +72,22 @@ Future<bool> playAddonLinks(
   final source = named != null && named.id == chosen.addonId
       ? named
       : installs.firstWhereOrNull((a) => a.id == chosen.addonId);
+
+  // Build 74: a direct play (the page's Play, an episode card) is
+  // remembered as this title's source too, so a later resume from
+  // Continue Watching continues on it. The sources sheet records its
+  // own picks (v7); this is the path that had no memory.
+  if (selected == null) {
+    try {
+      unawaited(
+        rememberLastUsedSource(
+          ref.read(settingsRepositoryProvider),
+          item.url,
+          addonSourceKey(first),
+        ),
+      );
+    } catch (_) {}
+  }
 
   beforeLaunch?.call();
   await launcher.playResolved(
