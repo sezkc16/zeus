@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/addons/models/addon_manifest.dart';
+import '../../../../core/config/tmdb_config.dart';
 import '../../../../core/storage/storage_service.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/cards_wrapper.dart';
@@ -25,16 +26,39 @@ final browseCatalogueStoreProvider = Provider<BrowseCatalogueStore>((ref) {
   );
 });
 
-/// The add-on Browse is limited to (its manifest URL), or null for all.
-/// This is what the person picked; [browseCatalogueProvider] is what
-/// Browse actually uses.
+/// What is stored for "All catalogues" now that nothing stored means the
+/// default (TMDB "Movies & Shows" when the build has a TMDB key).
+const String kBrowseAllChoice = '__all__';
+
+/// The selection value for TMDB "Movies & Shows".
+const String kBrowseTmdbSelection = 'tmdb';
+
+/// TMDB's name in the switcher - the name upstream's Explore Source
+/// dialog gave it.
+const String kBrowseTmdbLabel = 'Movies & Shows';
+
+/// Whether this app can ask TMDB at all: a key baked into the build, or
+/// one the person entered. Without one Browse behaves as it did before
+/// TMDB came back: add-on catalogues only.
+final browseTmdbAvailableProvider = Provider<bool>(
+  (ref) => TmdbConfig.apiKey.isNotEmpty,
+);
+
+/// What the person picked, as stored: null (never picked, or picked
+/// TMDB), [kBrowseAllChoice], or an add-on's manifest URL.
+/// [browseSelectionProvider] is what Browse actually shows.
 class BrowseCatalogueChoice extends Notifier<String?> {
   @override
   String? build() => ref.watch(browseCatalogueStoreProvider).read();
 
-  Future<void> choose(String? manifestUrl) async {
-    state = manifestUrl;
-    await ref.read(browseCatalogueStoreProvider).write(manifestUrl);
+  /// [selection] is [kBrowseTmdbSelection], [kBrowseAllChoice], an
+  /// add-on's manifest URL - or null, the older spelling of "all".
+  Future<void> choose(String? selection) async {
+    final stored = selection == kBrowseTmdbSelection
+        ? null
+        : (selection ?? kBrowseAllChoice);
+    state = stored;
+    await ref.read(browseCatalogueStoreProvider).write(stored);
   }
 }
 
@@ -51,18 +75,65 @@ final browseCatalogueAddonsProvider = Provider<List<ManagedAddon>>((ref) {
   ];
 });
 
-/// The add-on Browse shows, or null for every add-on. A stored choice
-/// whose add-on was removed or disabled - or with fewer than two catalog
-/// add-ons left, when the line is hidden - falls back to all, silently.
-final browseCatalogueProvider = Provider<String?>((ref) {
+/// What Browse shows: [kBrowseTmdbSelection], [kBrowseAllChoice] or an
+/// add-on's manifest URL.
+///
+/// Nothing stored means TMDB when the app has a key, and all add-on
+/// catalogues when it has none. A stored add-on stays chosen while it
+/// is installed; once it is removed or disabled the default applies
+/// again, silently.
+final browseSelectionProvider = Provider<String>((ref) {
+  final fallback = ref.watch(browseTmdbAvailableProvider)
+      ? kBrowseTmdbSelection
+      : kBrowseAllChoice;
   final choice = ref.watch(browseCatalogueChoiceProvider);
-  if (choice == null) return null;
+  if (choice == null) return fallback;
+  if (choice == kBrowseAllChoice) return kBrowseAllChoice;
   final addons = ref.watch(browseCatalogueAddonsProvider);
-  if (addons.length < 2) return null;
-  return addons.any((a) => a.manifestUrl == choice) ? choice : null;
+  return addons.any((a) => a.manifestUrl == choice) ? choice : fallback;
 });
 
-/// "All catalogues" - the chooser's first entry and the line's default.
+/// True when Browse shows TMDB "Movies & Shows".
+final browseShowsTmdbProvider = Provider<bool>((ref) {
+  // Asked first, so a build without a key never touches storage here.
+  if (!ref.watch(browseTmdbAvailableProvider)) return false;
+  return ref.watch(browseSelectionProvider) == kBrowseTmdbSelection;
+});
+
+/// The switcher's entries in order: TMDB first (when the app has a
+/// key), "All catalogues" (with two or more catalog add-ons), then each
+/// catalog add-on.
+final browseSelectionOptionsProvider = Provider<List<BrowseOption>>((ref) {
+  final addons = ref.watch(browseCatalogueAddonsProvider);
+  return [
+    if (ref.watch(browseTmdbAvailableProvider))
+      const BrowseOption(kBrowseTmdbSelection, kBrowseTmdbLabel),
+    if (addons.length >= 2)
+      const BrowseOption(kBrowseAllChoice, kBrowseAllCatalogues),
+    for (final addon in addons)
+      BrowseOption(addon.manifestUrl, addon.displayName),
+  ];
+});
+
+/// One entry of the switcher: what is selected and what it is called.
+class BrowseOption {
+  const BrowseOption(this.value, this.label);
+
+  final String value;
+  final String label;
+}
+
+/// The add-on the add-on catalogue view is limited to, or null for
+/// every add-on.
+final browseCatalogueProvider = Provider<String?>((ref) {
+  final selection = ref.watch(browseSelectionProvider);
+  if (selection == kBrowseTmdbSelection || selection == kBrowseAllChoice) {
+    return null;
+  }
+  return selection;
+});
+
+/// "All catalogues".
 const String kBrowseAllCatalogues = 'All catalogues';
 
 /// Browse's second header line, in the style of Home's provider line
@@ -85,11 +156,14 @@ class BrowseCatalogueBar extends ConsumerWidget
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final addons = ref.watch(browseCatalogueAddonsProvider);
-    final chosen = ref.watch(browseCatalogueProvider);
-    final label = chosen == null
-        ? kBrowseAllCatalogues
-        : addons.firstWhere((a) => a.manifestUrl == chosen).displayName;
+    final options = ref.watch(browseSelectionOptionsProvider);
+    final selection = ref.watch(browseSelectionProvider);
+    final label = options
+        .firstWhere(
+          (o) => o.value == selection,
+          orElse: () => BrowseOption(selection, kBrowseAllCatalogues),
+        )
+        .label;
 
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -186,21 +260,28 @@ class _BrowseCatalogueDialog extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final addons = ref.watch(browseCatalogueAddonsProvider);
-    final chosen = ref.watch(browseCatalogueProvider);
+    final options = ref.watch(browseSelectionOptionsProvider);
+    final selection = ref.watch(browseSelectionProvider);
 
-    void pick(String? manifestUrl) {
-      ref.read(browseCatalogueChoiceProvider.notifier).choose(manifestUrl);
+    void pick(String? value) {
+      if (value == null) return;
+      ref.read(browseCatalogueChoiceProvider.notifier).choose(value);
       Navigator.pop(context);
     }
+
+    Key keyFor(String value) => switch (value) {
+      kBrowseTmdbSelection => const ValueKey('browse-catalogue-tmdb'),
+      kBrowseAllChoice => const ValueKey('browse-catalogue-all'),
+      _ => ValueKey('browse-catalogue-$value'),
+    };
 
     return AlertDialog(
       title: const Text('Select catalogue'),
       contentPadding: const EdgeInsets.fromLTRB(0, 20, 0, 0),
       content: SizedBox(
         width: 600,
-        child: RadioGroup<String?>(
-          groupValue: chosen,
+        child: RadioGroup<String>(
+          groupValue: selection,
           onChanged: pick,
           child: Material(
             color: Colors.transparent,
@@ -209,22 +290,19 @@ class _BrowseCatalogueDialog extends ConsumerWidget {
               shrinkWrap: true,
               padding: EdgeInsets.zero,
               children: [
-                ListTile(
-                  key: const ValueKey('browse-catalogue-all'),
-                  title: const Text(kBrowseAllCatalogues),
-                  leading: const Radio<String?>(value: null),
-                  onTap: () => pick(null),
-                ),
-                for (final addon in addons)
+                for (final option in options)
                   ListTile(
-                    key: ValueKey('browse-catalogue-${addon.manifestUrl}'),
+                    key: keyFor(option.value),
                     title: Text(
-                      addon.displayName,
+                      option.label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    leading: Radio<String?>(value: addon.manifestUrl),
-                    onTap: () => pick(addon.manifestUrl),
+                    subtitle: option.value == kBrowseTmdbSelection
+                        ? const Text('via TMDB')
+                        : null,
+                    leading: Radio<String>(value: option.value),
+                    onTap: () => pick(option.value),
                   ),
               ],
             ),

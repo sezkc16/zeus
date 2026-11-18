@@ -3,8 +3,9 @@
 # Adapted from the ZoroX fork's .github/workflows/ios.yml (which builds the
 # same app from the v20-* branches). Differences from the fork:
 # - Trigger: pushes to master only. This repo has no v20-* branches.
-# - No dart-defines file: the own app has no TMDB/Trakt/Simkl API secrets,
-#   so those integrations run without keys (they degrade gracefully).
+# - No dart-defines file: the keys come from repository secrets
+#   (TMDB_API_KEY, WETRAKR_CLIENT_ID) and are passed as dart-defines.
+#   There are no Trakt/Simkl secrets; those run without keys.
 # - The .cs3 engine's OpenJDK Zero VM is vendored as
 #   packages/cs3_engine/ios/Frameworks/OpenJDKRuntime.xcframework and
 #   embedded by the cs3_engine podspec (vendored_frameworks), and
@@ -77,17 +78,20 @@ jobs:
       - name: Strip Desktop Binaries
         run: rm -f packages/flutter_torrent_server/assets/torrserver/TorrServer-*
 
-      # No dart-defines file: the own app has no TMDB/Trakt/Simkl API secrets,
-      # so those integrations run without keys (they degrade gracefully).
-      # WeTrakr's client id comes from the repository secret
-      # WETRAKR_CLIENT_ID and is never written to the source or the log;
-      # without it the build still succeeds and the WeTrakr row is hidden.
+      # The keys come from repository secrets and are never written to
+      # the source or the log (GitHub masks secret values in the log, and
+      # nothing here echoes them). Without WETRAKR_CLIENT_ID the WeTrakr
+      # row is hidden; without TMDB_API_KEY Browse has no TMDB "Movies &
+      # Shows" and shows add-on catalogues only. The build succeeds
+      # either way.
       - name: Build iOS (No Codesign)
         env:
           WETRAKR_CLIENT_ID: ${{ secrets.WETRAKR_CLIENT_ID }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
         run: |
           if [ -z "$WETRAKR_CLIENT_ID" ]; then echo "::warning::WETRAKR_CLIENT_ID is not set: the WeTrakr row will be hidden"; fi
-          flutter build ios --release --no-codesign --dart-define=WETRAKR_CLIENT_ID="$WETRAKR_CLIENT_ID"
+          if [ -z "$TMDB_API_KEY" ]; then echo "::warning::TMDB_API_KEY is not set: Browse will have no TMDB Movies & Shows"; fi
+          flutter build ios --release --no-codesign --dart-define=WETRAKR_CLIENT_ID="$WETRAKR_CLIENT_ID" --dart-define=TMDB_API_KEY="$TMDB_API_KEY"
           mkdir -p Payload
           mv build/ios/iphoneos/Runner.app Payload/
           VERSION=$(grep '^version:' pubspec.yaml | cut -d ' ' -f 2 | cut -d '+' -f 1)

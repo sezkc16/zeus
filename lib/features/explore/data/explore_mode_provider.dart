@@ -1,26 +1,29 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../browse/presentation/browse_catalogue.dart';
+
 part 'explore_mode_provider.g.dart';
 
 const String _kExploreModeKey = 'explore_mode_type';
 
-/// Explore's sources. Only [stremio] is offered (v5): the TMDB "Movies &
-/// Shows" and AniList "Anime" sources were removed from Explore. The two
-/// names stay so the code that still branches on them compiles; the mode
-/// is never one of them.
+/// The source the Explore code (search, filters, genres) works against.
+/// It follows Browse's catalogue switcher: [movies] (TMDB) while Browse
+/// shows "Movies & Shows", [stremio] otherwise. AniList "Anime" is not
+/// offered; the name stays so the code that branches on it compiles.
 enum ExploreModeType { movies, anime, stremio }
 
-/// Explore's source: always Stremio add-ons (the built-in Cinemeta and any
-/// add-on the person installed). There is nothing to pick any more, so a
-/// preference saved by an older build for TMDB or AniList is rewritten to
-/// Stremio add-ons rather than left pointing at a removed source.
+/// Not a setting of its own any more: Browse's switcher is the one
+/// place the source is chosen, so this only mirrors it. A preference an
+/// older build saved under its own key is rewritten to Stremio add-ons.
 @Riverpod(keepAlive: true)
 class ExploreMode extends _$ExploreMode {
   @override
   ExploreModeType build() {
     _migrateSavedMode();
-    return ExploreModeType.stremio;
+    return ref.watch(browseShowsTmdbProvider)
+        ? ExploreModeType.movies
+        : ExploreModeType.stremio;
   }
 
   Future<void> _migrateSavedMode() async {
@@ -37,10 +40,8 @@ class ExploreMode extends _$ExploreMode {
     } catch (_) {}
   }
 
-  /// Kept for callers; whatever is asked for, the source is Stremio add-ons.
-  void setMode(ExploreModeType mode) {
-    state = ExploreModeType.stremio;
-  }
+  /// Kept for callers; the source is whatever Browse's switcher says.
+  void setMode(ExploreModeType mode) {}
 
-  void setAnimeMode(bool isAnime) => setMode(ExploreModeType.stremio);
+  void setAnimeMode(bool isAnime) {}
 }

@@ -418,7 +418,7 @@ void main() {
     await settle(tester);
     await tester.tap(find.byKey(const ValueKey('browse-catalogue-all')));
     await settle(tester);
-    expect(storedCatalogue, isNull);
+    expect(storedCatalogue, kBrowseAllChoice);
     expect(find.text('Trending anime'), findsOneWidget);
     expect(find.text('Festive · Movies'), findsOneWidget);
 

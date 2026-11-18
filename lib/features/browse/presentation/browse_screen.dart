@@ -12,17 +12,22 @@ import '../../../../shared/widgets/cards_wrapper.dart';
 import '../../addons/presentation/addon_providers.dart';
 import '../../addons/presentation/addons_screen.dart';
 import '../../explore/presentation/delegates/explore_search_delegate.dart';
+import '../../explore/data/explore_filter_provider.dart';
+import '../../explore/presentation/widgets/unified_filter_dialog.dart';
 import 'browse_catalogue.dart';
+import 'browse_tmdb_view.dart';
 
-/// The Browse tab. It has no content of its own: it lists the catalogs of
-/// the Stremio add-ons the person installed (Cinemeta, Anime Kitsu, a
-/// streaming-catalogs add-on, ...), one row per catalog, through
-/// [AddonCatalogsTabView].
+/// The Browse tab.
 ///
-/// With no catalog add-on installed the page is empty but for one line and
-/// a button to the Stremio add-ons screen; nothing is fetched. The header
-/// holds a button to that screen and, once an installed add-on has a
-/// searchable catalog, a search over the installed add-ons' catalogs.
+/// It opens on TMDB "Movies & Shows" ([BrowseTmdbView]) when the app has
+/// a TMDB key - the default for everyone, with nothing installed. The
+/// `from <catalogue>` line under the title switches to the catalogs of
+/// the Stremio add-ons the person installed ([AddonCatalogsTabView]) and
+/// back; the choice is kept on this device.
+///
+/// Without a TMDB key (a build made without one) Browse has no content
+/// of its own: the installed add-ons' catalogs, or - with none - one
+/// line and a button to the Stremio add-ons screen.
 class BrowseScreen extends ConsumerStatefulWidget {
   const BrowseScreen({super.key});
 
@@ -81,13 +86,15 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
               addon.manifest!.catalogs.any((c) => c.supportsSearch),
         );
     final isDark = theme.brightness == Brightness.dark;
-    // The catalogue switcher (design B): only with two or more catalog
-    // add-ons; with one or none Browse looks exactly as before.
+    final showsTmdb = ref.watch(browseShowsTmdbProvider);
+    final hasContent = showsTmdb || hasCatalogs;
+    // The catalogue switcher (design B): only when there is something
+    // to switch between.
     final showCatalogueLine =
-        hasCatalogs && ref.watch(browseCatalogueAddonsProvider).length >= 2;
+        ref.watch(browseSelectionOptionsProvider).length >= 2;
     final onlyAddonUrl = ref.watch(browseCatalogueProvider);
     // The new catalogue's list starts at the top: clear the header fade.
-    ref.listen<String?>(browseCatalogueProvider, (_, _) {
+    ref.listen<String>(browseSelectionProvider, (_, _) {
       _barOpacity.value = 0;
     });
 
@@ -95,7 +102,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
       backgroundColor: theme.scaffoldBackgroundColor,
       // The first catalog's banner runs up behind the header, which fades
       // in a background of its own as the page scrolls.
-      extendBodyBehindAppBar: hasCatalogs,
+      extendBodyBehindAppBar: hasContent,
       appBar: AppBar(
         systemOverlayStyle: isDark
             ? SystemUiOverlayStyle.light
@@ -107,7 +114,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
           valueListenable: _barOpacity,
           builder: (context, opacity, _) => ColoredBox(
             color: theme.scaffoldBackgroundColor.withValues(
-              alpha: hasCatalogs ? opacity : 1,
+              alpha: hasContent ? opacity : 1,
             ),
             child: const SizedBox.expand(),
           ),
@@ -130,7 +137,29 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
             focusNode: _firstActionFocusNode,
             onTap: _openAddons,
           ),
-          if (hasCatalogs && canSearch)
+          if (showsTmdb)
+            Consumer(
+              builder: (context, ref, _) {
+                final filters = ref.watch(exploreFilterProvider);
+                final active =
+                    filters.selectedGenre != null ||
+                    filters.selectedYear != null ||
+                    filters.minRating != null;
+                return _HeaderButton(
+                  key: const ValueKey('browse-filter-button'),
+                  icon: Icons.tune,
+                  tooltip: 'Filter',
+                  highlighted: active,
+                  onTap: () => unawaited(
+                    showDialog<void>(
+                      context: context,
+                      builder: (context) => const UnifiedFilterDialog(),
+                    ),
+                  ),
+                );
+              },
+            ),
+          if (showsTmdb || (hasCatalogs && canSearch))
             _HeaderButton(
               key: const ValueKey('browse-search-button'),
               icon: Icons.search,
@@ -139,7 +168,14 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
             ),
         ],
       ),
-      body: hasCatalogs
+      body: showsTmdb
+          ? BrowseTmdbView(
+              key: const ValueKey('browse-tmdb'),
+              scrollController: _scrollController,
+              firstActionFocusNode: _firstActionFocusNode,
+              onOpenAddons: () => _openAddons(discover: true),
+            )
+          : hasCatalogs
           ? AddonCatalogsTabView(
               scrollController: _scrollController,
               firstActionFocusNode: _firstActionFocusNode,
@@ -162,6 +198,7 @@ class _HeaderButton extends StatelessWidget {
   final String tooltip;
   final VoidCallback onTap;
   final FocusNode? focusNode;
+  final bool highlighted;
 
   const _HeaderButton({
     super.key,
@@ -169,6 +206,7 @@ class _HeaderButton extends StatelessWidget {
     required this.tooltip,
     required this.onTap,
     this.focusNode,
+    this.highlighted = false,
   });
 
   @override
@@ -183,9 +221,15 @@ class _HeaderButton extends StatelessWidget {
         child: Tooltip(
           message: tooltip,
           child: CircleAvatar(
-            backgroundColor: scheme.onSurface.withValues(alpha: 0.1),
+            backgroundColor: highlighted
+                ? scheme.primary
+                : scheme.onSurface.withValues(alpha: 0.1),
             radius: 18,
-            child: Icon(icon, color: scheme.onSurface, size: 18),
+            child: Icon(
+              icon,
+              color: highlighted ? scheme.onPrimary : scheme.onSurface,
+              size: 18,
+            ),
           ),
         ),
       ),
