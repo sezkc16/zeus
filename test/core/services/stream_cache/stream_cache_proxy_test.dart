@@ -45,6 +45,11 @@ void main() {
     int skipAhead = 64 * kib,
     int minLength = 64 * kib,
     Duration responseTimeout = const Duration(seconds: 5),
+    // Build 78. Side reads are off unless a test asks for them: the
+    // made-up films here are a few MiB, so every request would be one.
+    int sideMax = 0,
+    int memoryKeep = 256 * kib,
+    int maxUnwritten = 4 * mib,
   }) async {
     final server = StreamCacheProxyServer(
       directory: dir.path,
@@ -53,6 +58,9 @@ void main() {
       skipAhead: skipAhead,
       minLength: minLength,
       responseTimeout: responseTimeout,
+      sideMax: sideMax,
+      memoryKeep: memoryKeep,
+      maxUnwritten: maxUnwritten,
     );
     await server.start();
     proxy = server;
@@ -280,13 +288,174 @@ void main() {
       watch.cancel();
       expect(answer.body.length, host.length);
       expect(answer.body, film(0, host.length));
-      expect(biggest, lessThanOrEqualTo(cap));
+      // Build 78: what is held is the file (never past its cap) plus
+      // the little that is still in memory on its way there.
+      expect(biggest, lessThanOrEqualTo(cap + 4 * mib + 2 * mib));
       expect(biggest, greaterThan(cap ~/ 2));
       expect(ring.lengthSync(), lessThanOrEqualTo(cap));
       // What fell out of the window is gone: asking for it is a miss.
       final early = await playerGet(session.url, from: 0, take: 1000);
       expect(early.body, film(0, 1000));
       expect(host.filmRequests, 2);
+    });
+  });
+
+  group('build 78: the disk is not between the host and the player', () {
+    test('the newest bytes reach the player from memory, the file follows',
+        () async {
+      host.length = 8 * mib;
+      final server = await startProxy(readAhead: 16 * mib);
+      final session = server.openSession('${host.base}/film.mkv');
+      final answer = await playerGet(session.url, from: 0);
+      expect(answer.body, film(0, host.length));
+      // Everything ends up on the file too.
+      await until(() => server.stats(session.token)!.unwritten == 0);
+      final stats = server.stats(session.token)!;
+      expect(stats.held, host.length);
+      expect(host.filmRequests, 1);
+    });
+
+    test('a reader behind memory is fed from the file, one ahead from '
+        'memory, both intact', () async {
+      host.length = 12 * mib;
+      final server = await startProxy(readAhead: 16 * mib, memoryKeep: 64 * kib);
+      final session = server.openSession('${host.base}/film.mkv');
+      final first = await playerGet(session.url, from: 0);
+      expect(first.body.length, host.length);
+      await until(() => server.stats(session.token)!.unwritten == 0);
+      final results = await Future.wait([
+        playerGet(session.url, from: 100, take: 3 * mib),
+        playerGet(session.url, from: host.length - 20 * kib),
+      ]);
+      expect(results[0].body, film(100, 3 * mib));
+      expect(results[1].body, film(host.length - 20 * kib, 20 * kib));
+      expect(host.filmRequests, 1);
+    });
+
+    test('the host is held back when the disk falls behind, and nothing is '
+        'lost', () async {
+      host.length = 24 * mib;
+      final server = await startProxy(
+        capacity: 64 * mib,
+        readAhead: 64 * mib,
+        maxUnwritten: 512 * kib,
+      );
+      final session = server.openSession('${host.base}/film.mkv');
+      var most = 0;
+      final watch = Timer.periodic(const Duration(milliseconds: 2), (_) {
+        final waiting = server.stats(session.token)?.unwritten ?? 0;
+        if (waiting > most) most = waiting;
+      });
+      final answer = await playerGet(session.url, from: 0);
+      watch.cancel();
+      expect(answer.body, film(0, host.length));
+      expect(most, lessThan(8 * mib));
+    });
+
+    test('a new window while writes are still queued starts clean', () async {
+      host.length = 64 * mib;
+      final server = await startProxy(capacity: 96 * mib, readAhead: 32 * mib);
+      final session = server.openSession('${host.base}/film.mkv');
+      await playerGet(session.url, from: 0, take: 64 * kib);
+      final far = await playerGet(session.url, from: 40 * mib, take: 2 * mib);
+      expect(far.body, film(40 * mib, 2 * mib));
+      final again = await playerGet(session.url, from: 40 * mib + 5, take: mib);
+      expect(again.body, film(40 * mib + 5, mib));
+      await until(() => server.stats(session.token)!.unwritten == 0);
+      final late = await playerGet(session.url, from: 40 * mib, take: 3 * mib);
+      expect(late.body, film(40 * mib, 3 * mib));
+      expect(host.filmRequests, 2);
+    });
+  });
+
+  group('build 78: the index at the film\'s end', () {
+    test('gets its own short request; the window and its fetch are left '
+        'alone, and going back to the start is a hit', () async {
+      host.length = 64 * mib;
+      final server = await startProxy(
+        capacity: 96 * mib,
+        readAhead: 4 * mib,
+        sideMax: 2 * mib,
+      );
+      final session = server.openSession('${host.base}/film.mkv');
+      // mpv's start: the head, the index at the end, back to the start.
+      await playerGet(session.url, from: 0, take: 64 * kib);
+      final tail = await playerGet(session.url, from: host.length - 300 * kib);
+      expect(tail.status, 206);
+      expect(tail.headers['content-range'],
+          'bytes ${host.length - 300 * kib}-${host.length - 1}/${host.length}');
+      expect(tail.body, film(host.length - 300 * kib, 300 * kib));
+      final back = await playerGet(session.url, from: 4096, take: 2 * mib);
+      expect(back.body, film(4096, 2 * mib));
+      final stats = server.stats(session.token)!;
+      expect(stats.misses, 1);
+      expect(stats.sides, 1);
+      expect(stats.hits, 1);
+      // The host saw the film's one connection and the short one.
+      expect(host.filmRequests, 2);
+      expect(host.requests.last.rangeStart, host.length - 300 * kib);
+    });
+
+    test('a far seek that is not near the end still moves the window',
+        () async {
+      host.length = 64 * mib;
+      final server = await startProxy(
+        capacity: 96 * mib,
+        readAhead: 128 * kib,
+        sideMax: 2 * mib,
+      );
+      final session = server.openSession('${host.base}/film.mkv');
+      await playerGet(session.url, from: 0, take: 64 * kib);
+      final far = await playerGet(session.url, from: 30 * mib, take: 100 * kib);
+      expect(far.body, film(30 * mib, 100 * kib));
+      final stats = server.stats(session.token)!;
+      expect(stats.misses, 2);
+      expect(stats.sides, 0);
+    });
+
+    test('when the host refuses the short request the player is sent to '
+        'the host itself, and the film stays on the proxy', () async {
+      host.length = 64 * mib;
+      final server = await startProxy(
+        capacity: 96 * mib,
+        readAhead: 4 * mib,
+        sideMax: 2 * mib,
+      );
+      final session = server.openSession('${host.base}/film.mkv');
+      await playerGet(session.url, from: 0, take: 64 * kib);
+      host
+        ..failStatus = 503
+        ..failFromRequest = 1;
+      final tail = await playerGet(
+        session.url,
+        from: host.length - 100 * kib,
+      );
+      expect(tail.status, 302);
+      host.failStatus = null;
+      final stats = server.stats(session.token)!;
+      expect(stats.dead, isFalse);
+      final back = await playerGet(session.url, from: 1000, take: 1000);
+      expect(back.body, film(1000, 1000));
+    });
+  });
+
+  group('build 78: rates', () {
+    test('host and player rates are reported while the film moves', () async {
+      host.length = 48 * mib;
+      final server = await startProxy(capacity: 64 * mib, readAhead: 64 * mib);
+      final session = server.openSession('${host.base}/film.mkv');
+      var host0 = 0;
+      var client0 = 0;
+      final watch = Timer.periodic(const Duration(milliseconds: 20), (_) {
+        final stats = server.stats(session.token);
+        if (stats == null) return;
+        if (stats.hostRate > host0) host0 = stats.hostRate;
+        if (stats.clientRate > client0) client0 = stats.clientRate;
+      });
+      await playerGet(session.url, from: 0);
+      watch.cancel();
+      expect(host0, greaterThan(mib));
+      expect(client0, greaterThan(mib));
     });
   });
 

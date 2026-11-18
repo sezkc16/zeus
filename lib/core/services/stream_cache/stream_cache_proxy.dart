@@ -62,6 +62,17 @@ const int kStreamCacheReadAhead = 32 * kMiB;
 /// fetch instead of starting a new one at the host.
 const int kStreamCacheSkipAhead = 2 * kMiB;
 
+/// Build 78: see [StreamCacheProxyServer.sideMax]. mpv reads a
+/// Matroska film's index (a few hundred KiB to a few MiB at the very
+/// end) right after opening it, then goes back to the start.
+const int kStreamCacheSideMax = 8 * kMiB;
+
+/// Build 78: see [StreamCacheProxyServer.memoryKeep].
+const int kStreamCacheMemoryKeep = 4 * kMiB;
+
+/// Build 78: see [StreamCacheProxyServer.maxUnwritten].
+const int kStreamCacheMaxUnwritten = 48 * kMiB;
+
 /// A "film" shorter than this is not worth holding — and is far more
 /// likely a playlist or an error page than a film.
 const int kStreamCacheMinLength = 8 * kMiB;
@@ -77,9 +88,25 @@ class StreamCacheStats {
     required this.dead,
     required this.reason,
     required this.requests,
+    this.hostRate = 0,
+    this.clientRate = 0,
+    this.unwritten = 0,
+    this.sides = 0,
   });
 
-  /// Bytes on disk right now.
+  /// Build 78: bytes per second arriving from the host, and going out
+  /// to the player, over the last second.
+  final int hostRate;
+  final int clientRate;
+
+  /// Build 78: bytes received and not on the file yet.
+  final int unwritten;
+
+  /// Build 78: short side requests (the film's index) answered with
+  /// their own request to the host, leaving the window alone.
+  final int sides;
+
+  /// Bytes held right now.
   final int held;
 
   /// Bytes held past the player's reading point.
@@ -111,6 +138,10 @@ class StreamCacheStats {
     'misses': misses,
     'dead': dead,
     'reason': reason,
+    'hostRate': hostRate,
+    'clientRate': clientRate,
+    'unwritten': unwritten,
+    'sides': sides,
     'requests': <Object?>[
       for (final r in requests) <Object?>[r.atMs, r.offset, r.local],
     ],
@@ -142,6 +173,10 @@ class StreamCacheStats {
       dead: raw['dead'] == true,
       reason: raw['reason'] as String?,
       requests: requests,
+      hostRate: (raw['hostRate'] as num?)?.toInt() ?? 0,
+      clientRate: (raw['clientRate'] as num?)?.toInt() ?? 0,
+      unwritten: (raw['unwritten'] as num?)?.toInt() ?? 0,
+      sides: (raw['sides'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -170,6 +205,9 @@ class StreamCacheProxyServer {
     this.capacity = kStreamCacheCapacity,
     this.readAhead = kStreamCacheReadAhead,
     this.skipAhead = kStreamCacheSkipAhead,
+    this.sideMax = kStreamCacheSideMax,
+    this.memoryKeep = kStreamCacheMemoryKeep,
+    this.maxUnwritten = kStreamCacheMaxUnwritten,
     this.minLength = kStreamCacheMinLength,
     this.connectTimeout = const Duration(seconds: 10),
     this.responseTimeout = const Duration(seconds: 15),
@@ -181,6 +219,19 @@ class StreamCacheProxyServer {
   final int capacity;
   final int readAhead;
   final int skipAhead;
+
+  /// Build 78: a request outside the window for no more than this many
+  /// bytes (to the film's end, or a bounded range) is a side read.
+  /// 0 turns side reads off.
+  final int sideMax;
+
+  /// Build 78: how much already-written film stays in memory behind
+  /// the newest bytes.
+  final int memoryKeep;
+
+  /// Build 78: the host is paused while this much is waiting for the
+  /// disk.
+  final int maxUnwritten;
   final int minLength;
   final Duration connectTimeout;
   final Duration responseTimeout;
@@ -448,9 +499,17 @@ class StreamCacheProxyServer {
         store != null &&
         total != null &&
         start >= store.start &&
-        start <= store.end + skipAhead;
+        start <= session.end + skipAhead;
     if (local) {
       session.hits++;
+    } else if (store != null &&
+        total != null &&
+        _isSideRequest(start, range, total)) {
+      // Build 78: a short read far from the window (the index at the
+      // film's end, a bounded probe). It gets its own short request to
+      // the host; the window and the running fetch are left alone.
+      await _side(request, session, start, range, total);
+      return null;
     } else {
       final ok = await _anchor(session, start);
       if (!ok) {
@@ -459,7 +518,7 @@ class StreamCacheProxyServer {
       }
       session.misses++;
     }
-    session.noteRequest(start, local && start < session.store!.end);
+    session.noteRequest(start, local && start < session.end);
 
     final length = session.total!;
     var endExclusive = length;
@@ -507,7 +566,7 @@ class StreamCacheProxyServer {
   /// Feeds one player connection from the store until it has had
   /// everything it asked for, hangs up, or cannot be served any more.
   Future<void> _serve(_Session session, _Reader reader) async {
-    final buffer = Uint8List(256 * 1024);
+    Uint8List? buffer;
     var finished = false;
     try {
       while (!reader.closed && !session.dead) {
@@ -522,22 +581,39 @@ class StreamCacheProxyServer {
         // again from where it is.
         if (reader.offset < store.start) break;
         final available =
-            math.min(store.end, reader.endExclusive) - reader.offset;
+            math.min(session.end, reader.endExclusive) - reader.offset;
         if (available <= 0) {
           if (session.complete) break;
           session.pump(this);
           await session.waitForData(const Duration(seconds: 5));
           continue;
         }
-        final count = store.read(
-          reader.offset,
-          buffer,
-          math.min(available, buffer.length),
-        );
+        var count = 0;
+        if (reader.offset >= session.memStart) {
+          // Build 78: the newest bytes go to the player straight from
+          // memory — the disk is never between the host and the player.
+          count = session.writeFromMemory(reader, 256 * 1024);
+        } else {
+          // Older bytes (a renderer move going back) come off the file,
+          // without holding this isolate on the read.
+          final onDisk =
+              math.min(store.end, reader.endExclusive) - reader.offset;
+          if (onDisk <= 0) break;
+          buffer ??= Uint8List(256 * 1024);
+          count = await store.readAsync(
+            reader.offset,
+            buffer,
+            math.min(onDisk, buffer.length),
+          );
+          if (reader.closed || session.dead) break;
+          if (count > 0) {
+            reader.socket.add(Uint8List.sublistView(buffer, 0, count));
+          }
+        }
         if (count <= 0) break;
-        reader.socket.add(Uint8List.sublistView(buffer, 0, count));
         await reader.socket.flush();
         reader.offset += count;
+        session.clientRate.add(count);
         session.pump(this);
       }
     } catch (_) {
@@ -549,6 +625,129 @@ class StreamCacheProxyServer {
     }
   }
 
+  /// Build 78: whether a request outside the window is a short side
+  /// read rather than the player moving.
+  bool _isSideRequest(int start, _Range range, int total) {
+    if (sideMax <= 0) return false;
+    if (total - start <= sideMax) return true;
+    final end = range.end;
+    return end != null && end >= start && end - start + 1 <= sideMax;
+  }
+
+  /// Build 78: answers one short request with its own request to the
+  /// host, piped straight to the player.
+  Future<void> _side(
+    HttpRequest request,
+    _Session session,
+    int start,
+    _Range range,
+    int total,
+  ) async {
+    var endExclusive = total;
+    if (range.end != null) endExclusive = math.min(total, range.end! + 1);
+    if (endExclusive <= start) endExclusive = total;
+    final _Upstream upstream;
+    try {
+      upstream = await _openUpstream(session, start, remember: false);
+      if (upstream.total != total) {
+        _discard(upstream.response);
+        throw const _Unusable('length changed');
+      }
+    } catch (_) {
+      // Not this way: the player asks the host itself for this one.
+      await _redirect(request, session.origin);
+      return;
+    }
+    session.sides++;
+    session.noteRequest(start, false);
+    final socket = await request.response.detachSocket(writeHeaders: false);
+    try {
+      socket.setOption(SocketOption.tcpNoDelay, true);
+    } catch (_) {}
+    socket.add(
+      latin1.encode(
+        _responseHead(
+          ranged: range.present,
+          contentType: session.contentType,
+          start: start,
+          endExclusive: endExclusive,
+          total: total,
+        ),
+      ),
+    );
+    unawaited(_pipeSide(session, upstream.response, socket, endExclusive - start));
+  }
+
+  Future<void> _pipeSide(
+    _Session session,
+    HttpClientResponse response,
+    Socket socket,
+    int length,
+  ) async {
+    var left = length;
+    var hungUp = false;
+    final watch = socket.listen(
+      (_) {},
+      onDone: () => hungUp = true,
+      onError: (Object _) => hungUp = true,
+      cancelOnError: true,
+    );
+    var graceful = false;
+    try {
+      await for (final chunk in response) {
+        if (hungUp || session.dead) break;
+        final take = math.min(left, chunk.length);
+        socket.add(
+          take == chunk.length ? chunk : chunk.sublist(0, take),
+        );
+        await socket.flush();
+        session.clientRate.add(take);
+        left -= take;
+        if (left <= 0) {
+          graceful = true;
+          break;
+        }
+      }
+    } catch (_) {
+      // Either end went away.
+    } finally {
+      try {
+        await watch.cancel();
+      } catch (_) {}
+      try {
+        if (graceful) {
+          await socket.flush();
+          await socket.close();
+        }
+      } catch (_) {}
+      try {
+        socket.destroy();
+      } catch (_) {}
+    }
+  }
+
+  static String _responseHead({
+    required bool ranged,
+    required String? contentType,
+    required int start,
+    required int endExclusive,
+    required int total,
+  }) {
+    final head = StringBuffer()
+      ..write(
+        ranged ? 'HTTP/1.1 206 Partial Content\r\n' : 'HTTP/1.1 200 OK\r\n',
+      )
+      ..write('Content-Type: ${contentType ?? 'application/octet-stream'}\r\n')
+      ..write('Accept-Ranges: bytes\r\n');
+    if (ranged) {
+      head.write('Content-Range: bytes $start-${endExclusive - 1}/$total\r\n');
+    }
+    head
+      ..write('Content-Length: ${endExclusive - start}\r\n')
+      ..write('Connection: close\r\n\r\n');
+    return head.toString();
+  }
+
   // -------------------------------------------------------------------------
   // The host's side.
   // -------------------------------------------------------------------------
@@ -558,6 +757,18 @@ class StreamCacheProxyServer {
   /// begins again at [offset]. False when the host cannot be used this
   /// way — the film is then given up for good (see [_Session.kill]).
   Future<bool> _anchor(_Session session, int offset) async {
+    // Build 78: nothing may pick the old window's fetch up again while
+    // the new one is being set up.
+    session.anchoring = true;
+    try {
+      return await _anchorInner(session, offset);
+    } finally {
+      session.anchoring = false;
+      session.pump(this);
+    }
+  }
+
+  Future<bool> _anchorInner(_Session session, int offset) async {
     session.cancelFetch();
     for (final reader in session.readers.toList()) {
       reader.closed = true;
@@ -583,13 +794,19 @@ class StreamCacheProxyServer {
         ..total = upstream.total
         ..contentType = upstream.contentType;
       final store = session.store ??= RingStore.open(session.path, capacity);
+      // Anything still on its way to the file belongs to the old window.
+      session.dropMemory();
+      await store.idle();
+      if (session.dead) return false;
       store.reset(offset);
       session
+        ..memStart = offset
+        ..end = offset
         ..complete = false
         ..lastOffset = offset;
       _attach(session, upstream.response, sniff: known == null && offset == 0);
       final deadline = DateTime.now().add(responseTimeout);
-      while (!session.dead && !session.complete && store.end <= offset) {
+      while (!session.dead && !session.complete && session.end <= offset) {
         final left = deadline.difference(DateTime.now());
         if (left <= Duration.zero) throw const _Unusable('no data');
         await session.waitForData(left);
@@ -628,14 +845,10 @@ class StreamCacheProxyServer {
             return;
           }
         }
-        final store = session.store;
-        if (store == null) return;
-        try {
-          store.append(chunk);
-        } catch (_) {
-          session.kill('disk');
-          return;
-        }
+        if (session.store == null) return;
+        // Build 78: into memory first (the player is fed from there),
+        // and onto the disk behind it, off this isolate's thread.
+        session.take(chunk, this);
         fetch.received += chunk.length;
         session.failures = 0;
         session.notify();
@@ -652,7 +865,7 @@ class StreamCacheProxyServer {
     session.fetch = null;
     final store = session.store;
     final total = session.total;
-    if (store != null && total != null && store.end >= total) {
+    if (store != null && total != null && session.end >= total) {
       session.complete = true;
       session.notify();
       return;
@@ -678,10 +891,18 @@ class StreamCacheProxyServer {
         }
         final wait = waits[session.failures];
         if (wait > 0) await Future<void>.delayed(Duration(milliseconds: wait));
-        if (session.dead || session.fetch != null) return;
+        if (session.dead || session.fetch != null || session.anchoring) return;
         try {
-          final upstream = await _openUpstream(session, store.end);
-          if (session.dead) {
+          final from = session.end;
+          final window = session.generation;
+          final upstream = await _openUpstream(session, from);
+          // The window moved (or was picked up) while the host was
+          // answering: this connection is for a place nobody wants.
+          if (session.dead ||
+              session.anchoring ||
+              session.fetch != null ||
+              session.generation != window ||
+              session.end != from) {
             _discard(upstream.response);
             return;
           }
@@ -704,7 +925,11 @@ class StreamCacheProxyServer {
   /// following redirects the way ffmpeg does (same headers to the new
   /// place; later requests start at the last place that worked, and go
   /// back to the first address when that stops answering).
-  Future<_Upstream> _openUpstream(_Session session, int offset) async {
+  Future<_Upstream> _openUpstream(
+    _Session session,
+    int offset, {
+    bool remember = true,
+  }) async {
     final client = _client;
     if (client == null) throw const _Unusable('stopped');
     var uri = session.resolved ?? session.origin;
@@ -749,7 +974,7 @@ class StreamCacheProxyServer {
           _discard(response);
           throw const _Unusable('range');
         }
-        session.resolved = uri;
+        if (remember) session.resolved = uri;
         return _Upstream(
           response: response,
           total: range.$2,
@@ -852,6 +1077,50 @@ class _Upstream {
   final String? contentType;
 }
 
+class _Chunk {
+  _Chunk(this.offset, this.data);
+  final int offset;
+  final Uint8List data;
+  int get end => offset + data.length;
+}
+
+/// Bytes per second over the last second or so.
+class _Rate {
+  final Stopwatch _clock = Stopwatch()..start();
+  int _windowStart = 0;
+  int _bytes = 0;
+  int _last = 0;
+  int _lastAt = -1;
+
+  void add(int count) {
+    _roll();
+    _bytes += count;
+  }
+
+  void _roll() {
+    final now = _clock.elapsedMilliseconds;
+    final elapsed = now - _windowStart;
+    if (elapsed >= 1000) {
+      _last = (_bytes * 1000) ~/ elapsed;
+      _lastAt = now;
+      _windowStart = now;
+      _bytes = 0;
+    }
+  }
+
+  /// 0 when nothing has moved for a few seconds.
+  int get perSecond {
+    _roll();
+    final now = _clock.elapsedMilliseconds;
+    if (_lastAt < 0) {
+      // Not a full second in yet: what there is so far.
+      final elapsed = now - _windowStart;
+      return elapsed <= 0 ? 0 : (_bytes * 1000) ~/ elapsed;
+    }
+    return now - _lastAt > 3000 ? 0 : _last;
+  }
+}
+
 class _Fetch {
   StreamSubscription<List<int>>? subscription;
   bool paused = false;
@@ -942,11 +1211,126 @@ class _Session {
 
   _Fetch? fetch;
   bool refetching = false;
+  bool anchoring = false;
   bool complete = false;
   int failures = 0;
 
   final Set<_Reader> readers = <_Reader>{};
   int lastOffset = 0;
+
+  // Build 78: the newest part of the window, in memory. [end] is the
+  // window's real end; the file ([store]) follows it. Everything from
+  // [memStart] on is in [memory], and everything not on the file yet
+  // is at or past [memStart], so the two always meet.
+  final List<_Chunk> memory = <_Chunk>[];
+  int memStart = 0;
+  int end = 0;
+  int memBytes = 0;
+  int generation = 0;
+  bool _writing = false;
+  int sides = 0;
+  final _Rate hostRate = _Rate();
+  final _Rate clientRate = _Rate();
+
+  /// Bytes received from the host and not on the file yet.
+  int get unwritten => store == null ? 0 : math.max(0, end - store!.end);
+
+  /// A chunk from the host: held in memory, readers woken, the file
+  /// write queued.
+  void take(List<int> chunk, StreamCacheProxyServer server) {
+    if (chunk.isEmpty) return;
+    final data = chunk is Uint8List ? chunk : Uint8List.fromList(chunk);
+    memory.add(_Chunk(end, data));
+    end += data.length;
+    memBytes += data.length;
+    hostRate.add(data.length);
+    if (!_writing) unawaited(_write(server));
+  }
+
+  Future<void> _write(StreamCacheProxyServer server) async {
+    _writing = true;
+    final window = generation;
+    try {
+      while (!dead && window == generation) {
+        final store = this.store;
+        if (store == null) return;
+        final next = _chunkAt(store.end);
+        if (next == null) return;
+        final skip = store.end - next.offset;
+        await store.appendAsync(
+          skip == 0 ? next.data : Uint8List.sublistView(next.data, skip),
+        );
+        if (dead || window != generation) return;
+        // Keep a little of what is already on the file in memory too,
+        // so a reader right behind the newest bytes stays off the disk.
+        while (memory.length > 1 &&
+            memory.first.end <= store.end &&
+            memBytes - memory.first.data.length >= server.memoryKeep) {
+          memBytes -= memory.first.data.length;
+          memory.removeAt(0);
+          memStart = memory.first.offset;
+        }
+        pump(server);
+      }
+    } catch (_) {
+      if (window == generation) kill('disk');
+    } finally {
+      _writing = false;
+      // A window started while this one was finishing its last write.
+      if (!dead && window != generation && memory.isNotEmpty) {
+        unawaited(_write(server));
+      }
+    }
+  }
+
+  /// The chunk in [memory] holding [offset], or null.
+  _Chunk? _chunkAt(int offset) {
+    var low = 0;
+    var high = memory.length - 1;
+    while (low <= high) {
+      final mid = (low + high) >> 1;
+      final chunk = memory[mid];
+      if (offset < chunk.offset) {
+        high = mid - 1;
+      } else if (offset >= chunk.end) {
+        low = mid + 1;
+      } else {
+        return chunk;
+      }
+    }
+    return null;
+  }
+
+  /// Hands [reader] up to about [most] bytes from memory, starting at
+  /// its offset; returns how many.
+  int writeFromMemory(_Reader reader, int most) {
+    var offset = reader.offset;
+    var sent = 0;
+    while (sent < most && offset < reader.endExclusive) {
+      final chunk = _chunkAt(offset);
+      if (chunk == null) break;
+      final from = offset - chunk.offset;
+      final count = math.min(
+        chunk.data.length - from,
+        reader.endExclusive - offset,
+      );
+      reader.socket.add(
+        from == 0 && count == chunk.data.length
+            ? chunk.data
+            : Uint8List.sublistView(chunk.data, from, from + count),
+      );
+      offset += count;
+      sent += count;
+    }
+    return sent;
+  }
+
+  /// Forgets what is in memory (a new window is starting).
+  void dropMemory() {
+    generation++;
+    memory.clear();
+    memBytes = 0;
+  }
 
   bool dead = false;
   String? reason;
@@ -1008,20 +1392,26 @@ class _Session {
     if (dead) return;
     final store = this.store;
     if (store == null) return;
-    final lead = store.end - demand;
+    final lead = end - demand;
+    // Build 78: the host is also held back when the disk falls far
+    // behind it, so memory stays bounded.
+    final behind = unwritten;
     final fetch = this.fetch;
     if (fetch == null) {
-      if (!complete && !refetching && lead < server.readAhead) {
+      if (!complete && !refetching && !anchoring && lead < server.readAhead) {
         unawaited(server._refetch(this));
       }
       return;
     }
     final subscription = fetch.subscription;
     if (subscription == null) return;
-    if (!fetch.paused && lead >= server.readAhead) {
+    if (!fetch.paused &&
+        (lead >= server.readAhead || behind >= server.maxUnwritten)) {
       fetch.paused = true;
       subscription.pause();
-    } else if (fetch.paused && lead <= server.readAhead - server.readAhead ~/ 8) {
+    } else if (fetch.paused &&
+        lead <= server.readAhead - server.readAhead ~/ 8 &&
+        behind <= server.maxUnwritten ~/ 2) {
       fetch.paused = false;
       subscription.resume();
     }
@@ -1059,6 +1449,7 @@ class _Session {
     }
     readers.clear();
     notify();
+    dropMemory();
     final store = this.store;
     this.store = null;
     store?.close();
@@ -1071,8 +1462,12 @@ class _Session {
   StreamCacheStats stats() {
     final store = this.store;
     return StreamCacheStats(
-      held: store?.length ?? 0,
-      ahead: store == null ? 0 : math.max(0, store.end - demand),
+      held: store == null ? 0 : math.max(0, end - store.start),
+      ahead: store == null ? 0 : math.max(0, end - demand),
+      hostRate: hostRate.perSecond,
+      clientRate: clientRate.perSecond,
+      unwritten: unwritten,
+      sides: sides,
       total: total,
       hits: hits,
       misses: misses,

@@ -64,6 +64,16 @@ class FakeHost {
   /// open (a host that stalls), for requests from this index on.
   int? stallAfter;
 
+  /// Build 78: wait this long after each 32 KiB (a host with a speed).
+  Duration pace = Duration.zero;
+
+  /// Build 78: body bytes sent, per request (by its index in
+  /// [requests]).
+  final Map<int, int> sentBy = <int, int>{};
+
+  /// Build 78: connections the host still has open.
+  int get openConnections => _open.length;
+
   int get port => _server.port;
   String get base => 'http://127.0.0.1:$port';
 
@@ -204,6 +214,8 @@ class FakeHost {
         await socket.flush();
         at += count;
         sent += count;
+        sentBy[index] = sent;
+        if (pace > Duration.zero) await Future<void>.delayed(pace);
       }
       await socket.close();
     } catch (_) {
