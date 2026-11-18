@@ -152,9 +152,8 @@ Future<ProviderContainer> _pumpHost(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            disableAnimations: reducedMotion,
-          ),
+          data: MediaQuery.of(context)
+              .copyWith(disableAnimations: reducedMotion),
           child: child!,
         ),
         home: _Host(onClosed: onClosed),
@@ -165,7 +164,6 @@ Future<ProviderContainer> _pumpHost(
   await tester.pumpAndSettle();
   return container;
 }
-
 
 List<String> _order(List<_FakeProvider> list) => [
   for (final p in list) p.packageName,
@@ -261,33 +259,23 @@ void main() {
   });
 
   group('Select Provider dialog', () {
-    testWidgets('every provider row has a pin of 44 px or more; None has none', (
+    testWidgets('an unpinned row shows no pin at all; None has none', (
       tester,
     ) async {
       await _pumpHost(tester, onClosed: () {}, pins: _Pins());
-      final pin = find.byKey(const ValueKey('provider-pin-fake.provider.0'));
-      expect(pin, findsOneWidget);
-      // At least the 44 px target (Material pads it to 48).
-      expect(tester.getSize(pin).width, greaterThanOrEqualTo(44));
-      expect(tester.getSize(pin).height, greaterThanOrEqualTo(44));
+      expect(find.byIcon(Icons.push_pin), findsNothing);
+      expect(find.byIcon(Icons.push_pin_outlined), findsNothing);
+      expect(find.byType(IconButton), findsNothing);
       expect(
-        find.descendant(of: pin, matching: find.byIcon(Icons.push_pin_outlined)),
-        findsOneWidget,
-      );
-      // None is the first row and carries no pin.
-      expect(_top(tester, 'None'), lessThan(_top(tester, 'Provider 0')));
-      final noneTile = find.ancestor(
-        of: find.text('None'),
-        matching: find.byType(ListTile),
-      );
-      expect(
-        find.descendant(of: noneTile, matching: find.byType(IconButton)),
+        find.byKey(const ValueKey('provider-pin-fake.provider.0')),
         findsNothing,
       );
+      // None is the first row.
+      expect(_top(tester, 'None'), lessThan(_top(tester, 'Provider 0')));
     });
 
-    testWidgets('tapping the pin pins, saves, moves the row up - and does '
-        'not select or close', (tester) async {
+    testWidgets('press and hold pins, saves, moves the row up - and does '
+        'not select or close; hold again unpins', (tester) async {
       var closed = false;
       final pins = _Pins();
       final container = await _pumpHost(
@@ -295,11 +283,12 @@ void main() {
         onClosed: () => closed = true,
         pins: pins,
       );
-      expect(_top(tester, 'Provider 2'), greaterThan(_top(tester, 'Provider 1')));
-
-      await tester.tap(
-        find.byKey(const ValueKey('provider-pin-fake.provider.2')),
+      expect(
+        _top(tester, 'Provider 2'),
+        greaterThan(_top(tester, 'Provider 1')),
       );
+
+      await tester.longPress(find.text('Provider 2'));
       await tester.pumpAndSettle();
 
       expect(closed, isFalse);
@@ -310,24 +299,67 @@ void main() {
       expect(_top(tester, 'None'), lessThan(_top(tester, 'Provider 2')));
       expect(_top(tester, 'Provider 2'), lessThan(_top(tester, 'Provider 0')));
       final pin = find.byKey(const ValueKey('provider-pin-fake.provider.2'));
-      expect(
-        find.descendant(of: pin, matching: find.byIcon(Icons.push_pin)),
-        findsOneWidget,
-      );
-      final icon = tester.widget<Icon>(
-        find.descendant(of: pin, matching: find.byIcon(Icons.push_pin)),
-      );
-      expect(
-        icon.color,
-        Theme.of(tester.element(pin)).colorScheme.primary,
-      );
+      expect(pin, findsOneWidget);
+      final icon = tester.widget<Icon>(pin);
+      expect(icon.icon, Icons.push_pin);
+      expect(icon.color, Theme.of(tester.element(pin)).colorScheme.primary);
+      // Only the pinned row carries a pin.
+      expect(find.byIcon(Icons.push_pin), findsOneWidget);
 
-      // Unpin: back to its old place.
-      await tester.tap(pin);
+      // Hold again: unpinned, icon gone, back to its old place.
+      await tester.longPress(find.text('Provider 2'));
       await tester.pumpAndSettle();
+      expect(closed, isFalse);
       expect(pins.value, isEmpty);
-      expect(_top(tester, 'Provider 2'), greaterThan(_top(tester, 'Provider 1')));
+      expect(find.byIcon(Icons.push_pin), findsNothing);
+      expect(
+        _top(tester, 'Provider 2'),
+        greaterThan(_top(tester, 'Provider 1')),
+      );
+      expect(container.read(activeProviderProvider), isNull);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the pin on a pinned row is display only: a tap on it is a '
+        'tap on the row', (tester) async {
+      var closed = false;
+      final pins = _Pins(['fake.provider.1']);
+      final container = await _pumpHost(
+        tester,
+        onClosed: () => closed = true,
+        pins: pins,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('provider-pin-fake.provider.1')),
+      );
+      await tester.pumpAndSettle();
+      expect(pins.value, ['fake.provider.1']);
+      expect(closed, isTrue);
+      expect(
+        container.read(activeProviderProvider)?.packageName,
+        'fake.provider.1',
+      );
+    });
+
+    testWidgets('holding None does nothing; rows say Pin / Unpin to a '
+        'screen reader', (tester) async {
+      var closed = false;
+      final pins = _Pins(['fake.provider.1']);
+      await _pumpHost(tester, onClosed: () => closed = true, pins: pins);
+      await tester.longPress(find.text('None'));
+      await tester.pumpAndSettle();
+      expect(closed, isFalse);
+      expect(pins.value, ['fake.provider.1']);
+      Semantics hold(String name) =>
+          tester.widget<Semantics>(find.byKey(ValueKey('provider-hold-$name')));
+      expect(
+        hold('fake.provider.1').properties.hintOverrides?.onLongPressHint,
+        'Unpin',
+      );
+      expect(
+        hold('fake.provider.0').properties.hintOverrides?.onLongPressHint,
+        'Pin',
+      );
     });
 
     testWidgets('the row slides to its new place; reduced motion jumps', (
@@ -335,9 +367,7 @@ void main() {
     ) async {
       await _pumpHost(tester, onClosed: () {}, pins: _Pins());
       final settledTop = _top(tester, 'Provider 0');
-      await tester.tap(
-        find.byKey(const ValueKey('provider-pin-fake.provider.3')),
-      );
+      await tester.longPress(find.text('Provider 3'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 60));
       // Mid-slide: Provider 3 is on its way up, not yet at the top slot.
@@ -356,9 +386,7 @@ void main() {
         reducedMotion: true,
       );
       final settledTop = _top(tester, 'Provider 0');
-      await tester.tap(
-        find.byKey(const ValueKey('provider-pin-fake.provider.3')),
-      );
+      await tester.longPress(find.text('Provider 3'));
       await tester.pump();
       expect(_top(tester, 'Provider 3'), settledTop);
       await tester.pumpAndSettle();
@@ -392,7 +420,10 @@ void main() {
       expect(name.overflow, isNull);
       expect(name.maxLines, 1);
       expect(
-        find.ancestor(of: find.text('Provider 0'), matching: find.byType(FittedBox)),
+        find.ancestor(
+          of: find.text('Provider 0'),
+          matching: find.byType(FittedBox),
+        ),
         findsOneWidget,
       );
     });

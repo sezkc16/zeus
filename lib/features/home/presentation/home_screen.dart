@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
+
 import '../../../core/cloudstream/cloudstream_provider.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -351,10 +353,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ],
             ref.watch(
               homeRowPrefsProvider.select(
-                (prefs) => prefs[homeRowsSourceKey(
-                  ref.read(activeProviderProvider)?.packageName,
-                  fellBack: state.fellBackFrom != null,
-                )],
+                (prefs) =>
+                    prefs[homeRowsSourceKey(
+                      ref.read(activeProviderProvider)?.packageName,
+                      fellBack: state.fellBackFrom != null,
+                    )],
               ),
             ),
           )
@@ -374,11 +377,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
         ),
       ),
-      HomeNoProvider() => _buildErrorState(
-        context,
-        l10n.noPluginsMessage,
-        ref,
-      ),
+      HomeNoProvider() => _buildErrorState(context, l10n.noPluginsMessage, ref),
       HomeOffline() => _buildErrorState(context, l10n.noInternetError, ref),
       HomeError(:final message) => _checkGate(
         _buildErrorState(context, message, ref),
@@ -403,10 +402,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       // Play opens details and starts playback once the
                       // item's streams resolve (DetailsRoute autoPlay).
                       DetailsRoute(
-                        $extra: DetailsRouteExtra(
-                          item: item,
-                          autoPlay: true,
-                        ),
+                        $extra: DetailsRouteExtra(item: item, autoPlay: true),
                       ).push<void>(context);
                     },
                     onTap: (item) {
@@ -427,10 +423,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     fullBleed: true,
                     onPlay: (item) {
                       DetailsRoute(
-                        $extra: DetailsRouteExtra(
-                          item: item,
-                          autoPlay: true,
-                        ),
+                        $extra: DetailsRouteExtra(item: item, autoPlay: true),
                       ).push<void>(context);
                     },
                     onTap: (item) {
@@ -469,8 +462,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       0,
                     ),
                     child: CardsWrapper(
-                      onTap: () =>
-                          const ExtensionsRoute().push<void>(context),
+                      onTap: () => const ExtensionsRoute().push<void>(context),
                       borderRadius: BorderRadius.circular(16),
                       child: Container(
                         padding: const EdgeInsets.all(12),
@@ -481,9 +473,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               .withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.outline.withValues(alpha: 0.1),
+                            color: Theme.of(context).colorScheme.outline
+                                .withValues(alpha: 0.1),
                           ),
                         ),
                         child: Row(
@@ -493,9 +484,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               height: 40,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .primary
+                                color: Theme.of(context).colorScheme.primary
                                     .withValues(alpha: 0.16),
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -520,9 +509,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                   Text(
                                     l10n.addPluginSubtitle,
                                     style: TextStyle(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
                                       fontSize: 12.5,
                                     ),
                                   ),
@@ -531,9 +520,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                             ),
                             Icon(
                               Icons.chevron_right_rounded,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
                           ],
                         ),
@@ -549,51 +538,48 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               // empty and Home shows the hero alone. Trakt's synced
               // progress belongs to the Continue Watching row.
               SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    if (index >= homeRows.length) return null;
-                    final rowId = homeRows[index];
-                    if (rowId == kHomeRowContinueWatching) {
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (watchHistoryEnabled && history.isNotEmpty)
-                            ContinueWatchingSection(
-                              title: l10n.continueWatching,
-                              items: history.cast<HistoryItem>(),
-                            ),
-                          if (syncedProgressAsync.asData?.value.isNotEmpty ==
-                              true)
-                            SyncedProgressSection(
-                              title: 'Synced from Trakt',
-                              items: syncedProgressAsync.asData!.value,
-                              onItemTap: (item) {
-                                // Pre-fill search query and navigate to
-                                // Search tab
-                                ref
-                                    .read(searchQueryProvider.notifier)
-                                    .set(item.title);
-                                const SearchRoute().go(context);
-                              },
-                            ),
-                        ],
-                      );
-                    }
-                    return MediaHorizontalList(
-                      title: rowId,
-                      mediaList: data[rowId] ?? const [],
-                      category: ViewAllCategory.providerContent,
-                      showViewAll: true,
-                      onTap: (item) {
-                        DetailsRoute($extra: DetailsRouteExtra(item: item))
-                            .push<void>(context);
-                      },
-                      heroTagPrefix: 'home',
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  if (index >= homeRows.length) return null;
+                  final rowId = homeRows[index];
+                  if (rowId == kHomeRowContinueWatching) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (watchHistoryEnabled && history.isNotEmpty)
+                          ContinueWatchingSection(
+                            title: l10n.continueWatching,
+                            items: history.cast<HistoryItem>(),
+                          ),
+                        if (syncedProgressAsync.asData?.value.isNotEmpty ==
+                            true)
+                          SyncedProgressSection(
+                            title: 'Synced from Trakt',
+                            items: syncedProgressAsync.asData!.value,
+                            onItemTap: (item) {
+                              // Pre-fill search query and navigate to
+                              // Search tab
+                              ref
+                                  .read(searchQueryProvider.notifier)
+                                  .set(item.title);
+                              const SearchRoute().go(context);
+                            },
+                          ),
+                      ],
                     );
-                  },
-                  childCount: homeRows.length,
-                ),
+                  }
+                  return MediaHorizontalList(
+                    title: rowId,
+                    mediaList: data[rowId] ?? const [],
+                    category: ViewAllCategory.providerContent,
+                    showViewAll: true,
+                    onTap: (item) {
+                      DetailsRoute($extra: DetailsRouteExtra(item: item))
+                          .push<void>(context);
+                    },
+                    heroTagPrefix: 'home',
+                  );
+                }, childCount: homeRows.length),
               ),
 
               SliverPadding(
@@ -1172,6 +1158,9 @@ class _ProviderSelectorDialogState extends State<_ProviderSelectorDialog> {
                                   title: Text(l10n.none),
                                   leading: const Radio<String?>(value: null),
                                   autofocus: index == targetIndex,
+                                  // None cannot be pinned: a hold does
+                                  // nothing (and is not taken as a tap).
+                                  onLongPress: () {},
                                   onTap: () {
                                     ref
                                         .read(activeProviderProvider.notifier)
@@ -1189,11 +1178,15 @@ class _ProviderSelectorDialogState extends State<_ProviderSelectorDialog> {
                                   ? index - 1
                                   : index];
                           final isDebug = p.isDebug;
-                          final cloudStream = p is CloudStreamProvider ? p : null;
+                          final cloudStream = p is CloudStreamProvider
+                              ? p
+                              : null;
                           // A CloudStream extension can register several providers (one
                           // plugin, "Netflix" and "Prime Video"): then name the extension too.
-                          final isSubprovider = p.packageName.contains('::') ||
-                              (cloudStream != null && cloudStream.plugin.providers.length > 1);
+                          final isSubprovider =
+                              p.packageName.contains('::') ||
+                              (cloudStream != null &&
+                                  cloudStream.plugin.providers.length > 1);
                           String pluginTag = '';
                           if (cloudStream != null) {
                             pluginTag = cleanPluginName(cloudStream.pluginName);
@@ -1213,115 +1206,118 @@ class _ProviderSelectorDialogState extends State<_ProviderSelectorDialog> {
 
                           final pinned = pins.contains(p.packageName);
                           final scheme = Theme.of(context).colorScheme;
-                          final row = SizedBox(
-                            height: 56.0,
-                            child: Center(
-                              child: ListTile(
-                                autofocus: index == targetIndex,
-                                // The pin: its own 44 px target. A tap on
-                                // it pins or unpins only - it never picks
-                                // the provider or closes the dialog.
-                                trailing: IconButton(
-                                  key: ValueKey('provider-pin-${p.packageName}'),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints.tightFor(
-                                    width: 44,
-                                    height: 44,
-                                  ),
-                                  tooltip: pinned ? 'Unpin' : 'Pin',
-                                  icon: Icon(
-                                    pinned
-                                        ? Icons.push_pin
-                                        : Icons.push_pin_outlined,
-                                    size: 22,
-                                    color: pinned
-                                        ? scheme.primary
-                                        : scheme.onSurfaceVariant,
-                                  ),
-                                  onPressed: () =>
-                                      _togglePin(ref, p.packageName),
-                                ),
-                                title: Row(
-                                  children: [
-                                    // A long name shrinks to fit; it is
-                                    // never cut off with an ellipsis.
-                                    Flexible(
-                                      child: FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        alignment:
-                                            AlignmentDirectional.centerStart,
-                                        child: Text(
-                                          p.name,
-                                          maxLines: 1,
-                                          softWrap: false,
-                                        ),
-                                      ),
-                                    ),
-                                    if (isSubprovider) ...[
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        constraints: const BoxConstraints(
-                                          maxWidth: 120,
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .secondaryContainer,
-                                          borderRadius: BorderRadius.circular(
-                                            4,
+                          final row = Semantics(
+                            key: ValueKey('provider-hold-${p.packageName}'),
+                            onLongPressHint: pinned ? 'Unpin' : 'Pin',
+                            child: SizedBox(
+                              height: 56.0,
+                              child: Center(
+                                child: ListTile(
+                                  autofocus: index == targetIndex,
+                                  // Pins work as in CloudStream (build 82):
+                                  // press and hold a row to pin it, press
+                                  // and hold again to unpin. An unpinned
+                                  // row shows no pin at all; a pinned row
+                                  // shows a filled pin that is display
+                                  // only - a tap on it is a tap on the row.
+                                  trailing: pinned
+                                      ? ExcludeSemantics(
+                                          child: Icon(
+                                            Icons.push_pin,
+                                            key: ValueKey(
+                                              'provider-pin-${p.packageName}',
+                                            ),
+                                            size: 22,
+                                            color: scheme.primary,
+                                          ),
+                                        )
+                                      : null,
+                                  onLongPress: () {
+                                    unawaited(HapticFeedback.lightImpact());
+                                    _togglePin(ref, p.packageName);
+                                  },
+                                  title: Row(
+                                    children: [
+                                      // A long name shrinks to fit; it is
+                                      // never cut off with an ellipsis.
+                                      Flexible(
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          alignment:
+                                              AlignmentDirectional.centerStart,
+                                          child: Text(
+                                            p.name,
+                                            maxLines: 1,
+                                            softWrap: false,
                                           ),
                                         ),
-                                        child: Text(
-                                          pluginTag,
-                                          style: TextStyle(
-                                            fontSize: 10,
+                                      ),
+                                      if (isSubprovider) ...[
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          constraints: const BoxConstraints(
+                                            maxWidth: 120,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
                                             color: Theme.of(context)
                                                 .colorScheme
-                                                .onSecondaryContainer,
-                                            fontWeight: FontWeight.w500,
+                                                .secondaryContainer,
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                          child: Text(
+                                            pluginTag,
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .onSecondaryContainer,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
-                                      ),
+                                      ],
+                                      if (isDebug) ...[
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 4,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.red,
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            l10n.debug,
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ],
-                                    if (isDebug) ...[
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 4,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.red,
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          l10n.debug,
-                                          style: const TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
+                                  ),
+                                  leading: Radio<String?>(value: p.packageName),
+                                  onTap: () {
+                                    ref
+                                        .read(activeProviderProvider.notifier)
+                                        .set(p);
+                                    Navigator.pop(context);
+                                    ref.invalidate(homeDataProvider);
+                                  },
                                 ),
-                                leading: Radio<String?>(value: p.packageName),
-                                onTap: () {
-                                  ref
-                                      .read(activeProviderProvider.notifier)
-                                      .set(p);
-                                  Navigator.pop(context);
-                                  ref.invalidate(homeDataProvider);
-                                },
                               ),
                             ),
                           );
