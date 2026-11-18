@@ -15,6 +15,7 @@ import '../../../settings/presentation/player_settings_provider.dart';
 import '../../domain/live_window.dart';
 import '../../domain/side_car_subtitles.dart';
 import '../../domain/skip_segments.dart';
+import '../../domain/step_seek.dart';
 import '../../domain/volume_routing.dart';
 import '../player_platform_service.dart';
 import '../player_brightness.dart';
@@ -577,16 +578,17 @@ class _VlcPlayerControlsState extends ConsumerState<VlcPlayerControls> {
   /// where the last one left off instead of jumping back to 1.0.
   double _pinchStartScale = 1.0;
 
-  /// Where the next relative seek counts from while the engine has not yet
-  /// published the last one. Without it a second press before the engine's
-  /// read-back arrives starts from the stale position and undoes the first.
-  /// Same window as the progress bar's latch, so the two agree on when the
-  /// controller is the truth again.
-  Duration? _seekBase;
-
-  /// The published position the current chain started from, for the toast.
-  Duration? _seekOrigin;
-  Timer? _seekBaseReset;
+  /// Step-seek coalescing (build 86): rapid ±10 s taps accumulate into
+  /// ONE seek to the final target, instead of one seek per tap — libVLC's
+  /// prefetch empties its window on a seek past the window's end and
+  /// re-reads from the host, so three quick taps cost three re-fetches.
+  /// The chain counts from the running target (the engine's published
+  /// position lags the seek by a round trip, so counting from it would
+  /// send the chain backwards — the old `_seekBase`, now owned by the
+  /// coalescer). An absolute seek rebases the chain (see
+  /// [_rebaseSeekChain]). No `onStep`: the seek burst is deliberately not
+  /// shown on this engine (see [_showSeekBurst]).
+  late final StepSeekCoalescer _stepSeeks;
 
   /// The controller the progress bar's drag or D-pad burst is holding up, if
   /// one is.
@@ -646,6 +648,9 @@ class _VlcPlayerControlsState extends ConsumerState<VlcPlayerControls> {
   @override
   void initState() {
     super.initState();
+    _stepSeeks = StepSeekCoalescer(
+      onCommit: widget.controller.seekTo,
+    );
     // Defer setFit until the controller is attached to the native player view
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -845,7 +850,8 @@ class _VlcPlayerControlsState extends ConsumerState<VlcPlayerControls> {
     unawaited(_system?.setPlayerShown(false) ?? Future<void>.value());
     unawaited(_systemChanges?.cancel() ?? Future<void>.value());
     _system?.dispose();
-    _seekBaseReset?.cancel();
+    // Build 86: a pending step seek must never fire after dispose.
+    _stepSeeks.dispose();
     _pauseRead?.cancel();
     _ownChrome?.dispose();
     _sink.dispose();
@@ -1645,7 +1651,7 @@ class _VlcPlayerControlsState extends ConsumerState<VlcPlayerControls> {
   /// A full height is 90 seconds — the same scale the horizontal
   /// swipe-seek uses per full width — so the two seek gestures agree with
   /// each other. Up is forward. Each update seeks from the running target
-  /// ([_seekBy]'s `_seekBase`), so a run of updates adds up instead of
+  /// (the coalescer's base), so a run of updates adds up instead of
   /// re-seeking from a stale position.
   ///
   /// The rail sits on the right edge, the volume rail's side, and shows the
@@ -1655,7 +1661,7 @@ class _VlcPlayerControlsState extends ConsumerState<VlcPlayerControls> {
     final delta = Duration(milliseconds: (travel * 90000).round());
     if (delta == Duration.zero) return;
     _seekBy(delta);
-    final target = _seekBase ?? widget.controller.value.position;
+    final target = _stepSeeks.base ?? widget.controller.value.position;
     final duration = widget.controller.value.duration;
     _rail.show(
       PlayerRail(
@@ -1944,20 +1950,15 @@ class _VlcPlayerControlsState extends ConsumerState<VlcPlayerControls> {
   /// seekTo rejects a negative position and overshooting the end would trip the
   /// end-of-media handler.
   ///
-  /// Presses within [_seekBase]'s window chain: the second step counts from
-  /// the first target, not from the position the engine last published, and
-  /// the readout shows the offset of the whole chain. The window is the one the
-  /// progress bar latches its thumb for, and it is longer than the
-  /// controller's stall delay on purpose - a chain the engine is slow to
-  /// honour gets its spinner before the base falls back to the truth.
-  ///
-  /// Every relative seek reports itself the same way: the burst, on the side
-  /// it moved towards. There used to be a second form - a centred pill
-  /// reading `+10s` - for the callers that are not aimed at half the screen,
-  /// which meant the double tap and the button under the viewer's thumb said
-  /// the identical thing two different ways. The side is a property of the
-  /// *seek*, not of the gesture that asked for it, so the direction carries it
-  /// for a key and a wheel just as well as for a tap.
+  /// Build 86: rapid taps coalesce (see [StepSeekCoalescer]). Presses
+  /// within the chain's window count from the first target, not from the
+  /// position the engine last published, and no seek is sent until the
+  /// taps stop for 150 ms — one seek to the final target instead of one
+  /// per tap. libVLC has no keyframe-seek API, so the one seek is still
+  /// exact; what makes it fast is that it is ONE seek into data the
+  /// prefetch already holds (and, on iOS, through the stream cache proxy
+  /// — see the screen's `_proxyHandle`), instead of a seek per tap, each
+  /// emptying the prefetch window and re-fetching.
   void _seekBy(Duration delta) {
     final value = widget.controller.value;
     if (widget.isLive) return _stepInLiveWindow(delta, value);
@@ -1968,16 +1969,11 @@ class _VlcPlayerControlsState extends ConsumerState<VlcPlayerControls> {
     final here = value.isPictureHeld
         ? widget.controller.pendingSeekTarget.value ?? value.position
         : value.position;
-    final origin = _seekBase == null ? here : _seekOrigin!;
-    var target = (_seekBase ?? here) + delta;
-    if (target < Duration.zero) target = Duration.zero;
-    final duration = value.duration;
-    if (duration > Duration.zero && target > duration) target = duration;
-    _seekBase = target;
-    _seekOrigin = origin;
-    _armSeekBaseReset();
-    widget.controller.seekTo(target);
-    _showSeekBurst(delta, target - origin);
+    _stepSeeks.step(
+      position: here,
+      delta: delta,
+      duration: value.duration,
+    );
   }
 
   /// A live stream steps inside the window its server still lists (spec
@@ -2016,6 +2012,13 @@ class _VlcPlayerControlsState extends ConsumerState<VlcPlayerControls> {
   /// number is the chain's cumulative [offset] measured in that same
   /// direction. Where a reversal has carried the chain back past its origin
   /// the number goes negative and says so.
+  /// Every relative seek reports itself the same way: the burst, on the side
+  /// it moved towards. There used to be a second form - a centred pill
+  /// reading `+10s` - for the callers that are not aimed at half the screen,
+  /// which meant the double tap and the button under the viewer's thumb said
+  /// the identical thing two different ways. The side is a property of the
+  /// *seek*, not of the gesture that asked for it, so the direction carries it
+  /// for a key and a wheel just as well as for a tap.
   /// The seek burst ("+10s" / "−10s") is deliberately not shown: the viewer
   /// asked for the seek without the centre pop-up, on both engines. The
   /// seek itself still lands (see [_seekBy]); only the burst is gone.
@@ -2024,28 +2027,15 @@ class _VlcPlayerControlsState extends ConsumerState<VlcPlayerControls> {
   /// Adopts [target] as the position the next relative step counts from.
   ///
   /// Every absolute seek the controls can see - a scrubber drag, a track tap,
-  /// a swipe release, the skip button - moves playback somewhere [_seekBase]
+  /// a swipe release, the skip button - moves playback somewhere the chain
   /// knows nothing about, and the engine will not publish it for a round trip,
   /// so the next arrow would count from a stale position. The seek that just
   /// happened is the truth, so it becomes the base.
-  void _rebaseSeekChain(Duration target) {
-    _seekBase = target;
-    _seekOrigin = target;
-    _armSeekBaseReset();
-  }
-
-  /// One window for the whole chain, restarted by every seek that feeds it.
-  void _armSeekBaseReset() {
-    _seekBaseReset?.cancel();
-    _seekBaseReset = Timer(
-      widget.controller.stallIndicatorDelay + const Duration(milliseconds: 500),
-      () {
-        _seekBaseReset = null;
-        _seekBase = null;
-        _seekOrigin = null;
-      },
-    );
-  }
+  ///
+  /// A pending debounced step seek is cancelled outright (build 86): the
+  /// absolute seek is the truth now, and sending the stale step after it
+  /// would jump the film back.
+  void _rebaseSeekChain(Duration target) => _stepSeeks.rebase(target);
 
   /// The progress bar has taken the position: hold the chrome up for as long
   /// as the drag or the burst lasts.

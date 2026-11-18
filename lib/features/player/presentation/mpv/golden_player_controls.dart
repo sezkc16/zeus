@@ -51,6 +51,7 @@ import '../../../settings/presentation/player_settings_provider.dart';
 import '../../../skip/data/skip_service.dart';
 import '../../domain/skip_segments.dart';
 import '../../domain/sleep_timer.dart';
+import '../../domain/step_seek.dart';
 import '../player_brightness.dart';
 import '../vlc/chrome_visibility_controller.dart';
 import '../vlc/panel/player_panel_data.dart';
@@ -59,6 +60,7 @@ import 'golden_drawer.dart';
 import 'golden_episodes_drawer.dart';
 import 'golden_options_drawer.dart';
 import 'golden_video_drawer.dart';
+import 'mpv_vlc_controller.dart';
 import 'seek_band.dart';
 import 'golden_player_theme.dart';
 import 'golden_sleep_timer.dart';
@@ -188,6 +190,7 @@ class GoldenPlayerControls extends ConsumerStatefulWidget {
     this.onPictureChanged,
     this.videoIsHdr,
     this.sleepTimer,
+    this.onDrawerChanged,
     super.key,
   });
 
@@ -195,6 +198,14 @@ class GoldenPlayerControls extends ConsumerStatefulWidget {
   /// the "Sleep timer" picker and the bottom bar shows the remaining
   /// time while one is armed. Null: neither renders.
   final SleepTimer? sleepTimer;
+
+  /// A drawer opened or closed (build 86): the open drawer's width in
+  /// logical pixels, 0 when none is open. The screen shifts the caption
+  /// left by it, so a caption is never hidden behind a drawer — see
+  /// `mpvSubtitleViewConfiguration`'s `drawerWidth`. Fires for ANY
+  /// drawer, not only Subtitle style: every drawer hides the caption's
+  /// right half the same way.
+  final ValueChanged<double>? onDrawerChanged;
 
   /// The mpv-backed controller (the adapter).
   final VlcPlayerController controller;
@@ -301,6 +312,24 @@ class _GoldenPlayerControlsState
   /// player is moving into, or null when no flash is up.
   IconData? _centerFlashIcon;
   Timer? _centerFlashTimer;
+
+  /// Step-seek coalescing (build 86): rapid ±10 s taps accumulate into
+  /// ONE seek to the final target, instead of one seek per tap — each
+  /// exact seek re-seeks the engine, so three quick taps cost three
+  /// seeks. The chain counts from the running target (the engine's
+  /// published position lags the seek by a round trip), and the one seek
+  /// is a keyframe seek (see [MpvVlcController.seekToKeyframe]): it lands
+  /// on the keyframe at or before the target instead of decoding forward
+  /// seconds of 4K to the exact frame. An absolute seek — scrubber,
+  /// swipe, rail, skip — rebases the chain (see [_rebaseSeekChain]).
+  late final StepSeekCoalescer _stepSeeks;
+
+  /// The step-seek badge ("+20s" / "−10s"), shown at once on every tap
+  /// so the tap feels instant while the one seek is still 150 ms away,
+  /// or null when no badge is up. Same pill shape as the swipe-seek
+  /// preview, centred.
+  String? _stepSeekLabel;
+  Timer? _stepSeekLabelTimer;
 
   /// A seekbar drag in flight, and its preview target.
   bool _seeking = false;
@@ -418,15 +447,51 @@ class _GoldenPlayerControlsState
     widget.chrome.poke();
   }
 
+  /// Seeks relative to the current position, clamped at both ends because
+  /// seekTo rejects a negative position and overshooting the end would trip the
+  /// end-of-media handler.
+  ///
+  /// Build 86: rapid taps coalesce (see [StepSeekCoalescer]). A second step
+  /// inside 150 ms counts from the first step's target, not from the position
+  /// the engine last published, and no seek is sent until the taps stop — one
+  /// keyframe seek to the final target instead of one per tap. The badge shows
+  /// the chain's accumulated offset at once, so the tap feels instant.
   void _seekBy(Duration delta) {
     final value = widget.controller.value;
     if (!value.isSeekable || value.duration <= Duration.zero) return;
-    var target = value.position + delta;
-    if (target < Duration.zero) target = Duration.zero;
-    if (target > value.duration) target = value.duration;
-    unawaited(widget.controller.seekTo(target));
+    _stepSeeks.step(
+      position: value.position,
+      delta: delta,
+      duration: value.duration,
+    );
     widget.chrome.keepAlive();
   }
+
+  /// The step-seek badge: the chain's cumulative offset ("+20s" /
+  /// "−10s"), shown at once and held 700 ms, the centre flash's own
+  /// length, so a run of taps keeps one badge up that reads the whole
+  /// chain.
+  void _showStepSeekBadge(Duration offset) {
+    final seconds = offset.inSeconds;
+    final label = seconds < 0 ? '${seconds}s' : '+${seconds}s';
+    _stepSeekLabelTimer?.cancel();
+    setState(() => _stepSeekLabel = label);
+    _stepSeekLabelTimer = Timer(const Duration(milliseconds: 700), () {
+      if (!mounted) return;
+      setState(() => _stepSeekLabel = null);
+    });
+  }
+
+  /// Adopts [target] as the position the next relative step counts from.
+  ///
+  /// Every absolute seek the controls can see — a scrubber drag, a swipe
+  /// release, a rail drag, the skip button — moves playback somewhere the
+  /// chain knows nothing about, and the engine will not publish it for a
+  /// round trip, so the next step would count from a stale position. A
+  /// pending debounced step seek is cancelled outright: the absolute seek
+  /// is the truth now, and sending the stale step after it would jump the
+  /// film back. The seek that just happened becomes the base.
+  void _rebaseSeekChain(Duration target) => _stepSeeks.rebase(target);
 
   void _doubleTap(double dx) {
     final width = context.size?.width ?? 0;
@@ -639,6 +704,20 @@ class _GoldenPlayerControlsState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _stepSeeks = StepSeekCoalescer(
+      onCommit: (target) {
+        // One keyframe seek to the final target (see
+        // [MpvVlcController.seekToKeyframe]); an exact seek where the
+        // controller cannot take the command.
+        final controller = widget.controller;
+        if (controller is MpvVlcController) {
+          unawaited(controller.seekToKeyframe(target));
+        } else {
+          unawaited(controller.seekTo(target));
+        }
+      },
+      onStep: _showStepSeekBadge,
+    );
   }
 
   @override
@@ -876,6 +955,9 @@ class _GoldenPlayerControlsState
     final target = _seekPreview;
     setState(() => _seeking = false);
     widget.chrome.release();
+    // Build 86: an absolute seek cancels a pending debounced step seek
+    // and becomes the chain's base.
+    _rebaseSeekChain(target);
     unawaited(widget.controller.seekTo(target));
     widget.chrome.keepAlive();
   }
@@ -1046,6 +1128,11 @@ class _GoldenPlayerControlsState
         final total = duration.inMilliseconds / 1000.0;
         final target = (_dragStart + travel * 90).clamp(0.0, total);
         _dragStart = target;
+        // Build 86: a rail drag is an absolute seek — it cancels a
+        // pending debounced step seek and becomes the chain's base.
+        _rebaseSeekChain(
+          Duration(milliseconds: (target * 1000).round()),
+        );
         unawaited(
           widget.controller.seekTo(
             Duration(milliseconds: (target * 1000).round()),
@@ -1103,13 +1190,23 @@ class _GoldenPlayerControlsState
     if (_drawer == kind) return;
     final wasOpen = _drawer != _GoldenDrawerKind.none;
     setState(() => _drawer = kind);
-    if (!wasOpen) widget.chrome.poke(hold: true);
+    // Build 86: the screen shifts the caption left by the drawer's
+    // width while it is open. Only on a change of openness: switching
+    // from one drawer to another keeps the same width, so the caption
+    // does not re-shift.
+    if (!wasOpen) {
+      widget.chrome.poke(hold: true);
+      widget.onDrawerChanged?.call(
+        goldenDrawerWidth(MediaQuery.sizeOf(context).width),
+      );
+    }
   }
 
   void _closeDrawer() {
     if (_drawer == _GoldenDrawerKind.none) return;
     setState(() => _drawer = _GoldenDrawerKind.none);
     widget.chrome.release();
+    widget.onDrawerChanged?.call(0);
   }
 
   // -- fit / speed / volume ----------------------------------------------------
@@ -1156,10 +1253,14 @@ class _GoldenPlayerControlsState
       widget.onSkipOutro!.call();
       return;
     }
+    // Build 86: a skip is an absolute seek — it cancels a pending
+    // debounced step seek and becomes the chain's base.
+    final skipTarget = Duration(
+      milliseconds: (segment.endTime * 1000).round(),
+    );
+    _rebaseSeekChain(skipTarget);
     unawaited(
-      widget.controller.seekTo(
-        Duration(milliseconds: (segment.endTime * 1000).round()),
-      ),
+      widget.controller.seekTo(skipTarget),
     );
     widget.chrome.poke();
   }
@@ -1289,6 +1390,33 @@ class _GoldenPlayerControlsState
               ),
               child: Text(
                 _swipeSeekLabel,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+
+        // The step-seek badge (build 86): the coalesced chain's offset
+        // ("+20s" / "−10s") the moment a ±10 s tap lands, so the tap
+        // feels instant while the one seek is still 150 ms away. Same
+        // pill shape as the swipe-seek preview, centred, over the video,
+        // chrome or not.
+        if (_stepSeekLabel != null)
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.65),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                _stepSeekLabel!,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -1450,6 +1578,11 @@ class _GoldenPlayerControlsState
                                     setState(() => _seekPreview = target);
                                   },
                                   onSeekEnd: (target) async {
+                                    // Build 86: a scrub is an absolute
+                                    // seek — it cancels a pending debounced
+                                    // step seek and becomes the chain's
+                                    // base.
+                                    _rebaseSeekChain(target);
                                     await widget.controller.seekTo(target);
                                     if (mounted) {
                                       setState(() => _seeking = false);
@@ -1650,6 +1783,10 @@ class _GoldenPlayerControlsState
           onClose: _closeDrawer,
           onSubtitlePicked: widget.onSubtitlePicked,
           subtitleTarget: widget.panelData.value.subtitleTarget,
+          // Build 86: the live caption line, for the Manual slider's
+          // mini-preview — the preview shows the caption the viewer is
+          // actually moving, in the current style.
+          previewSubtitle: widget.subtitle,
         );
       case _GoldenDrawerKind.audio:
         return GoldenAudioDrawer(
@@ -1711,6 +1848,9 @@ class _GoldenPlayerControlsState
       unawaited(widget.controller.setPlaybackSpeed(previous));
     }
     _centerFlashTimer?.cancel();
+    // Build 86: a pending step seek must never fire after dispose.
+    _stepSeeks.dispose();
+    _stepSeekLabelTimer?.cancel();
     // Application brightness is a process-wide override, so leaving the
     // player gives the screen back to the system's level.
     if (_brightnessOverridden) _brightnessControl.reset();

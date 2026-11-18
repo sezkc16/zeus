@@ -142,6 +142,9 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
+  # Direct: step_seek_test.dart drives the coalescer with fakeAsync.
+  fake_async: ^1.3.3
+
   # Runs integration_test/ against a real engine on a real device or desktop
   # runner. `flutter test` alone cannot catch a native failure: it runs on
   # flutter_tester, where no plugin is registered, so nothing a plugin does at

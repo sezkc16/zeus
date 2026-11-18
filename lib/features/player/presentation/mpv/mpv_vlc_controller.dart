@@ -40,6 +40,7 @@ import 'package:vlc_player/vlc_player.dart';
 
 import '../../../../core/domain/entity/multimedia_item.dart';
 import '../../domain/track_language.dart';
+import 'mpv_pip_renderer.dart';
 
 /// External (plugin) subtitle files live at ids from here up, so they can
 /// never collide with an embedded track's index.
@@ -914,6 +915,36 @@ class MpvVlcController implements VlcPlayerController {
     _seekRequests++;
     final target = position < Duration.zero ? Duration.zero : position;
     _pendingSeekTarget.value = target;
+    await _player.seek(target);
+  }
+
+  /// A fast seek for ±10 s step seeks (build 86): lands on the keyframe
+  /// at or before [position] (`seek <t> absolute+keyframes`) instead of
+  /// the exact frame. An exact seek decodes forward from the previous
+  /// keyframe to the frame — on a 4K film with long GOPs that is seconds
+  /// even when the target sits inside the already-buffered band (the
+  /// seek bar's band ahead proves the bytes are local; the cost is the
+  /// decode, not the network). The keyframe landing shows the first
+  /// keyframe that arrives; the film continues from there, at most one
+  /// keyframe interval before the target, never after. Falls back to an
+  /// exact seek where the platform cannot take the command. Exact seeks
+  /// stay for the scrubber, resume and the PiP landing (build 79) — only
+  /// the step seek is fast.
+  Future<void> seekToKeyframe(Duration position) async {
+    // Build 72: no engine to command while a renderer move is in flight.
+    if (timelineHeld) return;
+    _seekRequests++;
+    final target = position < Duration.zero ? Duration.zero : position;
+    _pendingSeekTarget.value = target;
+    final platform = _player.platform;
+    if (platform is NativePlayer) {
+      try {
+        await platform.command(keyframeSeekCommand(target));
+        return;
+      } catch (_) {
+        // Fall through to the exact seek below.
+      }
+    }
     await _player.seek(target);
   }
 
