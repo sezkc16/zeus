@@ -2279,9 +2279,31 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       'demuxer-cache-duration',
     );
     // Build 76: where the film is, for the keyframe landing below.
-    final placeBefore =
+    var placeBefore =
         mpvTimePos(await _readMpvProperty(player, 'time-pos')) ??
         (_position > Duration.zero ? _position : null);
+    // Build 79: what the player has read ahead of the playhead, and
+    // what the proxy holds behind the reading point — read BEFORE the
+    // swap (the track switch empties the player's buffer). They decide
+    // whether the film can land exactly where it was.
+    final demuxAtHold = parseDemuxState(
+      await _readMpvProperty(player, 'demuxer-cache-state'),
+      ms: 0,
+    );
+    final holdProxy = _proxyHandle;
+    StreamCacheStats? holdStats;
+    if (holdProxy != null) {
+      try {
+        holdStats = await StreamCacheService.instance
+            .stats(holdProxy.token)
+            .timeout(const Duration(seconds: 1));
+      } catch (_) {}
+    }
+    final exactPossible = exactLandingForMove(
+      proxyServing: holdStats != null && !holdStats.dead,
+      behind: holdStats == null ? null : holdStats.held - holdStats.ahead,
+      forwardBytes: demuxAtHold?.forwardBytes,
+    );
     if (!live()) return false;
     debugPrint('[mpv] renderer move (in place) → '
         '${toSoftware ? 'software' : 'hardware'} at $_position '
@@ -2318,6 +2340,12 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       } catch (e) {
         debugPrint('[mpv] renderer swap: pause failed: $e');
       }
+      if (!live()) return false;
+      // Build 79: where the film actually stopped (it ran on for a
+      // moment after the first reading).
+      placeBefore =
+          mpvTimePos(await _readMpvProperty(player, 'time-pos')) ??
+          placeBefore;
       if (!live()) return false;
     }
     lap('pause');
@@ -2383,15 +2411,30 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // The film continues from that keyframe — a little before where it
     // was, never after. When it cannot be sent the move goes on as in
     // build 75.
+    //
+    // Build 79: when the phone itself still holds the film around the
+    // playhead (the stream cache proxy), the landing is exact instead:
+    // the film continues on the frame it stopped on (see
+    // [exactSeekCommand]). Off the proxy the keyframe landing stays —
+    // it is what keeps the host's answer short.
     var keyLanding = false;
+    var exactLanding = false;
     if (keyframeLandingForMove(seekable: _canSeek, position: placeBefore)) {
       try {
         await platform
-            .command(keyframeSeekCommand(placeBefore!))
+            .command(
+              exactPossible
+                  ? exactSeekCommand(placeBefore!)
+                  : keyframeSeekCommand(placeBefore!),
+            )
             .timeout(const Duration(seconds: 2));
-        keyLanding = true;
+        if (exactPossible) {
+          exactLanding = true;
+        } else {
+          keyLanding = true;
+        }
       } catch (e) {
-        debugPrint('[mpv] renderer swap: keyframe landing not sent: $e');
+        debugPrint('[mpv] renderer swap: landing not sent: $e');
       }
     }
     lap('vid');
@@ -2447,11 +2490,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       cacheAfter: cacheAfter,
       paused: held,
       extra:
-          keyframeLandingNote(
-            used: keyLanding,
-            before: placeBefore,
-            after: placeAfter,
-          ) +
+          (exactLanding
+              ? exactLandingNote(before: placeBefore, after: placeAfter)
+              : keyframeLandingNote(
+                  used: keyLanding,
+                  before: placeBefore,
+                  after: placeAfter,
+                )) +
           (samples.isEmpty ? ' no-state' : '') +
           switchSourceNote(stats: proxyStats, sinceMs: moveWallStart),
     );

@@ -725,3 +725,70 @@ String keyframeLandingNote({
   final sign = delta > 0 ? '+' : '';
   return ' key $sign${delta.toStringAsFixed(1)}s';
 }
+
+// ---------------------------------------------------------------------------
+// Build 79: the film continues from exactly where it was.
+// ---------------------------------------------------------------------------
+//
+// Build 76's keyframe landing made the film continue from the keyframe
+// before the playhead — 1.3–1.4 s earlier on the phone. It was there to
+// keep the host's answer short. Since build 77/78 the bytes around the
+// playhead are still on the phone (the stream cache proxy), so the
+// request after the move costs no host round trip, and the film can
+// land on the very frame it stopped on.
+//
+// Read from the mpv 0.36.0 source, the two ways to get there:
+//  * leave it to mpv's own refresh (build 75): the source is seeked to
+//    one second BEFORE the playhead (demux.c `initiate_refresh_seek`),
+//    and video.c skips to the playhead without telling the decoder
+//    (no `mp_decoder_wrapper_set_start_pts`): every frame of that
+//    second and of the keyframe interval before it is fully decoded.
+//  * `seek <t> absolute+exact` (playloop.c `mp_seek`, hr-seek): the
+//    source is seeked to the keyframe at or before the playhead itself
+//    (`hr-seek-demuxer-offset` is 0) — the same request the keyframe
+//    landing makes, one request measured on the phone — and the
+//    decoder is told the target (`hr-seek-framedrop`, on by default),
+//    so it may skip frames nothing depends on. Frames before the
+//    target never reach the screen (video.c drops them before the
+//    output is configured), so the held picture stays until the exact
+//    frame is drawn.
+// The second is the shorter one, and is what is sent.
+
+/// Whether the move may land exactly on the playhead: the film is on
+/// the proxy, and what the phone holds reaches back past the playhead.
+///
+/// [behind] is what the proxy holds before the player's reading point
+/// (bytes); [forwardBytes] what the player had read ahead of the
+/// playhead. The playhead's own bytes are that far behind the reading
+/// point, plus a margin for what sits in between unseen (socket and
+/// stream buffers, container overhead). Anything unknown: no.
+bool exactLandingForMove({
+  required bool proxyServing,
+  required int? behind,
+  required int? forwardBytes,
+}) {
+  if (!proxyServing || behind == null || forwardBytes == null) return false;
+  if (behind <= 0 || forwardBytes < 0) return false;
+  const margin = 8 * 1024 * 1024;
+  return behind >= forwardBytes + forwardBytes ~/ 32 + margin;
+}
+
+/// The mpv command that lands exactly on [position].
+List<String> exactSeekCommand(Duration position) => <String>[
+  'seek',
+  (position.inMilliseconds / 1000).toStringAsFixed(3),
+  'absolute+exact',
+];
+
+/// The overlay's note on an exact landing, appended to the
+/// `switch-wait` line: ` exact +0.00s` — how far from where the film
+/// was it continued (0 = the same frame); ` exact ?` — place not read.
+String exactLandingNote({
+  required Duration? before,
+  required Duration? after,
+}) {
+  if (before == null || after == null) return ' exact ?';
+  final delta = (after - before).inMilliseconds / 1000;
+  final sign = delta < 0 ? '' : '+';
+  return ' exact $sign${delta.toStringAsFixed(2)}s';
+}
