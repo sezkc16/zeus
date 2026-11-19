@@ -363,7 +363,7 @@ String _captureScript(String post) =>
   window.__cbmCapture = true;
   var post = $post, seen = {};
   function report(url){
-    if (!url || seen[url] || !/^https?:/.test(url)) return;
+    if (!url || seen[url] || !/^(https?|vlc):/.test(url)) return;
     seen[url] = true;
     post(JSON.stringify({"$_marker": "capture", url: url}));
   }
@@ -374,14 +374,15 @@ String _captureScript(String post) =>
   function scan(node){
     if (!node || !node.querySelectorAll) return;
     if (node.src) report(node.src);
-    node.querySelectorAll("video, audio, source, iframe").forEach(function(e){ report(e.src); });
+    if (node.href) report(node.href);
+    node.querySelectorAll("video, audio, source, iframe, a[href]").forEach(function(e){ report(e.src || e.href); });
   }
   new MutationObserver(function(changes){
     changes.forEach(function(c){
-      if (c.type === "attributes") report(c.target.src);
+      if (c.type === "attributes") report(c.target.src || c.target.href);
       c.addedNodes && c.addedNodes.forEach(scan);
     });
-  }).observe(document, {subtree: true, childList: true, attributes: true, attributeFilter: ["src"]});
+  }).observe(document, {subtree: true, childList: true, attributes: true, attributeFilter: ["src", "href"]});
   if (document.documentElement) scan(document.documentElement);
 })()''';
 
