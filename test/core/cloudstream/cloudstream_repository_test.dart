@@ -107,8 +107,12 @@ class _FakeHost extends CloudStreamEngineHost {
 
   // While switched off, loads are refused as the real host refuses them.
 
+  /// Set: reloads wait for it.
+  Completer<void>? holdReload;
+
   @override
   Future<Map<String, dynamic>> reload(String path, {String? pluginUrl}) async {
+    await holdReload?.future;
     onReload?.call();
     if (switchedOff) return super.reload(path, pluginUrl: pluginUrl);
     loaded.add((path: path, pluginUrl: pluginUrl));
@@ -546,6 +550,76 @@ void main() {
     await notifier.setEnabled(true);
     await notifier.install(repo.plugins.single);
     expect(published(container), ['Alpha']);
+  });
+
+  // Two installs of one plugin at once — the launch-time update pass and a
+  // tap on Update racing — share the one install instead of downloading to
+  // the same .part file and converting twice; and a stalled download or load
+  // fails with an error instead of spinning forever.
+
+  test('two installs of the same plugin at once download and load it once', () async {
+    final container = boot();
+    final notifier = container.read(cloudStreamRepositoryProvider.notifier);
+    final repo = await notifier.addRepository(_repoUrl);
+    host.providers = [
+      {'name': 'Alpha'},
+    ];
+    network.holdDownloads = Completer<void>();
+    final first = notifier.install(repo.plugins.single);
+    await downloading();
+    final second = notifier.install(repo.plugins.single);
+    network.holdDownloads!.complete();
+
+    final installed = await first;
+    expect(await second, same(installed));
+    expect(network.requested.where((url) => url.endsWith('.cs3')), hasLength(1));
+    expect(host.loaded, hasLength(1));
+    expect(container.read(cloudStreamRepositoryProvider).installed, [installed]);
+  });
+
+  test('an install whose download stalls fails with an error instead of hanging', () async {
+    final container = boot();
+    final notifier = container.read(cloudStreamRepositoryProvider.notifier);
+    final repo = await notifier.addRepository(_repoUrl);
+
+    CloudStreamRepository.downloadTimeout = const Duration(seconds: 1);
+    try {
+      network.holdDownloads = Completer<void>();
+      await expectLater(
+        notifier.install(repo.plugins.single),
+        throwsA(
+          isA<Exception>().having((e) => '$e', 'message', contains('download timed out after 1 s')),
+        ),
+      );
+    } finally {
+      CloudStreamRepository.downloadTimeout = const Duration(seconds: 120);
+    }
+    expect(container.read(cloudStreamRepositoryProvider).busy, isEmpty);
+    expect(container.read(cloudStreamRepositoryProvider).installed, isEmpty);
+    expect(pluginFiles(), isEmpty);
+  });
+
+  test('an install whose load stalls fails with an error instead of hanging', () async {
+    final container = boot();
+    final notifier = container.read(cloudStreamRepositoryProvider.notifier);
+    final repo = await notifier.addRepository(_repoUrl);
+
+    CloudStreamRepository.loadTimeout = const Duration(seconds: 1);
+    try {
+      host.holdReload = Completer<void>();
+      await expectLater(
+        notifier.install(repo.plugins.single),
+        throwsA(
+          isA<Exception>().having((e) => '$e', 'message', contains('load timed out after 1 s')),
+        ),
+      );
+    } finally {
+      CloudStreamRepository.loadTimeout = const Duration(seconds: 180);
+    }
+    expect(container.read(cloudStreamRepositoryProvider).busy, isEmpty);
+    expect(container.read(cloudStreamRepositoryProvider).installed, isEmpty);
+    // The file arrived before the load stalled; the next install replaces it.
+    expect(pluginFiles(), hasLength(1));
   });
 
   test('switched off while the update pass downloads an update, the installed version stays as it was', () async {

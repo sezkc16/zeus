@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:cs3_engine/cs3_engine.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -611,16 +612,55 @@ class CloudStreamRepository extends _$CloudStreamRepository {
 
   // ── Plugins ─────────────────────────────────────────────────────────────
 
+  /// How long an install waits for the .cs3 to arrive, and for the engine to
+  /// load it. Dio's receiveTimeout does not bound a stalled download body,
+  /// and the engine's DEX→JVM conversion has no timeout of its own (on iOS,
+  /// without a JIT, it takes a median of 2 s and up to minutes), so without
+  /// these a stalled install leaves the busy spinner up forever with no
+  /// error: the spinner clears only in [install]'s finally, and an error is
+  /// what the Plugins screen shows. Tests shorten these.
+  @visibleForTesting
+  static Duration downloadTimeout = const Duration(seconds: 120);
+
+  /// See [downloadTimeout].
+  @visibleForTesting
+  static Duration loadTimeout = const Duration(seconds: 180);
+
+  /// Installs in flight, by [keyOf]: the launch-time update pass and a tap
+  /// on Update (or "Update all") race exactly this way — the pass is already
+  /// installing a pending update when the tap starts a second install of the
+  /// same plugin, and two installs download to the same .part file and
+  /// convert twice under the same file lock.
+  final Map<String, Future<CsInstalledPlugin>> _installing = {};
+
   /// Downloads [plugin] (replacing an installed version), loads it, and publishes its providers.
   /// A plugin that downloads but does not load is still installed, with [CsInstalledPlugin.loadError].
   ///
   /// A utility plugin (see [_isUtility]) does its work once it has loaded: the repositories
   /// MegaRepo's adds join the list as they arrive, and are announced through [watchNews].
+  ///
+  /// An install for a plugin that is already installing awaits that install
+  /// instead of starting a second one: the first install's result — or its
+  /// error — is shared by every caller.
   Future<CsInstalledPlugin> install(CsPluginInfo plugin) async {
     await _loaded;
     // Switched off, nothing loads, and an install would be left failed to load.
     if (!state.enabled) throw const CloudStreamSwitchedOff();
     final key = keyOf(plugin);
+    final inFlight = _installing[key];
+    if (inFlight != null) return await inFlight;
+    final installing = _installNow(plugin, key);
+    _installing[key] = installing;
+    try {
+      return await installing;
+    } finally {
+      // Only this install's entry goes: a newer install for the same plugin
+      // may have started meanwhile.
+      _installing.removeWhere((_, value) => identical(value, installing));
+    }
+  }
+
+  Future<CsInstalledPlugin> _installNow(CsPluginInfo plugin, String key) async {
     _setBusy(key, true);
     try {
       final dir = await Directory(
@@ -628,7 +668,14 @@ class CloudStreamRepository extends _$CloudStreamRepository {
       ).create(recursive: true);
       final file = File('${dir.path}/${plugin.internalName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_')}.cs3');
       final part = File('${file.path}.part');
-      await _dio.download(_secure(plugin.url).replaceAll(' ', '%20'), part.path);
+      try {
+        await _dio.download(_secure(plugin.url).replaceAll(' ', '%20'), part.path).timeout(downloadTimeout);
+      } on TimeoutException {
+        // A stalled download leaves a partial file behind; the next install
+        // downloads it again from scratch.
+        if (await part.exists()) await part.delete();
+        throw Exception('download timed out after ${downloadTimeout.inSeconds} s');
+      }
       if (!state.enabled) {
         // Switched off while it downloaded: the version installed, if any, stays as it was.
         await part.delete();
@@ -644,7 +691,9 @@ class CloudStreamRepository extends _$CloudStreamRepository {
 
       final CsInstalledPlugin installed;
       try {
-        installed = await _load(plugin, file.path);
+        installed = await _load(plugin, file.path).timeout(loadTimeout);
+      } on TimeoutException {
+        throw Exception('load timed out after ${loadTimeout.inSeconds} s');
       } on CloudStreamSwitchedOff {
         // Switched off that very moment: a new install leaves nothing behind, and an update keeps the version
         // installed (its file holds the new one now, which the next update pass installs again).
