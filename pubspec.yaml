@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 2.0.1+90
+version: 2.0.1+91
 
 environment:
   sdk: ^3.13.0
@@ -174,9 +174,15 @@ dev_dependencies:
 # Fork of media_kit_video 2.0.1 (+28): the only change is the frame-export
 # tap the iOS mpv PiP plugin reads (see packages/media_kit_video/FORK.md).
 # Everything else is byte-identical to the published 2.0.1.
+# Fork of liquid_glass_bottom_nav 0.0.14: the only change is guarding the
+# six OpenGL ES Y-flips for engine >= 3.44 (see
+# packages/liquid_glass_bottom_nav/FORK.md). Everything else is
+# byte-identical to the published 0.0.14.
 dependency_overrides:
   media_kit_video:
     path: packages/media_kit_video
+  liquid_glass_bottom_nav:
+    path: packages/liquid_glass_bottom_nav
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

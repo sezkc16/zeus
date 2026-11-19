@@ -819,10 +819,9 @@ packages:
   liquid_glass_bottom_nav:
     dependency: "direct main"
     description:
-      name: liquid_glass_bottom_nav
-      sha256: "8ec32b9928e619c537a4c86bfb6d144c045bb24ff9609bcee04793adaae6611f"
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/liquid_glass_bottom_nav"
+      relative: true
+    source: path
     version: "0.0.14"
   listen:
     dependency: transitive
