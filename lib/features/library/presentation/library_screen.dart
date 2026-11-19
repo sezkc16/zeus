@@ -108,7 +108,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               child: PageView.builder(
                 controller: _pageController,
                 onPageChanged: (index) {
-                  _tabController.animateTo(index);
+                  // Ignore page changes the chip tap itself caused: during
+                  // a multi-page animated jump PageView reports every
+                  // intermediate page, and feeding those back into the
+                  // TabController would hijack the animation back to the
+                  // intermediate tab. Swipes still sync — a swipe never
+                  // sets indexIsChanging.
+                  if (!_tabController.indexIsChanging) {
+                    _tabController.animateTo(index);
+                  }
                 },
                 physics: const BouncingScrollPhysics(),
                 itemCount: _tabCount,
@@ -163,7 +171,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             child: PageView(
               controller: _pageController,
               onPageChanged: (index) {
-                _tabController.animateTo(index);
+                // Same guard as the widescreen PageView above: ignore page
+                // changes the chip tap itself caused.
+                if (!_tabController.indexIsChanging) {
+                  _tabController.animateTo(index);
+                }
               },
               physics: const BouncingScrollPhysics(),
               children: [
