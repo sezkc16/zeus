@@ -4,14 +4,19 @@
 /// sliding out over Home) and only back seconds later, even though the
 /// branch switch itself is 360 ms.
 ///
-/// Build 87: the pill is hidden on the Settings branch NO LONGER — it
-/// stays on screen on all six branches, so there is no gap in either
-/// direction. The Settings screens already clear a pill
-/// (pillFreeBottomContentPadding returns the shell's 100 px floor once
-/// the media padding is inflated). The pill keeps highlighting the tab
-/// the user came from while on Settings: the package has no "no
-/// selection" state, and passing 5 would slide its highlight capsule
-/// off the bar's right edge.
+/// Build 88: the pill is hidden on the Settings branch again — the user
+/// saw build 87's always-visible pill on Settings and chose "Settings pe
+/// chhupa do" — but it NEVER leaves the tree. The gap was the
+/// re-insertion: the pill was destroyed on Settings and rebuilt on the
+/// return (its glass layer re-rendering), so it only appeared ~2 frames
+/// into the slide. Now the pill stays mounted on every branch and is
+/// parked off-screen on Settings (hiddenNavPaddingBottom): the
+/// visibility flips in the same build as the branch change, so the pill
+/// is back on screen in the first frame of the return and gone in the
+/// first frame of the way in. The pill keeps highlighting the tab the
+/// user came from while on Settings: the package has no "no selection"
+/// state, and passing 5 would slide its highlight capsule off the
+/// bar's right edge.
 library;
 
 import 'package:flutter/material.dart';
@@ -87,38 +92,94 @@ void main() {
   bool pillPresent(WidgetTester tester) =>
       find.byType(CustomBottomNavBar).evaluate().isNotEmpty;
 
-  testWidgets('pill stays on screen on the Settings branch', (tester) async {
-    final router = await pumpShell(tester);
-    expect(pillPresent(tester), isTrue, reason: 'pill on Home');
+  /// The pill's top / bottom edge on screen. On a tab the pill hugs the
+  /// bottom edge; on Settings it is parked above the screen top
+  /// (build 88) — mounted, but invisible.
+  double pillTop(WidgetTester tester) =>
+      tester.getTopLeft(find.byType(CustomBottomNavBar)).dy;
 
-    router.go('/settings');
-    // One frame: the branch has flipped and the slide-in has started.
-    await tester.pump();
-    expect(
-      pillPresent(tester),
-      isTrue,
-      reason: 'pill must stay through the Settings slide-in',
-    );
-    // Mid slide-in.
-    await tester.pump(kMotionPage ~/ 2);
-    expect(
-      pillPresent(tester),
-      isTrue,
-      reason: 'pill stays through the slide-in',
-    );
-    await tester.pumpAndSettle();
-    expect(pillPresent(tester), isTrue, reason: 'pill on Settings');
+  double pillBottom(WidgetTester tester) {
+    final topLeft = tester.getTopLeft(find.byType(CustomBottomNavBar));
+    final size = tester.getSize(find.byType(CustomBottomNavBar));
+    return topLeft.dy + size.height;
+  }
 
-    router.go('/home');
-    await tester.pump();
-    expect(
-      pillPresent(tester),
-      isTrue,
-      reason: 'pill stays through the slide-out',
-    );
-    await tester.pumpAndSettle();
-    expect(pillPresent(tester), isTrue, reason: 'pill on Home');
-  });
+  testWidgets(
+    'pill is hidden on Settings but mounted, and back on-screen in the '
+    'first frame of the return',
+    (tester) async {
+      final router = await pumpShell(tester);
+      final screenHeight =
+          tester.view.physicalSize.height / tester.view.devicePixelRatio;
+      expect(pillPresent(tester), isTrue, reason: 'pill on Home');
+      expect(
+        pillBottom(tester),
+        lessThanOrEqualTo(screenHeight),
+        reason: 'pill on screen on Home',
+      );
+      expect(
+        pillTop(tester),
+        greaterThan(0),
+        reason: 'pill fully on screen on Home',
+      );
+
+      router.go('/settings');
+      // One frame: the branch has flipped and the slide-in has started.
+      await tester.pump();
+      expect(
+        pillPresent(tester),
+        isTrue,
+        reason: 'pill stays mounted through the Settings slide-in',
+      );
+      expect(
+        pillBottom(tester),
+        lessThanOrEqualTo(0),
+        reason: 'pill parked fully above the screen top on Settings',
+      );
+      // Mid slide-in.
+      await tester.pump(kMotionPage ~/ 2);
+      expect(
+        pillPresent(tester),
+        isTrue,
+        reason: 'pill stays mounted mid slide-in',
+      );
+      expect(
+        pillBottom(tester),
+        lessThanOrEqualTo(0),
+        reason: 'pill stays parked mid slide-in',
+      );
+      await tester.pumpAndSettle();
+      expect(
+        pillBottom(tester),
+        lessThanOrEqualTo(0),
+        reason: 'pill parked on Settings',
+      );
+
+      router.go('/home');
+      await tester.pump();
+      expect(
+        pillPresent(tester),
+        isTrue,
+        reason: 'pill stays mounted through the slide-out',
+      );
+      expect(
+        pillBottom(tester),
+        lessThanOrEqualTo(screenHeight),
+        reason: 'pill back on screen in the first frame of the return',
+      );
+      expect(
+        pillTop(tester),
+        greaterThan(0),
+        reason: 'pill fully on screen in the first frame of the return',
+      );
+      await tester.pumpAndSettle();
+      expect(
+        pillBottom(tester),
+        lessThanOrEqualTo(screenHeight),
+        reason: 'pill on Home',
+      );
+    },
+  );
 
   testWidgets('pill keeps the last tab highlighted on Settings', (
     tester,

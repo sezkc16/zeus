@@ -119,16 +119,15 @@ class _SignedOutTrackers extends TrackingAuth {
 /// A library with bookmarks in it, so the grid branch is what renders.
 class _FakeLibrary extends Library {
   @override
-  LibraryState build() =>
-      LibrarySuccess(<MultimediaItem>[
-        for (var i = 0; i < 40; i++)
-          MultimediaItem(
-            title: 'Title $i',
-            url: 'https://fake.test/$i',
-            posterUrl: '',
-            contentType: MultimediaContentType.movie,
-          ),
-      ]);
+  LibraryState build() => LibrarySuccess(<MultimediaItem>[
+    for (var i = 0; i < 40; i++)
+      MultimediaItem(
+        title: 'Title $i',
+        url: 'https://fake.test/$i',
+        posterUrl: '',
+        contentType: MultimediaContentType.movie,
+      ),
+  ]);
 }
 
 void main() {
@@ -253,13 +252,16 @@ void main() {
     });
   });
 
-  // Build 87: the shell shows the nav pill on every branch and inflates
-  // the media padding, so on the phone the screens always take the
-  // 100 px floor path (the first group above). The small-value path
-  // below is for a screen hosted WITHOUT the shell's inflated padding:
-  // with nothing to clear, the list must end with that safe area plus
-  // a small gap — not the 100 px floor the tab screens use, which left
-  // a blank block under the last row.
+  // Build 88: the shell hides the nav pill on Settings again (parked
+  // off-screen, still mounted) and no longer inflates the media
+  // padding there, so on the phone the screens take the small-value
+  // path below. The first group above still covers a screen hosted
+  // WITH the shell's inflated padding (a tab branch): with the pill
+  // on screen the list must pay the bar back as bottom padding.
+  // The small-value path below is for a screen hosted WITHOUT the
+  // shell's inflated padding: with nothing to clear, the list must
+  // end with that safe area plus a small gap — not the 100 px floor
+  // the tab screens use, which left a blank block under the last row.
   for (final safeArea in <double>[34, 0]) {
     screens.forEach((name, screen) {
       testWidgets('$name leaves no blank block without the shell bar '
@@ -285,16 +287,12 @@ void main() {
     );
   });
 
-  testWidgets('the bookmarks grid clears the shell bottom bar',
-      (tester) async {
+  testWidgets('the bookmarks grid clears the shell bottom bar', (tester) async {
     await pump(tester, const BookmarksTab());
     // The clearance is a trailing spacer at the end of the grid, so it
     // is only built once it is scrolled into view (slivers build lazily).
     // Scroll to the bottom first, then read it.
-    await tester.drag(
-      find.byType(CustomScrollView),
-      const Offset(0, -10000),
-    );
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -10000));
     await tester.pump();
     expect(
       bottomPadding(tester),

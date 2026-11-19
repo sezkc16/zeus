@@ -626,6 +626,32 @@ SwToneMapCurve swToneMapCurveForToneMapping(String toneMapping) =>
       _ => SwToneMapCurve.clip,
     };
 
+/// The software renderer's LUT the live gamma + tone-mapping imply
+/// (build 88, diagnostic only): the Dart-side mirror of TextureSW's
+/// decision table, so the QoE overlay can show what the PiP path is
+/// doing without a native bridge. `sdr-exact` is the build-87 exact
+/// bt.1886 -> sRGB LUT; `none` means the SW path passes the frame
+/// through (bt.709 / sRGB-like sources); `pq-<clip|eetf>` /
+/// `hlg-<clip|eetf>` are the HDR tone-map LUTs. An unreadable gamma
+/// is `?` — the native side defaults that to bt.1886, so a `?` next
+/// to a visible PiP gap is itself the signal to check the native
+/// read. Pure, so it is unit-tested (see
+/// `mpv_video_output_preset_test.dart`).
+String swLutOverlayLabel({
+  required String? gamma,
+  required String toneMapping,
+}) {
+  final g = gamma?.trim().toLowerCase() ?? '';
+  final curve = swToneMapCurveForToneMapping(toneMapping).name;
+  if (g == 'pq') return 'pq-$curve';
+  if (g == 'hlg') return 'hlg-$curve';
+  if (g == 'bt.1886' || g == 'gamma2.4' || g == 'gamma2.6' || g == 'gamma2.8') {
+    return 'sdr-exact';
+  }
+  if (g.isEmpty) return '?';
+  return 'none';
+}
+
 /// Applies a Video output preset's options to a player's mpv instance
 /// (+57). Same best-effort shape as [applyMpvIosOptions]: a single
 /// option failing must not break the open, and the tone-mapping
@@ -672,8 +698,10 @@ Future<void> applyMpvIosOptions(NativePlayer platform) async {
   }
   try {
     final fallback = await platform.getProperty('hwdec-software-fallback');
-    debugPrint('[mpv] hwdec-software-fallback: $fallback (iOS options '
-        'applied)');
+    debugPrint(
+      '[mpv] hwdec-software-fallback: $fallback (iOS options '
+      'applied)',
+    );
   } catch (e) {
     debugPrint('[mpv] hwdec-software-fallback read-back failed: $e');
   }

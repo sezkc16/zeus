@@ -259,6 +259,40 @@ void main() {
     });
   });
 
+  group('swLutOverlayLabel (QoE overlay, build 88)', () {
+    test('bt.1886 is the build-87 exact SDR LUT', () {
+      expect(
+        swLutOverlayLabel(gamma: 'bt.1886', toneMapping: 'clip'),
+        'sdr-exact',
+      );
+      expect(
+        swLutOverlayLabel(gamma: 'gamma2.4', toneMapping: 'clip'),
+        'sdr-exact',
+      );
+      expect(
+        swLutOverlayLabel(gamma: 'gamma2.6', toneMapping: 'bt.2390'),
+        'sdr-exact',
+      );
+    });
+
+    test('bt.709 / sRGB-like sources pass through (no LUT)', () {
+      expect(swLutOverlayLabel(gamma: 'bt.709', toneMapping: 'clip'), 'none');
+      expect(swLutOverlayLabel(gamma: 'srgb', toneMapping: 'clip'), 'none');
+      expect(swLutOverlayLabel(gamma: 'gamma2.2', toneMapping: 'clip'), 'none');
+    });
+
+    test('HDR takes the tone-map LUT matching the live preset', () {
+      expect(swLutOverlayLabel(gamma: 'pq', toneMapping: 'clip'), 'pq-clip');
+      expect(swLutOverlayLabel(gamma: 'pq', toneMapping: 'bt.2390'), 'pq-eetf');
+      expect(swLutOverlayLabel(gamma: 'hlg', toneMapping: 'auto'), 'hlg-eetf');
+    });
+
+    test('unreadable gamma is unknown, not a LUT', () {
+      expect(swLutOverlayLabel(gamma: null, toneMapping: 'clip'), '?');
+      expect(swLutOverlayLabel(gamma: '', toneMapping: 'clip'), '?');
+    });
+  });
+
   group('hardware and software paths agree (PiP colour match)', () {
     test('every preset drives the same tone map on both paths', () {
       // The +50 principle, build 87: the hardware path's

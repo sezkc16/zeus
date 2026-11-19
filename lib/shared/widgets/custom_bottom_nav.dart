@@ -90,13 +90,27 @@ class CustomBottomNavBar extends StatelessWidget {
     return math.min(real, math.max(0.0, needed));
   }
 
+  /// The `padding.bottom` the shell feeds the package on the Settings
+  /// branch so the pill parks entirely above the screen top (build
+  /// 88). The package positions the pill at
+  /// `MediaQuery.padding.bottom + insets` from the bottom edge, so a
+  /// padding taller than the screen puts the whole 68 px pill
+  /// off-screen — invisible and untappable, but still mounted, so its
+  /// State and glass layer stay warm and the return to a tab shows it
+  /// in the first frame. That is the fix for the pre-87 gap (the pill
+  /// was unmounted on Settings and only reappeared ~2 frames into the
+  /// 360 ms slide back, his recording 6cc621ab...mp4) without putting
+  /// the pill on Settings, which the user rejected in build 87
+  /// ("Settings pe chhupa do"). An InheritedWidget override like
+  /// [navPaddingBottom], so the package's root Positioned still talks
+  /// directly to the shell's Stack (the +15..+19 freeze rule).
+  static double hiddenNavPaddingBottom(BuildContext context) =>
+      MediaQuery.sizeOf(context).height + contentClearance;
+
   @override
   Widget build(BuildContext context) {
     // v20+20 diagnostic: boot-trace marker (once per launch).
-    BootTrace.markOnce(
-      'custombottomnav-build',
-      'CUSTOMBOTTOMNAV build start',
-    );
+    BootTrace.markOnce('custombottomnav-build', 'CUSTOMBOTTOMNAV build start');
     final localizations = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);

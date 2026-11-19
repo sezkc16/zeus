@@ -55,6 +55,7 @@
 library;
 
 import '../../../../core/utils/source_language.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -647,8 +648,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
 
   /// Fraction of the media fetched ahead of the playhead, for the seek
   /// bar's buffered band.
-  final ValueNotifier<double> _bufferedFraction =
-      ValueNotifier<double>(0.0);
+  final ValueNotifier<double> _bufferedFraction = ValueNotifier<double>(0.0);
 
   /// Whether this media has a subtitle to pick — an embedded track the
   /// engine has published, or a file the source shipped. The subtitles
@@ -659,8 +659,9 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   final ValueNotifier<bool> _locked = ValueNotifier<bool>(false);
 
   /// What the side panel shows, published from every place it changes.
-  final ValueNotifier<PanelData> _panelData =
-      ValueNotifier<PanelData>(PanelData.empty);
+  final ValueNotifier<PanelData> _panelData = ValueNotifier<PanelData>(
+    PanelData.empty,
+  );
 
   /// Intro/outro bands, usually empty. IntroDB (TV/dramas, on by
   /// default) and AniSkip (anime, +55) fill them in the background;
@@ -733,8 +734,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
 
   /// The sleep timer (v7): one for the whole player session, so it keeps
   /// counting across episode changes; gone when the player closes.
-  late final SleepTimer _sleepTimer = SleepTimer()
-    ..onFire = _onSleepTimerFired;
+  late final SleepTimer _sleepTimer = SleepTimer()..onFire = _onSleepTimerFired;
 
   /// A timed sleep fired while no video was playing yet (an episode
   /// still loading): the pause lands as soon as it starts.
@@ -1128,11 +1128,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // a 4K track re-opens the source on return; everything below
       // 4K keeps the plain resume above.
       if (defaultTargetPlatform == TargetPlatform.iOS && returnLogicAllowed) {
-        unawaited(_resumeIosAfterBackground(
-          wasBackgrounded: wasBackgrounded,
-          wasInPip: wasInPip,
-          wasPlaying: _wasPlayingBeforeBackground,
-        ));
+        unawaited(
+          _resumeIosAfterBackground(
+            wasBackgrounded: wasBackgrounded,
+            wasInPip: wasInPip,
+            wasPlaying: _wasPlayingBeforeBackground,
+          ),
+        );
       }
       _wasPlayingBeforeBackground = false;
     }
@@ -1144,8 +1146,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // next `resumed` may run the plain resume (see
       // [_appWasBackgrounded]).
       if (!_appWasBackgrounded) {
-        _backgroundedWithPip =
-            _inPip || rendererSwitching(_rendererPhase);
+        _backgroundedWithPip = _inPip || rendererSwitching(_rendererPhase);
       }
       _appWasBackgrounded = true;
       // Build 70: a new backgrounding ends the last return's
@@ -1218,15 +1219,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     final is4K = await _isCurrentVideo4K();
     if (_disposed || !mounted) return;
     if (is4K) {
-      debugPrint('[mpv] resume: 4K, re-opening stream $_streamIndex '
-          'at $_position (+56)');
+      debugPrint(
+        '[mpv] resume: 4K, re-opening stream $_streamIndex '
+        'at $_position (+56)',
+      );
       _resumeStallTimer?.cancel();
       _resumeStallTimer = null;
-      unawaited(_openStream(
-        _streamIndex,
-        start: _position,
-        autoPlay: true,
-      ));
+      unawaited(_openStream(_streamIndex, start: _position, autoPlay: true));
       // Build 70: the re-open itself can come up in SOFTWARE decode
       // (phone proof 2026-11-18: `hwdec: videotoolbox` before Home,
       // empty after the 4K re-open, for the rest of the film), and
@@ -1236,8 +1235,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       unawaited(_runHwdecResumeWatch());
       return;
     }
-    debugPrint('[mpv] resume: plain resume from $_position '
-        '(no re-open, +55)');
+    debugPrint(
+      '[mpv] resume: plain resume from $_position '
+      '(no re-open, +55)',
+    );
     _resumeStallPosition = _position;
     unawaited(_player.play());
     // +40 P4: iOS can invalidate the VideoToolbox session while
@@ -1251,10 +1252,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // unless two cycles have already failed.
     unawaited(_runHwdecResumeWatch());
     _resumeStallTimer?.cancel();
-    _resumeStallTimer = Timer(
-      const Duration(seconds: 8),
-      _maybeFallbackReopen,
-    );
+    _resumeStallTimer = Timer(const Duration(seconds: 8), _maybeFallbackReopen);
   }
 
   /// +56: is the video track currently decoding 4K? Reads the live
@@ -1387,13 +1385,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     )) {
       return;
     }
-    debugPrint('[mpv] resume stall fallback: no progress 8 s after '
-        'resume-play, re-opening stream $_streamIndex at $_position');
-    unawaited(_openStream(
-      _streamIndex,
-      start: _position,
-      autoPlay: true,
-    ));
+    debugPrint(
+      '[mpv] resume stall fallback: no progress 8 s after '
+      'resume-play, re-opening stream $_streamIndex at $_position',
+    );
+    unawaited(_openStream(_streamIndex, start: _position, autoPlay: true));
   }
 
   void _forceLandscapeIfPortrait() {
@@ -1613,10 +1609,12 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     final moved = await _switchRenderer(toSoftware: true);
     if (_disposed || !mounted) return;
     if (!moved) {
-      ref.read(notificationServiceProvider).showInfo(
-        'Picture-in-picture could not start for this video.',
-        title: 'Picture-in-picture',
-      );
+      ref
+          .read(notificationServiceProvider)
+          .showInfo(
+            'Picture-in-picture could not start for this video.',
+            title: 'Picture-in-picture',
+          );
       return;
     }
     // The PiP layer is primed from a software-rendered frame: give the
@@ -1757,10 +1755,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // build-69/71 decoder restore no longer runs here: it re-opened
       // the source on a healthy software session.
       unawaited(
-        _onPipEnded(
-          reason: 'pipStopped',
-          restored: restored || _pipRestoring,
-        ),
+        _onPipEnded(reason: 'pipStopped', restored: restored || _pipRestoring),
       );
     };
     pip.onPipFailed = (reason) {
@@ -1865,9 +1860,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     final platform = _player.platform;
     if (platform is! NativePlayer) return;
     try {
-      _subVisibilityBeforePip ??= await platform.getProperty(
-        'sub-visibility',
-      );
+      _subVisibilityBeforePip ??= await platform.getProperty('sub-visibility');
       await platform.setProperty('sub-visibility', 'yes');
     } catch (_) {
       // Best-effort: PiP video still works without burned-in subtitles.
@@ -1901,12 +1894,12 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       if (_disposed) return;
       final diag = await _iosPip?.diag;
       if (diag == null || diag.isEmpty) return;
-      final quality =
-          _streamIndex >= 0 && _streamIndex < _streams.length
-              ? _streams[_streamIndex].quality
-              : null;
-      final qualityLabel =
-          quality != null && quality > 0 ? '${quality}h' : 'adaptive';
+      final quality = _streamIndex >= 0 && _streamIndex < _streams.length
+          ? _streams[_streamIndex].quality
+          : null;
+      final qualityLabel = quality != null && quality > 0
+          ? '${quality}h'
+          : 'adaptive';
       if (kDebugMode) debugPrint('[pip] diag: $diag | quality=$qualityLabel');
     });
   }
@@ -1970,13 +1963,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         ref.read(playerSettingsProvider).asData?.value ??
         const PlayerSettings();
     _playerSettings = ValueNotifier<PlayerSettings>(settings);
-    ref.listenManual<AsyncValue<PlayerSettings>>(
-      playerSettingsProvider,
-      (_, next) {
-        final value = next.asData?.value;
-        if (value != null && !_disposed) _playerSettings.value = value;
-      },
-    );
+    ref.listenManual<AsyncValue<PlayerSettings>>(playerSettingsProvider, (
+      _,
+      next,
+    ) {
+      final value = next.asData?.value;
+      if (value != null && !_disposed) _playerSettings.value = value;
+    });
 
     // iOS mpv PiP (+28): when the viewer turned it on AND the PiP mode is
     // mpv, the player runs the software renderer — GPU work is not allowed
@@ -2042,7 +2035,6 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     await _setupIosMpvPip();
     await _resolveAndOpen();
   }
-
 
   /// Creates the engine — [Player], [VideoController], the adapter's
   /// attachment, the listeners and every mpv option — on the hardware
@@ -2220,11 +2212,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       return;
     }
     final controller = _videoController;
-    if (await _setIosRenderCap(
-      true,
-      width: size.width,
-      height: size.height,
-    )) {
+    if (await _setIosRenderCap(true, width: size.width, height: size.height)) {
       if (identical(controller, _videoController)) _pipRenderCapped = true;
       final platform = _player.platform;
       if (platform is NativePlayer) {
@@ -2358,9 +2346,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       forwardBytes: demuxAtHold?.forwardBytes,
     );
     if (!live()) return false;
-    debugPrint('[mpv] renderer move (in place) → '
-        '${toSoftware ? 'software' : 'hardware'} at $_position '
-        '(vid $vid, size $size)');
+    debugPrint(
+      '[mpv] renderer move (in place) → '
+      '${toSoftware ? 'software' : 'hardware'} at $_position '
+      '(vid $vid, size $size)',
+    );
     _adapter.holdTimeline(
       position: _position,
       duration: _duration,
@@ -2397,8 +2387,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // Build 79: where the film actually stopped (it ran on for a
       // moment after the first reading).
       placeBefore =
-          mpvTimePos(await _readMpvProperty(player, 'time-pos')) ??
-          placeBefore;
+          mpvTimePos(await _readMpvProperty(player, 'time-pos')) ?? placeBefore;
       if (!live()) return false;
     }
     lap('pause');
@@ -2446,10 +2435,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _iosMpvPipEnabled = toSoftware;
     _pipRenderCapped = toSoftware && size != null;
     try {
-      await platform.setProperty(
-        'hwdec',
-        mpvIosHwdec(pipEnabled: toSoftware),
-      );
+      await platform.setProperty('hwdec', mpvIosHwdec(pipEnabled: toSoftware));
       if (toSoftware && size != null) {
         await _applyFastSoftwareScaler(platform);
       }
@@ -2621,6 +2607,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       steps[name] = now - lapStart;
       lapStart = now;
     }
+
     final direction = toSoftware ? '>sw' : '>hw';
     bool live() => !_disposed && mounted && token == _switchToken;
     _pendingSwitchToHardware = false;
@@ -2694,8 +2681,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
             is4K: is4KVideo(width: oldWidth, height: oldHeight),
           )
         : null;
-    debugPrint('[mpv] renderer move → ${toSoftware ? 'software' : 'hardware'} '
-        'at ${carry.position} (stream $targetIndex, size $renderSize)');
+    debugPrint(
+      '[mpv] renderer move → ${toSoftware ? 'software' : 'hardware'} '
+      'at ${carry.position} (stream $targetIndex, size $renderSize)',
+    );
     // Build 73: nothing below waits on the old engine. Build 72 awaited
     // its pause, a full-size JPEG screenshot (3 s timeout) and its
     // dispose (4 s timeout) one after the other before the new engine
@@ -2831,8 +2820,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // kept. If that is the old engine's connection in the way, this
       // ends it; the overlay's `old-off` step says whether a picture
       // followed.
-      if (!outgoingReleased &&
-          clock.elapsedMilliseconds - waitStart > 6000) {
+      if (!outgoingReleased && clock.elapsedMilliseconds - waitStart > 6000) {
         steps['old-off'] = clock.elapsedMilliseconds - lapStart;
         lapStart = clock.elapsedMilliseconds;
         setState(releaseOutgoing);
@@ -2898,13 +2886,15 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // foreground (GPU work is allowed again); build 72 waited for
     // `resumed`, a frame, and then a 1.5 s backstop.
     final lifecycle = WidgetsBinding.instance.lifecycleState;
-    final foreground = lifecycle == AppLifecycleState.resumed ||
+    final foreground =
+        lifecycle == AppLifecycleState.resumed ||
         lifecycle == AppLifecycleState.inactive;
     final plan = pipEndPlan(
       phase: _rendererPhase,
       pipWindowUp: false,
       appResumed: foreground,
-      needsHardware: _pendingSwitchToHardware ||
+      needsHardware:
+          _pendingSwitchToHardware ||
           pipEndNeedsHardware(
             is4K: is4K,
             qualityDropped: _pipDroppedFrom != null,
@@ -2970,10 +2960,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         // can only do that if it knows the film is playing. One channel
         // call per play/pause flip is the price; the play/pause icon in
         // the window rides on the same sync.
-        _platform.syncPipState(
-          playing,
-          videoSize: _adapter.value.videoSize,
-        );
+        _platform.syncPipState(playing, videoSize: _adapter.value.videoSize);
         // iOS mpv PiP (+28): the same sync for the native bridge — the
         // scrubber, the play/pause state, and the auto-PiP arm, which is
         // on only while playing.
@@ -3119,8 +3106,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _subs.add(
       _player.stream.duration.listen((duration) {
         if (_disposed) return;
-        if (rendererSwitching(_rendererPhase) &&
-            duration <= Duration.zero) {
+        if (rendererSwitching(_rendererPhase) && duration <= Duration.zero) {
           return;
         }
         _duration = duration;
@@ -3506,8 +3492,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   }
 
   /// Whether the buffered cushion ahead of the playhead meets the target.
-  bool get _prebufferReady =>
-      _buffered - _openStart >= _prebufferTarget;
+  bool get _prebufferReady => _buffered - _openStart >= _prebufferTarget;
 
   void _startAfterPrebuffer([int? token]) {
     if (!_awaitingPrebuffer) return;
@@ -3857,15 +3842,19 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         case HwdecResumeStep.healthy:
           _hwdecWatchOutcome = 'ok';
           _hwdecSeenAlive = true;
-          debugPrint('[mpv] hwdec watch: healthy '
-              '(hwdec-current="$current", check ${attempt + 1})');
+          debugPrint(
+            '[mpv] hwdec watch: healthy '
+            '(hwdec-current="$current", check ${attempt + 1})',
+          );
         case HwdecResumeStep.unreadable:
           _hwdecWatchOutcome = 'unreadable';
         case HwdecResumeStep.cycle:
           _hwdecWatchCycles++;
           _hwdecWatchOutcome = 'lost';
-          debugPrint('[mpv] hwdec watch: lost (hwdec-current="$current"), '
-              'cycling hwdec to "$expected" (check ${attempt + 1})');
+          debugPrint(
+            '[mpv] hwdec watch: lost (hwdec-current="$current"), '
+            'cycling hwdec to "$expected" (check ${attempt + 1})',
+          );
           await _cycleHwdec(platform, expected);
           if (!live()) return;
         case HwdecResumeStep.reopen:
@@ -3878,16 +3867,16 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
           // One re-open per loss: no further one for this film until
           // hardware decode has been seen again.
           _hwdecSeenAlive = false;
-          debugPrint('[mpv] hwdec watch: still lost after '
-              '$_hwdecWatchCycles cycle(s), re-opening stream '
-              '$_streamIndex at $_position');
+          debugPrint(
+            '[mpv] hwdec watch: still lost after '
+            '$_hwdecWatchCycles cycle(s), re-opening stream '
+            '$_streamIndex at $_position',
+          );
           _resumeStallTimer?.cancel();
           _resumeStallTimer = null;
-          unawaited(_openStream(
-            _streamIndex,
-            start: _position,
-            autoPlay: true,
-          ));
+          unawaited(
+            _openStream(_streamIndex, start: _position, autoPlay: true),
+          );
         case HwdecResumeStep.giveUp:
           _hwdecWatchOutcome = 'stopped';
       }
@@ -3943,7 +3932,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       wasBackgrounded: wasBackgrounded,
       seenAlive: _hwdecSeenAlive,
       playing: _playing,
-      refreshAllowed: !_iosMpvPipEnabled &&
+      refreshAllowed:
+          !_iosMpvPipEnabled &&
           !wasInPip &&
           !_awaitingPrebuffer &&
           _startedPlaying,
@@ -3957,8 +3947,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _hwdecWatchCycles = 0;
     _hwdecWatchReopened = false;
     _hwdecWatchOutcome = 'waiting';
-    debugPrint('[mpv] hwdec return #$_hwdecReturns: $plan '
-        '(resumePathActs=$resumePathActs)');
+    debugPrint(
+      '[mpv] hwdec return #$_hwdecReturns: $plan '
+      '(resumePathActs=$resumePathActs)',
+    );
     if (plan == HwdecReturnPlan.skipNoHardwareBefore) {
       _hwdecWatchOutcome = kHwdecOutcomeSkipNoHardware;
       return;
@@ -4002,8 +3994,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       if (!live()) return;
       final lost = hwdecSessionLost(current: current);
       _hwdecPre = lost ? 'lost' : 'ok';
-      debugPrint('[mpv] hwdec return #$returnId: paused refresh read back '
-          '"$current"');
+      debugPrint(
+        '[mpv] hwdec return #$returnId: paused refresh read back '
+        '"$current"',
+      );
     } catch (_) {
       // Unreadable: the overlay keeps `sent`.
     }
@@ -4196,6 +4190,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       'video-params/w',
       'video-params/h',
       'video-params/gamma',
+      // Build 88: the primaries decide the gamut half of a PiP colour
+      // gap (the SW LUT only maps the transfer); a bt.2020 film needs
+      // a gamut conversion no per-channel LUT can do.
+      'video-params/primaries',
       // The Video output preset's tone mapping (+57): the QoE overlay
       // shows which curve the live instance is running, so a phone
       // test can verify a preset pick actually landed.
@@ -4294,7 +4292,16 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       ..writeln('hwdec: ${stats['hwdec-current'] ?? '?'}')
       ..writeln(
         'src: ${stats['video-params/w'] ?? '?'}x${stats['video-params/h'] ?? '?'} '
-        'gamma:${stats['video-params/gamma'] ?? '?'}',
+        'gamma:${stats['video-params/gamma'] ?? '?'} '
+        'prim:${stats['video-params/primaries'] ?? '?'}',
+      )
+      // Build 88: which SW LUT the live gamma + tone-mapping imply
+      // (Dart mirror of TextureSW's table) — the PiP colour question
+      // needs this next to the gamma, not another eyeball: `sdr-exact`
+      // is the build-87 LUT, `none` passes the frame through, `pq|hlg`
+      // are the HDR tone-map LUTs.
+      ..writeln(
+        'sw-lut: ${swLutOverlayLabel(gamma: stats['video-params/gamma'], toneMapping: stats['tone-mapping'] ?? 'clip')}',
       )
       ..writeln(
         'out: ${stats['video-out-params/w'] ?? '?'}x${stats['video-out-params/h'] ?? '?'} '
@@ -4316,14 +4323,16 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // Build 70: what the hardware-decode watch did on the last Home →
     // return (iOS only — Android has no such watch).
     if (defaultTargetPlatform == TargetPlatform.iOS) {
-      buffer.writeln(hwdecResumeOverlayLine(
-        returns: _hwdecReturns,
-        pre: _hwdecPre,
-        checks: _hwdecWatchChecks,
-        cycles: _hwdecWatchCycles,
-        reopened: _hwdecWatchReopened,
-        outcome: _hwdecWatchOutcome,
-      ));
+      buffer.writeln(
+        hwdecResumeOverlayLine(
+          returns: _hwdecReturns,
+          pre: _hwdecPre,
+          checks: _hwdecWatchChecks,
+          cycles: _hwdecWatchCycles,
+          reopened: _hwdecWatchReopened,
+          outcome: _hwdecWatchOutcome,
+        ),
+      );
     }
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       buffer.writeln(
@@ -4542,10 +4551,9 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       final map = readLastSourceMap(ref.read);
       map[widget.item.url] = streamSourceKey(stream);
       unawaited(
-        ref.read(settingsRepositoryProvider).setPlayerSetting(
-              kLastSourceByTitleKey,
-              jsonEncode(map),
-            ),
+        ref
+            .read(settingsRepositoryProvider)
+            .setPlayerSetting(kLastSourceByTitleKey, jsonEncode(map)),
       );
     } catch (_) {
       // No memory is better than a crash mid-open.
@@ -4590,7 +4598,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     // listener runs before the adapter publishes (see above).
     final tracks = await _adapter.getAudioTracks();
     if (_disposed || _rememberedAudioId != null) return;
-    if (tracks.isEmpty) return; // Not ready yet: retry on the next tracks event.
+    if (tracks.isEmpty)
+      return; // Not ready yet: retry on the next tracks event.
     final preferred = _preferredAudioToPick;
     int? targetId;
     if (preferred != null && preferred.isNotEmpty) {
@@ -4599,7 +4608,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         preferred,
         activeId: _adapter.value.activeAudioTrackId,
       );
-      if (match == null) return; // Not in the list yet: retry on the next tracks event.
+      if (match == null)
+        return; // Not in the list yet: retry on the next tracks event.
       targetId = match.id;
     } else {
       // AUTO: the last pick the viewer made first — matched by language
@@ -4607,8 +4617,9 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // still finds it — else mpv's own default from the live list, set
       // explicitly so the engine plays what the drawer shows.
       final lastPick = _lastAudioPick;
-      final remembered =
-          lastPick != null ? matchRememberedTrack(tracks, lastPick) : null;
+      final remembered = lastPick != null
+          ? matchRememberedTrack(tracks, lastPick)
+          : null;
       targetId = remembered?.id ?? _adapter.liveDefaultAudioTrackId;
       if (targetId == null) return; // No tracks yet.
     }
@@ -4755,8 +4766,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         !_skipEnrichmentDone) {
       return;
     }
-    final key =
-        '${widget.item.url}|${episode.url}|${episode.episode}';
+    final key = '${widget.item.url}|${episode.url}|${episode.episode}';
     if (_aniskipAttemptedKey == key) return;
     _aniskipAttemptedKey = key;
     unawaited(_loadAniSkipSegments(episode, _duration));
@@ -4805,15 +4815,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// title Simkl cannot resolve is retried next episode rather than
   /// cached as a miss.
   Future<Map<String, String>?> _resolveSyncIdsViaSimkl() async {
-    if (_resolvedSyncIdsForUrl == widget.item.url &&
-        _resolvedSyncIds != null) {
+    if (_resolvedSyncIdsForUrl == widget.item.url && _resolvedSyncIds != null) {
       return _resolvedSyncIds;
     }
     final enriched = _enrichedItem ?? widget.item;
     if (enriched.tmdbId == null && enriched.imdbId == null) return null;
     try {
-      final resolved =
-          await ref.read(simklServiceProvider).syncIds(enriched);
+      final resolved = await ref.read(simklServiceProvider).syncIds(enriched);
       if (resolved.isNotEmpty) {
         _resolvedSyncIds = resolved;
         _resolvedSyncIdsForUrl = widget.item.url;
@@ -4837,9 +4845,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       sources: _streams,
       currentSourceIndex: _stage == _Stage.failed ? -1 : _streamIndex,
       failedSources: Set<int>.unmodifiable(_failedStreams),
-      playedSources: _startedPlaying
-          ? <int>{_streamIndex}
-          : const <int>{},
+      playedSources: _startedPlaying ? <int>{_streamIndex} : const <int>{},
       lastUsedSourceIndex: _lastUsedIndex,
       dataSaver: _dataSaver,
       preferredLanguage:
@@ -4995,9 +5001,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     if (_sleepTimer.consumeEpisodeEnd()) {
       _nextEpisodeOffer = null;
       _showSleepNotice();
-      _showEnded(
-        _hasNextEpisode ? EndedKind.declinedNext : EndedKind.finished,
-      );
+      _showEnded(_hasNextEpisode ? EndedKind.declinedNext : EndedKind.finished);
       return;
     }
     // v7: what follows is one decision (see [endOfEpisodeAction]) — the
@@ -5201,8 +5205,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
             hasPlayed: _startedPlaying && i == _streamIndex,
           ),
           playState: sourcePlayStateOf(
-            isCurrent:
-                i == _streamIndex && (_resolveDone || _pickedIndex == i),
+            isCurrent: i == _streamIndex && (_resolveDone || _pickedIndex == i),
             hasPicture: _startedPlaying,
             failed: _failedStreams.contains(i),
           ),
@@ -5361,369 +5364,367 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         _goBack();
       },
       child: Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Video. The pinch zoom is a Transform over the picture, driven by
-          // the controls' gesture layer through [_videoScale]. The picture
-          // is its own repaint boundary: the chrome above it rebuilds on
-          // every position tick, and without the boundary each of those
-          // rebuilds re-rasterizes the 4K texture layer with it.
-          //
-          // While the iOS mpv PiP window is up (+29) the film must NOT
-          // show here as well: the software renderer would draw it twice
-          // — once into this Flutter texture and once into the PiP layer
-          // — saturating the CPU, starving mpv's audio thread (cut-cut
-          // voice) and dropping frames. The Video widget is only a
-          // consumer: the render loop is mpv-driven (VideoOutput, owned
-          // by the VideoController, which this screen keeps and disposes
-          // only in dispose()), so unmounting the widget stops the
-          // Flutter texture path while the PiP tap keeps receiving
-          // frames. A black placeholder keeps the stack's layout.
-          //
-          // iOS ONLY (+38): on Android the PiP window IS the Flutter UI —
-          // there is no separate native feed — so unmounting here blacks
-          // the window for one watchdog interval (~5 s) and defeats the
-          // +24 PiP subtitle halving (the SubtitleView only exists while
-          // the Video is mounted). Android keeps the Video mounted and
-          // the isPip wiring halves the captions as designed.
-          if ((_inPip && defaultTargetPlatform == TargetPlatform.iOS) ||
-              !_engineReady)
-            const ColoredBox(color: Colors.black)
-          else
-            ValueListenableBuilder<double>(
-              valueListenable: _videoScale,
-              builder: (context, scale, child) => Transform.scale(
-                scale: scale.clamp(_kMinZoom, _kMaxZoom),
-                alignment: Alignment.center,
-                child: child,
-              ),
-              child: RepaintBoundary(
-                child: Center(
-                  child: Video(
-                    key: _videoKey,
-                    controller: _videoController,
-                    fit: _boxFitFor(_fit),
-                    fill: Colors.black,
-                    // The stock controls below; media_kit's own are hidden.
-                    controls: (_) => const SizedBox.shrink(),
-                    wakelock: true,
-                    // iOS mpv PiP (+28): when the player runs the software
-                    // renderer for PiP, the film must NOT pause when the app
-                    // backgrounds — the PiP window IS the background
-                    // playback, and a pause here would freeze it on the
-                    // first frame. Off by default: without PiP the
-                    // background pause is today's behaviour.
-                    pauseUponEnteringBackgroundMode: !_iosMpvPipEnabled,
-                    subtitleViewConfiguration: subtitleConfig,
+        backgroundColor: Colors.black,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Video. The pinch zoom is a Transform over the picture, driven by
+            // the controls' gesture layer through [_videoScale]. The picture
+            // is its own repaint boundary: the chrome above it rebuilds on
+            // every position tick, and without the boundary each of those
+            // rebuilds re-rasterizes the 4K texture layer with it.
+            //
+            // While the iOS mpv PiP window is up (+29) the film must NOT
+            // show here as well: the software renderer would draw it twice
+            // — once into this Flutter texture and once into the PiP layer
+            // — saturating the CPU, starving mpv's audio thread (cut-cut
+            // voice) and dropping frames. The Video widget is only a
+            // consumer: the render loop is mpv-driven (VideoOutput, owned
+            // by the VideoController, which this screen keeps and disposes
+            // only in dispose()), so unmounting the widget stops the
+            // Flutter texture path while the PiP tap keeps receiving
+            // frames. A black placeholder keeps the stack's layout.
+            //
+            // iOS ONLY (+38): on Android the PiP window IS the Flutter UI —
+            // there is no separate native feed — so unmounting here blacks
+            // the window for one watchdog interval (~5 s) and defeats the
+            // +24 PiP subtitle halving (the SubtitleView only exists while
+            // the Video is mounted). Android keeps the Video mounted and
+            // the isPip wiring halves the captions as designed.
+            if ((_inPip && defaultTargetPlatform == TargetPlatform.iOS) ||
+                !_engineReady)
+              const ColoredBox(color: Colors.black)
+            else
+              ValueListenableBuilder<double>(
+                valueListenable: _videoScale,
+                builder: (context, scale, child) => Transform.scale(
+                  scale: scale.clamp(_kMinZoom, _kMaxZoom),
+                  alignment: Alignment.center,
+                  child: child,
+                ),
+                child: RepaintBoundary(
+                  child: Center(
+                    child: Video(
+                      key: _videoKey,
+                      controller: _videoController,
+                      fit: _boxFitFor(_fit),
+                      fill: Colors.black,
+                      // The stock controls below; media_kit's own are hidden.
+                      controls: (_) => const SizedBox.shrink(),
+                      wakelock: true,
+                      // iOS mpv PiP (+28): when the player runs the software
+                      // renderer for PiP, the film must NOT pause when the app
+                      // backgrounds — the PiP window IS the background
+                      // playback, and a pause here would freeze it on the
+                      // first frame. Off by default: without PiP the
+                      // background pause is today's behaviour.
+                      pauseUponEnteringBackgroundMode: !_iosMpvPipEnabled,
+                      subtitleViewConfiguration: subtitleConfig,
+                    ),
                   ),
                 ),
               ),
-            ),
 
-          // Build 72: a renderer move in flight — the old engine's last
-          // picture (else the backdrop) covers the new engine until it
-          // has a picture of its own. Never black, never interactive.
-          // Build 73: the picture is the OLD engine's own texture —
-          // still alive, paused — so there is no capture to wait for
-          // and no moment without a picture.
-          // Build 74: not during an in-place move — the video widget
-          // above is still the same engine's and holds the picture.
-          if (rendererSwitching(_rendererPhase) && !_inPlaceMove)
-            IgnorePointer(
-              child: ColoredBox(
-                color: Colors.black,
-                child: _outgoingController != null
-                    ? Center(
-                        child: Video(
-                          key: _outgoingKey,
-                          controller: _outgoingController!,
-                          fit: _boxFitFor(_fit),
-                          fill: Colors.black,
-                          controls: (_) => const SizedBox.shrink(),
-                          pauseUponEnteringBackgroundMode: false,
-                          resumeUponEnteringForegroundMode: false,
-                          wakelock: false,
-                          subtitleViewConfiguration:
-                              const SubtitleViewConfiguration(visible: false),
-                        ),
-                      )
-                    : widget.item.backdropImageUrl.isNotEmpty
-                    ? Image.network(
-                        widget.item.backdropImageUrl,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => const SizedBox.expand(),
-                      )
-                    : const SizedBox.expand(),
-              ),
-            ),
-
-          // Resolving: the source list. It stays up until the first source
-          // actually plays — the list is the control, and the first open is
-          // automatic. Portrait, until the video itself starts playing.
-          if (_stage == _Stage.resolving)
-            PlayerStartupView(
-              title: widget.item.title,
-              episodeLine: _episodeLine,
-              logoUrl: widget.item.logoUrl,
-              backdropUrl: widget.item.backdropImageUrl,
-              sourceName: _selected?.displaySource,
-              status: _streams.isEmpty ? 'Getting links…' : null,
-              attempt: _streams.isEmpty
-                  ? null
-                  : (index: _streamIndex + 1, total: _streams.length),
-              rows: _startupRows,
-              currentIndex: _startupCurrentIndex,
-              onPick: _pickFromStartup,
-              onBack: _goBack,
-              isTv: isTv,
-            ),
-
-          // Failed: every link tried, or the resolve itself failed.
-          if (_stage == _Stage.failed)
-            Container(
-              color: Colors.black,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        color: Colors.white54,
-                        size: 48,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _error ?? l10n.playerNothingToPlay,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          FilledButton(
-                            onPressed: () {
-                              setState(() {
-                                _stage = _Stage.resolving;
-                                _error = null;
-                                _failedStreams.clear();
-                                _proxyBlocked.clear();
-    _proxySlow.clear();
-                              });
-                              unawaited(_resolveAndOpen());
-                            },
-                            child: Text(l10n.retry),
+            // Build 72: a renderer move in flight — the old engine's last
+            // picture (else the backdrop) covers the new engine until it
+            // has a picture of its own. Never black, never interactive.
+            // Build 73: the picture is the OLD engine's own texture —
+            // still alive, paused — so there is no capture to wait for
+            // and no moment without a picture.
+            // Build 74: not during an in-place move — the video widget
+            // above is still the same engine's and holds the picture.
+            if (rendererSwitching(_rendererPhase) && !_inPlaceMove)
+              IgnorePointer(
+                child: ColoredBox(
+                  color: Colors.black,
+                  child: _outgoingController != null
+                      ? Center(
+                          child: Video(
+                            key: _outgoingKey,
+                            controller: _outgoingController!,
+                            fit: _boxFitFor(_fit),
+                            fill: Colors.black,
+                            controls: (_) => const SizedBox.shrink(),
+                            pauseUponEnteringBackgroundMode: false,
+                            resumeUponEnteringForegroundMode: false,
+                            wakelock: false,
+                            subtitleViewConfiguration:
+                                const SubtitleViewConfiguration(visible: false),
                           ),
-                          const SizedBox(width: 12),
-                          OutlinedButton(
-                            onPressed: _goBack,
-                            child: Text(l10n.cancel),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                        )
+                      : widget.item.backdropImageUrl.isNotEmpty
+                      ? Image.network(
+                          widget.item.backdropImageUrl,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const SizedBox.expand(),
+                        )
+                      : const SizedBox.expand(),
                 ),
               ),
-            ),
 
-          // The golden chrome. Unmounted while the ended card or the up-next
-          // card is up, so their autofocus and Back handling own the route.
-          if (_stage == _Stage.playing &&
-              _ended == null &&
-              _nextEpisodeOffer == null &&
-              // The window is the chrome in PiP: the golden controls
-              // unmount while it is open (mirrors the VLC screen).
-              !_inPip)
-            RepaintBoundary(
-              child: GoldenPlayerControls(
-                controller: _adapter,
-                bufferedFraction: _bufferedFraction,
-                chrome: _chrome,
-                fit: _fit,
-                videoScale: _videoScale,
-                onFitChanged: (fit) {
-                  if (!mounted) return;
-                  setState(() => _fit = fit);
-                },
-                onRotate: canRotate ? _flipOrientation : null,
+            // Resolving: the source list. It stays up until the first source
+            // actually plays — the list is the control, and the first open is
+            // automatic. Portrait, until the video itself starts playing.
+            if (_stage == _Stage.resolving)
+              PlayerStartupView(
                 title: widget.item.title,
                 episodeLine: _episodeLine,
-                subtitle: _chromeSubtitle(),
-                onBack: _goBack,
-                onNextEpisode: _hasNextEpisode ? _advance : null,
-                onPreviousEpisode: _previousEpisode == null
+                logoUrl: widget.item.logoUrl,
+                backdropUrl: widget.item.backdropImageUrl,
+                sourceName: _selected?.displaySource,
+                status: _streams.isEmpty ? 'Getting links…' : null,
+                attempt: _streams.isEmpty
                     ? null
-                    : _goToPreviousEpisode,
-                panelData: _panelData,
-                settings: _playerSettings,
-                settingsNotifier:
-                    ref.read(playerSettingsProvider.notifier),
-                onPickEpisode: (episode) =>
-                    unawaited(_pickEpisode(episode)),
-                onPickSource: (index) {
-                  // A hand pick: the thermal governor never overrides it
-                  // while the hot episode lasts (see
-                  // `mpv_thermal_quality.dart`).
-                  _thermalGovernor.noteManualPick(index);
-                  unawaited(_pickSource(index));
-                },
-                onAudioPicked: (track) {
-                  // Remembered across failover: the next source re-applies
-                  // it — and persisted across opens, so AUTO plays it next
-                  // time too (see [_lastAudioPick]).
-                  _rememberedAudioId = track.id;
-                  final pick = RememberedTrack.of(track);
-                  _lastAudioPick = pick;
-                  if (pick != null) {
-                    unawaited(
-                      ref
-                          .read(settingsRepositoryProvider)
-                          .setPlayerSetting(
-                            _kLastAudioPickKey,
-                            jsonEncode(pick.toJson()),
-                          ),
-                    );
-                  }
-                },
-                onSubtitlePicked: (id) {
-                  _rememberedSubtitleId = id;
-                },
-                episodeProgress: _episodeProgressFor,
-                episodeDuration: _episodeDurationFor,
-                hasSubtitles: _hasSubtitles,
-                isLive: _isLive,
-                skipSegments: _skipSegments,
-                onSkipOutro: _hasNextEpisode ? _offerNextEpisodeNow : null,
-                // Phone and tablet only: with nothing here the controls
-                // have no padlock.
-                locked: form.isTouch ? _locked : null,
-                lockAvailable: form.isTouch,
-                // PiP is Android-only; on iOS and TV this stays null and
-                // the button never renders.
-                onEnterPip: _pipAvailable
-                    ? () => unawaited(_enterPip(fromButton: true))
-                    : null,
-                // Video output presets (+57) and PICTURE sliders: iOS
-                // mpv, and since v2 Android mpv (see
-                // [videoPanelSupportedOn]). Null elsewhere, so the panel
-                // never renders there.
-                onVideoPresetChanged:
-                    videoPanelSupportedOn(defaultTargetPlatform)
-                    ? _applyVideoOutputPreset
-                    : null,
-                onPictureChanged:
-                    videoPanelSupportedOn(defaultTargetPlatform)
-                    ? (values) => unawaited(_applyPicture(values))
-                    : null,
-                videoIsHdr: _videoIsHdr,
-                sleepTimer: _sleepTimer,
-                // Build 86: a drawer open over the video shifts the
-                // caption left by its width (see `_drawerOpenWidth`).
-                onDrawerChanged: (width) {
-                  if (!mounted) return;
-                  setState(() => _drawerOpenWidth = width);
-                },
+                    : (index: _streamIndex + 1, total: _streams.length),
+                rows: _startupRows,
+                currentIndex: _startupCurrentIndex,
+                onPick: _pickFromStartup,
+                onBack: _goBack,
+                isTv: isTv,
               ),
-            ),
 
-          // Up-next countdown card.
-          if (_nextEpisodeOffer != null)
-            NextEpisodeCountdown(
-              title: _nextEpisodeOffer!.name,
-              posterUrl: _nextEpisodeOffer!.posterUrl ?? widget.item.posterUrl,
-              season: _nextEpisodeOffer!.season,
-              episode: _nextEpisodeOffer!.episode,
-              onPlayNext: () {
-                final next = _nextEpisodeOffer;
-                if (next == null) return;
-                setState(() => _nextEpisodeOffer = null);
-                unawaited(_pickEpisode(next));
-              },
-              onCancel: () {
-                final beforeEnd = _offerBeforeEnd;
-                setState(() {
-                  _nextEpisodeDeclined = true;
-                  _nextEpisodeOffer = null;
-                  _offerBeforeEnd = false;
-                });
-                // Cancelled while the episode is still playing (v7): it
-                // just keeps playing; the ended card comes at the end.
-                if (!beforeEnd) _showEnded(EndedKind.declinedNext);
-              },
-              // v7: 5 s. At the end of the episode there is nothing left
-              // to pause, so the countdown always runs; before the end it
-              // pauses with the video.
-              countdown: kNextEpisodeCountdown,
-              paused: _offerBeforeEnd && !_playing,
-              isTv: isTv,
-            ),
-
-          // Ended card.
-          if (_ended != null)
-            EndedCard(
-              title: _isEpisodic
-                  ? (_currentEpisode?.name ?? widget.item.title)
-                  : widget.item.title,
-              kind: _ended!,
-              onStartOver: _startOver,
-              onClose: _goBack,
-              onNextEpisode: _ended == EndedKind.declinedNext
-                  ? () {
-                      setState(() => _ended = null);
-                      unawaited(_advance());
-                    }
-                  : null,
-              isTv: isTv,
-            ),
-
-          // The mpv stats overlay (+34): the live measurements over the
-          // video while the QoE-log developer option is on — the only
-          // diagnostics surface that works on a release build (the
-          // app-log viewer is debug-only). Never interactive
-          // (IgnorePointer), so it cannot steal a tap, a swipe or a
-          // pinch from the gesture layer below it. Top-left, below the
-          // top bar, so it sits over the picture rather than the
-          // chrome; a tap hides the chrome and leaves it fully
-          // readable.
-          if (_showMpvStatsOverlay)
-            Positioned(
-              top: 64,
-              left: 8,
-              child: IgnorePointer(
-                child: ValueListenableBuilder<String>(
-                  valueListenable: _mpvStatsText,
-                  builder: (context, text, _) {
-                    if (text.isEmpty) return const SizedBox.shrink();
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        text,
-                        style: const TextStyle(
-                          color: Colors.greenAccent,
-                          fontSize: 10,
-                          height: 1.4,
-                          fontFamily: 'monospace',
+            // Failed: every link tried, or the resolve itself failed.
+            if (_stage == _Stage.failed)
+              Container(
+                color: Colors.black,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.white54,
+                          size: 48,
                         ),
-                      ),
-                    );
+                        const SizedBox(height: 16),
+                        Text(
+                          _error ?? l10n.playerNothingToPlay,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            FilledButton(
+                              onPressed: () {
+                                setState(() {
+                                  _stage = _Stage.resolving;
+                                  _error = null;
+                                  _failedStreams.clear();
+                                  _proxyBlocked.clear();
+                                  _proxySlow.clear();
+                                });
+                                unawaited(_resolveAndOpen());
+                              },
+                              child: Text(l10n.retry),
+                            ),
+                            const SizedBox(width: 12),
+                            OutlinedButton(
+                              onPressed: _goBack,
+                              child: Text(l10n.cancel),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+            // The golden chrome. Unmounted while the ended card or the up-next
+            // card is up, so their autofocus and Back handling own the route.
+            if (_stage == _Stage.playing &&
+                _ended == null &&
+                _nextEpisodeOffer == null &&
+                // The window is the chrome in PiP: the golden controls
+                // unmount while it is open (mirrors the VLC screen).
+                !_inPip)
+              RepaintBoundary(
+                child: GoldenPlayerControls(
+                  controller: _adapter,
+                  bufferedFraction: _bufferedFraction,
+                  chrome: _chrome,
+                  fit: _fit,
+                  videoScale: _videoScale,
+                  onFitChanged: (fit) {
+                    if (!mounted) return;
+                    setState(() => _fit = fit);
+                  },
+                  onRotate: canRotate ? _flipOrientation : null,
+                  title: widget.item.title,
+                  episodeLine: _episodeLine,
+                  subtitle: _chromeSubtitle(),
+                  onBack: _goBack,
+                  onNextEpisode: _hasNextEpisode ? _advance : null,
+                  onPreviousEpisode: _previousEpisode == null
+                      ? null
+                      : _goToPreviousEpisode,
+                  panelData: _panelData,
+                  settings: _playerSettings,
+                  settingsNotifier: ref.read(playerSettingsProvider.notifier),
+                  onPickEpisode: (episode) => unawaited(_pickEpisode(episode)),
+                  onPickSource: (index) {
+                    // A hand pick: the thermal governor never overrides it
+                    // while the hot episode lasts (see
+                    // `mpv_thermal_quality.dart`).
+                    _thermalGovernor.noteManualPick(index);
+                    unawaited(_pickSource(index));
+                  },
+                  onAudioPicked: (track) {
+                    // Remembered across failover: the next source re-applies
+                    // it — and persisted across opens, so AUTO plays it next
+                    // time too (see [_lastAudioPick]).
+                    _rememberedAudioId = track.id;
+                    final pick = RememberedTrack.of(track);
+                    _lastAudioPick = pick;
+                    if (pick != null) {
+                      unawaited(
+                        ref
+                            .read(settingsRepositoryProvider)
+                            .setPlayerSetting(
+                              _kLastAudioPickKey,
+                              jsonEncode(pick.toJson()),
+                            ),
+                      );
+                    }
+                  },
+                  onSubtitlePicked: (id) {
+                    _rememberedSubtitleId = id;
+                  },
+                  episodeProgress: _episodeProgressFor,
+                  episodeDuration: _episodeDurationFor,
+                  hasSubtitles: _hasSubtitles,
+                  isLive: _isLive,
+                  skipSegments: _skipSegments,
+                  onSkipOutro: _hasNextEpisode ? _offerNextEpisodeNow : null,
+                  // Phone and tablet only: with nothing here the controls
+                  // have no padlock.
+                  locked: form.isTouch ? _locked : null,
+                  lockAvailable: form.isTouch,
+                  // PiP is Android-only; on iOS and TV this stays null and
+                  // the button never renders.
+                  onEnterPip: _pipAvailable
+                      ? () => unawaited(_enterPip(fromButton: true))
+                      : null,
+                  // Video output presets (+57) and PICTURE sliders: iOS
+                  // mpv, and since v2 Android mpv (see
+                  // [videoPanelSupportedOn]). Null elsewhere, so the panel
+                  // never renders there.
+                  onVideoPresetChanged:
+                      videoPanelSupportedOn(defaultTargetPlatform)
+                      ? _applyVideoOutputPreset
+                      : null,
+                  onPictureChanged: videoPanelSupportedOn(defaultTargetPlatform)
+                      ? (values) => unawaited(_applyPicture(values))
+                      : null,
+                  videoIsHdr: _videoIsHdr,
+                  sleepTimer: _sleepTimer,
+                  // Build 86: a drawer open over the video shifts the
+                  // caption left by its width (see `_drawerOpenWidth`).
+                  onDrawerChanged: (width) {
+                    if (!mounted) return;
+                    setState(() => _drawerOpenWidth = width);
                   },
                 ),
               ),
-            ),
-        ],
-      ),
+
+            // Up-next countdown card.
+            if (_nextEpisodeOffer != null)
+              NextEpisodeCountdown(
+                title: _nextEpisodeOffer!.name,
+                posterUrl:
+                    _nextEpisodeOffer!.posterUrl ?? widget.item.posterUrl,
+                season: _nextEpisodeOffer!.season,
+                episode: _nextEpisodeOffer!.episode,
+                onPlayNext: () {
+                  final next = _nextEpisodeOffer;
+                  if (next == null) return;
+                  setState(() => _nextEpisodeOffer = null);
+                  unawaited(_pickEpisode(next));
+                },
+                onCancel: () {
+                  final beforeEnd = _offerBeforeEnd;
+                  setState(() {
+                    _nextEpisodeDeclined = true;
+                    _nextEpisodeOffer = null;
+                    _offerBeforeEnd = false;
+                  });
+                  // Cancelled while the episode is still playing (v7): it
+                  // just keeps playing; the ended card comes at the end.
+                  if (!beforeEnd) _showEnded(EndedKind.declinedNext);
+                },
+                // v7: 5 s. At the end of the episode there is nothing left
+                // to pause, so the countdown always runs; before the end it
+                // pauses with the video.
+                countdown: kNextEpisodeCountdown,
+                paused: _offerBeforeEnd && !_playing,
+                isTv: isTv,
+              ),
+
+            // Ended card.
+            if (_ended != null)
+              EndedCard(
+                title: _isEpisodic
+                    ? (_currentEpisode?.name ?? widget.item.title)
+                    : widget.item.title,
+                kind: _ended!,
+                onStartOver: _startOver,
+                onClose: _goBack,
+                onNextEpisode: _ended == EndedKind.declinedNext
+                    ? () {
+                        setState(() => _ended = null);
+                        unawaited(_advance());
+                      }
+                    : null,
+                isTv: isTv,
+              ),
+
+            // The mpv stats overlay (+34): the live measurements over the
+            // video while the QoE-log developer option is on — the only
+            // diagnostics surface that works on a release build (the
+            // app-log viewer is debug-only). Never interactive
+            // (IgnorePointer), so it cannot steal a tap, a swipe or a
+            // pinch from the gesture layer below it. Top-left, below the
+            // top bar, so it sits over the picture rather than the
+            // chrome; a tap hides the chrome and leaves it fully
+            // readable.
+            if (_showMpvStatsOverlay)
+              Positioned(
+                top: 64,
+                left: 8,
+                child: IgnorePointer(
+                  child: ValueListenableBuilder<String>(
+                    valueListenable: _mpvStatsText,
+                    builder: (context, text, _) {
+                      if (text.isEmpty) return const SizedBox.shrink();
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          text,
+                          style: const TextStyle(
+                            color: Colors.greenAccent,
+                            fontSize: 10,
+                            height: 1.4,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

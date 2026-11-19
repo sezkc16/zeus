@@ -36,8 +36,8 @@ class AppScaffold extends ConsumerStatefulWidget {
 
 class _AppScaffoldState extends ConsumerState<AppScaffold>
     with TickerProviderStateMixin {
-  // Build 87: the last tab branch (0-4) the shell was on. The pill
-  // stays on screen on the Settings branch too, and the package has
+  // The last tab branch (0-4) the shell was on. The pill is parked
+  // off-screen on the Settings branch (build 88), and the package has
   // no "no selection" state: passing 5 slides its highlight capsule
   // off the bar's right edge (a gold sliver at the screen edge). So
   // on branch 5 the pill keeps highlighting the tab the user came
@@ -393,34 +393,41 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
 
         // Mobile uses Bottom Navigation
         final mq = MediaQuery.of(context);
-        // Build 87: the pill stays on EVERY branch, Settings included.
-        // It used to hide on branch 5 (the preview hid it, and hiding
-        // it removed the surface the Settings text glitch warped
-        // through), but the user saw the tab bar vanish for seconds on
-        // every Settings visit and return (2026-11-19) — the hiding
-        // itself was the complaint, and the return was already fast.
-        // The pill never leaves the tree now, so there is no gap in
-        // either direction. The Settings screens already clear a pill:
-        // pillFreeBottomContentPadding returns the shell's 100 px floor
-        // once the media padding below is inflated, so no row can read
-        // through the glass; and the shell's bottom clearance keeps
-        // the last row above the pill. The pill's look, and the
-        // Positioned-directly-under-Stack rule, are unchanged.
-        // The highlight stays on the last tab while on Settings (see
-        // _lastTabIndex): the package has no "no selection" state.
+        // Build 88: the pill is hidden on the Settings branch again
+        // (user 2026-11-19: "Settings pe chhupa do") — but it NEVER
+        // leaves the tree. Build 87 kept it on screen on all six
+        // branches to fix the seconds-long gap on the return; the user
+        // did not want it on Settings at all. The gap itself was the
+        // re-insertion: the pill was destroyed on Settings and rebuilt
+        // on the return (its glass layer re-rendering), so it only
+        // appeared ~2 frames into the 360 ms slide (his recording,
+        // 6cc621ab...mp4: Home visible with a black strip where the
+        // pill belongs, pill back ~0.2 s later). Now the pill stays
+        // mounted on every branch and is parked off-screen on Settings
+        // (see hiddenNavPaddingBottom): the visibility flips in the
+        // same build as the branch change, so there is no gap in
+        // either direction and nothing to re-init. MediaQuery is an
+        // InheritedWidget, so the package's root Positioned still
+        // talks directly to this Stack — no Transform/Padding wrapper
+        // (the +15..+19 freeze rule). The highlight stays on the last
+        // tab while on Settings (see _lastTabIndex): the package has
+        // no "no selection" state.
         final currentIndex = widget.navigationShell.currentIndex;
+        final onSettings = currentIndex == 5;
         if (currentIndex < 5) _lastTabIndex = currentIndex;
         final pillIndex = currentIndex < 5 ? currentIndex : _lastTabIndex;
         // Content must clear the pill top (see
         // [CustomBottomNavBar.contentClearance]); the real safe-area
         // padding is already in mq.padding.bottom, so only the remainder
-        // is added. The pill is always on screen now, so the clearance
-        // always applies — including on the Settings branch, whose
-        // screens read it through pillFreeBottomContentPadding.
-        final navBarTotalHeight = math.max(
-          CustomBottomNavBar.contentClearance - mq.padding.bottom,
-          0.0,
-        );
+        // is added. On Settings the pill is parked off-screen, so the
+        // content keeps just the real safe area (pre-87 behaviour) and
+        // the Settings screens take their small-value path.
+        final navBarTotalHeight = onSettings
+            ? 0.0
+            : math.max(
+                CustomBottomNavBar.contentClearance - mq.padding.bottom,
+                0.0,
+              );
 
         return PopScope(
           canPop: false,
@@ -473,12 +480,16 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
                 // slab is wrong in light mode too. The glass itself
                 // blurs whatever scrolls under it, and the shell's
                 // bottom clearance keeps the last row above the pill,
-                // so no row header can read through it. Build 87: the
-                // pill is on screen on the Settings branch too.
+                // so no row header can read through it. Build 88: the
+                // pill is parked off-screen on the Settings branch
+                // (hiddenNavPaddingBottom) — mounted, never destroyed,
+                // so the return shows it in the first frame.
                 MediaQuery(
                   data: mq.copyWith(
                     padding: mq.padding.copyWith(
-                      bottom: CustomBottomNavBar.navPaddingBottom(context),
+                      bottom: onSettings
+                          ? CustomBottomNavBar.hiddenNavPaddingBottom(context)
+                          : CustomBottomNavBar.navPaddingBottom(context),
                     ),
                   ),
                   child: CustomBottomNavBar(
