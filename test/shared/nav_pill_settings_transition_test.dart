@@ -25,6 +25,14 @@
 /// — so the pill glides with the page: still hidden on settled
 /// Settings, still back with no seconds-long gap, never a single-frame
 /// jump in either direction.
+///
+/// Build 90: the glide goes DOWN, not up. Build 88/89 parked the pill
+/// above the screen top (a screen-tall padding), so it slid up out of
+/// view and down on the return; the user asked (2026-11-19, "upar
+/// janese accha neeche jaye") for the natural bottom-bar direction.
+/// Now the pill parks BELOW the bottom edge (a negative padding, see
+/// hiddenNavPaddingBottom): it sinks down out of view as Settings
+/// slides in and rises up from below as it slides out.
 library;
 
 import 'package:flutter/material.dart';
@@ -101,8 +109,8 @@ void main() {
       find.byType(CustomBottomNavBar).evaluate().isNotEmpty;
 
   /// The pill's top / bottom edge on screen. On a tab the pill hugs the
-  /// bottom edge; on Settings it is parked above the screen top
-  /// (build 88) — mounted, but invisible.
+  /// bottom edge; on Settings it is parked below the screen bottom
+  /// (build 90) — mounted, but invisible.
   double pillTop(WidgetTester tester) =>
       tester.getTopLeft(find.byType(CustomBottomNavBar)).dy;
 
@@ -118,8 +126,14 @@ void main() {
     return pillBottom(tester);
   }
 
-  testWidgets('pill glides off-screen on Settings and back on return — mounted '
-      'throughout, no single-frame jump (build 89)', (tester) async {
+  /// The pill's top edge after pumping [duration].
+  Future<double> pumpAndTop(WidgetTester tester, Duration duration) async {
+    await tester.pump(duration);
+    return pillTop(tester);
+  }
+
+  testWidgets('pill glides down out of view on Settings and up on return — '
+      'mounted throughout, no single-frame jump (build 90)', (tester) async {
     final router = await pumpShell(tester);
     final screenHeight =
         tester.view.physicalSize.height / tester.view.devicePixelRatio;
@@ -152,21 +166,28 @@ void main() {
       closeTo(homeBottom, 1.0),
       reason: 'pill has not jumped on the first frame of the slide-in',
     );
-    // Mid glide: strictly between on-screen and parked, moving up —
-    // one motion with the page, not a pop at either end.
-    final up1 = await pumpAndBottom(tester, kMotionPage ~/ 4);
-    final up2 = await pumpAndBottom(tester, kMotionPage ~/ 4);
-    final up3 = await pumpAndBottom(tester, kMotionPage ~/ 4);
-    expect(up1, lessThan(homeBottom), reason: 'pill gliding up');
-    expect(up2, lessThan(up1), reason: 'pill still gliding up');
-    expect(up3, lessThan(up2), reason: 'pill still gliding up');
+    // Mid glide: sinking DOWN, bottom edge strictly increasing past
+    // the screen bottom — one motion with the page, not a pop at
+    // either end, and the wrong way (up, build 88/89) is ruled out
+    // by the direction of the increase.
+    final sink1 = await pumpAndBottom(tester, kMotionPage ~/ 4);
+    final sink2 = await pumpAndBottom(tester, kMotionPage ~/ 4);
+    final sink3 = await pumpAndBottom(tester, kMotionPage ~/ 4);
+    expect(sink1, greaterThan(homeBottom), reason: 'pill gliding down');
+    expect(sink2, greaterThan(sink1), reason: 'pill still gliding down');
+    expect(sink3, greaterThan(sink2), reason: 'pill still gliding down');
+    expect(
+      sink3,
+      greaterThan(screenHeight),
+      reason: 'pill below the bottom edge by three quarters of the glide',
+    );
     await tester.pumpAndSettle();
     expect(
-      pillBottom(tester),
-      lessThanOrEqualTo(0),
-      reason: 'pill parked on Settings',
+      pillTop(tester),
+      greaterThanOrEqualTo(screenHeight),
+      reason: 'pill parked below the screen bottom on Settings',
     );
-    final parkedBottom = pillBottom(tester);
+    final parkedTop = pillTop(tester);
 
     router.go('/home');
     await tester.pump();
@@ -176,21 +197,21 @@ void main() {
       reason: 'pill stays mounted through the slide-out',
     );
     expect(
-      pillBottom(tester),
-      lessThanOrEqualTo(0),
-      reason: 'pill still parked on the first frame of the return',
+      pillTop(tester),
+      greaterThanOrEqualTo(screenHeight),
+      reason: 'pill still parked below on the first frame of the return',
     );
-    final down1 = await pumpAndBottom(tester, kMotionPage ~/ 4);
-    final down2 = await pumpAndBottom(tester, kMotionPage ~/ 4);
-    final down3 = await pumpAndBottom(tester, kMotionPage ~/ 4);
+    final rise1 = await pumpAndTop(tester, kMotionPage ~/ 4);
+    final rise2 = await pumpAndTop(tester, kMotionPage ~/ 4);
+    final rise3 = await pumpAndTop(tester, kMotionPage ~/ 4);
     // easeInOutCubic starts slowly, so at a quarter of the glide the
-    // pill is still just off-screen — the glide is proven by the
+    // pill is still just below the edge — the glide is proven by the
     // steady rise, not by an early crossing.
-    expect(down1, greaterThan(parkedBottom), reason: 'pill gliding back down');
-    expect(down2, greaterThan(down1), reason: 'pill still gliding down');
-    expect(down3, greaterThan(down2), reason: 'pill still gliding down');
+    expect(rise1, lessThan(parkedTop), reason: 'pill gliding back up');
+    expect(rise2, lessThan(rise1), reason: 'pill still gliding up');
+    expect(rise3, lessThan(rise2), reason: 'pill still gliding up');
     expect(
-      down3,
+      pillBottom(tester),
       lessThanOrEqualTo(screenHeight),
       reason: 'pill back on screen by three quarters of the glide',
     );

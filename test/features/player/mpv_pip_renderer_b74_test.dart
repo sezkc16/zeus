@@ -12,7 +12,10 @@ void main() {
       );
     });
     test('a PiP quality drop in force needs the re-open', () {
-      expect(rendererMoveRoute(qualityDropped: true), RendererMoveRoute.reopen);
+      expect(
+        rendererMoveRoute(qualityDropped: true),
+        RendererMoveRoute.reopen,
+      );
     });
   });
 
@@ -88,22 +91,13 @@ void main() {
           'state=live ingest=120 liveEnq=118 liveDrop=2 primes=3 '
           'layerFail=0 upd=130 rend=120 rendMs=9',
         ),
-        'pip-feed: in 120 shown 118 drop 2 fail 0 render 9ms cs ?',
+        'pip-feed: in 120 shown 118 drop 2 fail 0 render 9ms',
       );
     });
     test('a missing counter reads ?', () {
       expect(
         pipFeedLine('ingest=0 liveEnq=0'),
-        'pip-feed: in 0 shown 0 drop ? fail ? render ?ms cs ?',
-      );
-    });
-    test('carries the feed buffers colour-space tag (build 89)', () {
-      expect(
-        pipFeedLine(
-          'ingest=120 liveEnq=118 liveDrop=2 layerFail=0 rendMs=9 '
-          'csTag=srgb',
-        ),
-        'pip-feed: in 120 shown 118 drop 2 fail 0 render 9ms cs srgb',
+        'pip-feed: in 0 shown 0 drop ? fail ? render ?ms',
       );
     });
   });

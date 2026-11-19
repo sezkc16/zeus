@@ -493,12 +493,18 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
                 // kuch animation ho acchasa"). The padding now tweens
                 // between the two values over [kMotionPage] with
                 // [kMotionPageCurve] — the exact timing of the Settings
-                // page slide — so the pill glides up out of the screen
-                // as Settings slides in, and glides back down as it
-                // slides out, one motion with the page. It is still
-                // hidden on settled Settings and still back with no
-                // seconds-long gap: the glide IS the 360 ms, it never
-                // waits. Reduced motion jumps instead (same rule as the
+                // page slide — so the pill glides with the page, one
+                // motion with it. Build 90: the glide goes DOWN, not
+                // up — build 88/89 parked the pill above the screen
+                // top, so it slid up out of view; the user asked
+                // (2026-11-19: "upar janese accha neeche jaye") for
+                // the natural bottom-bar direction, so the pill now
+                // sinks DOWN below the bottom edge as Settings slides
+                // in and rises UP from below as it slides out (see
+                // hiddenNavPaddingBottom). It is still hidden on
+                // settled Settings and still back with no seconds-long
+                // gap: the glide IS the 360 ms, it never waits.
+                // Reduced motion jumps instead (same rule as the
                 // branch container). A TweenAnimationBuilder builds no
                 // render object of its own — like the MediaQuery it
                 // wraps, it is not a RenderObjectWidget — so the
