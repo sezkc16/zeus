@@ -1,50 +1,17 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../../../core/domain/entity/multimedia_item.dart';
 import '../../../../core/extensions/extension_manager.dart';
 import '../../../../core/storage/storage_service.dart';
 import '../../../../core/extensions/base_provider.dart';
 import '../../../../core/network/clearance/clearance.dart';
 import '../../../../core/network/clearance/site_checks.dart';
-import '../../explore/data/anilist_explore_provider.dart';
 
 import './home_state.dart';
 
 part 'home_provider.g.dart';
-
-/// The key-free feed (AniList's GraphQL API, no key): the trending anime
-/// hero plus two rows. Home reads it only as the fallback when a selected
-/// plugin's own home page fails or has no main page. With no provider
-/// selected Home does NOT read it — it shows the "Add a plugin" card
-/// only. Each section fails soft (empty), so one dead section never takes
-/// the whole feed down.
-final keyFreeHomeFeedProvider =
-    FutureProvider<Map<String, List<MultimediaItem>>>((ref) async {
-      Future<List<MultimediaItem>> section(
-        ProviderListenable<Future<List<MultimediaItem>>> future,
-      ) async {
-        try {
-          return await ref.watch(future);
-        } catch (_) {
-          return const [];
-        }
-      }
-
-      final results = await Future.wait([
-        section(anilistHeroAnimeProvider.future),
-        section(topSeasonAnimeProvider.future),
-        section(moviesAnimeProvider.future),
-      ]);
-      final feed = <String, List<MultimediaItem>>{};
-      if (results[0].isNotEmpty) feed['Trending'] = results[0];
-      if (results[1].isNotEmpty) feed['Popular Anime'] = results[1];
-      if (results[2].isNotEmpty) feed['Top Movies in 4K'] = results[2];
-      return feed;
-    });
 
 @riverpod
 class HomeData extends _$HomeData {
@@ -72,7 +39,7 @@ class HomeData extends _$HomeData {
     if (activeProvider == null) {
       // No provider selected: Home has no feed of its own. It shows the
       // "Add a plugin" card (and the user's Continue Watching) only — no
-      // AniList rows, and no network call.
+      // rows at all, and no network call.
       fetchStartedAt = _now();
       return const HomeSuccess({});
     }
@@ -112,12 +79,11 @@ class HomeData extends _$HomeData {
         return;
       }
       // A plugin with no main page answers `{}` (see CloudStreamProvider):
-      // it has nothing to show, so fall back to the key-free For You
-      // feed instead of a blank Home, and let the screen say so once.
+      // it has nothing to show, so Home stays blank — no fallback feed.
       // Sections that came back empty are still that plugin's own home —
       // a provider returning sections, even empty ones, is a success.
       if (items.isEmpty) {
-        await _fallbackToKeyFree(token, activeProvider.name, null);
+        state = const HomeSuccess({});
         return;
       }
       state = HomeSuccess(items);
@@ -129,35 +95,18 @@ class HomeData extends _$HomeData {
         state = const HomeOffline();
         return;
       }
-      // The plugin's home failed: show the key-free feed instead of an
-      // error page.
-      await _fallbackToKeyFree(token, activeProvider.name, e.toString());
-    }
-  }
-
-  /// Serves the key-free For You feed after a plugin's home failed or came
-  /// back empty, so Home is never blank. [originalError] is the message
-  /// HomeError carries when even the fallback has nothing to show — a
-  /// plugin failure keeps its own message (see home_provider_test).
-  Future<void> _fallbackToKeyFree(
-    int token,
-    String pluginName,
-    String? originalError,
-  ) async {
-    try {
-      ref.invalidate(keyFreeHomeFeedProvider);
-      final feed = await ref.read(keyFreeHomeFeedProvider.future);
-      if (!_isCurrent(token)) return;
-      if (feed.isEmpty) {
-        state = HomeError(originalError ?? 'Could not load trending');
+      // A failure while the plugin's site check is still uncleared is
+      // the check's to show, not a blank Home: HomeError arms the
+      // refetch once the check clears (see home_check_test), and the
+      // screen's check gate shows Verify. Anything else stays blank.
+      final check = _unclearedCheck(activeProvider);
+      if (check != null) {
+        state = HomeError('${check.site} needs a check');
         return;
       }
-      state = HomeSuccess(feed, fellBackFrom: pluginName);
-    } catch (e) {
-      if (!_isCurrent(token)) return;
-      state = _looksOffline(e)
-          ? const HomeOffline()
-          : HomeError(originalError ?? e.toString());
+      // The plugin's home failed: Home stays blank instead of an error
+      // page or a fallback feed.
+      state = const HomeSuccess({});
     }
   }
 

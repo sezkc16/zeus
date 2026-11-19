@@ -196,9 +196,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       );
     }
 
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _syncAppBarOpacity(),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncAppBarOpacity());
     // Mobile layout: existing AppBar + FAB
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -226,7 +224,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         // Provider line (v6, design B): a second header line directly
         // under the logo + app name, left-aligned with the logo — plain
         // text "from <Provider> ▾" (or "Select source ▾" when none is
-        // active, the key-free feed). It is the one way to choose which
+        // active). It is the one way to choose which
         // plugin's home page Home shows. With no plugin installed there is
         // no second line; the "Add a plugin" banner below the rows covers
         // that case.
@@ -302,8 +300,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  /// Shows the fallback toast once per fallback: the plugin's home failed
-  /// and Home is showing the key-free default feed instead.
+  /// Shows the fallback toast once per fallback. The fallback feed was
+  /// removed in build 92, so `fellBackFrom` is always null now and this
+  /// never fires; kept for the day a fallback ever returns.
   void _maybeShowFallbackToast(String? fellBackFrom, AppLocalizations l10n) {
     if (fellBackFrom == null) {
       _lastFallbackShown = null;
@@ -359,8 +358,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final hasNoProvider = ref.watch(activeProviderProvider) == null;
 
     // Home rows customise (v7): the saved order and hidden rows of the
-    // source on screen - the active provider, or the key-free feed when
-    // there is none or Home fell back to it.
+    // source on screen - the active provider, or the no-provider key
+    // when there is none.
     final homeRows = state is HomeSuccess
         ? applyHomeRowPrefs(
             [

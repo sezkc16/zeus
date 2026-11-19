@@ -59,16 +59,15 @@ class _FakeScraper extends SkyStreamProvider {
 
   /// Completes the [index]-th outstanding call with one section holding
   /// one item — a plugin home that actually has something to show.
-  void resolveWithItems(int index, String section) =>
-      calls[index].complete({
-        section: [
-          MultimediaItem(
-            title: 'One Piece',
-            url: 'https://a.test/one-piece',
-            posterUrl: 'https://a.test/one-piece.jpg',
-          ),
-        ],
-      });
+  void resolveWithItems(int index, String section) => calls[index].complete({
+    section: [
+      MultimediaItem(
+        title: 'One Piece',
+        url: 'https://a.test/one-piece',
+        posterUrl: 'https://a.test/one-piece.jpg',
+      ),
+    ],
+  });
 
   void fail(int index, Object error) => calls[index].completeError(error);
 
@@ -83,8 +82,10 @@ class _FakeScraper extends SkyStreamProvider {
   @override
   Set<ProviderType> get supportedTypes => const {ProviderType.movie};
   @override
-  Future<List<MultimediaItem>> search(String query, {CancelToken? cancelToken}) =>
-      throw UnimplementedError();
+  Future<List<MultimediaItem>> search(
+    String query, {
+    CancelToken? cancelToken,
+  }) => throw UnimplementedError();
   @override
   Future<MultimediaItem> getDetails(String url) => throw UnimplementedError();
   @override
@@ -119,8 +120,8 @@ Future<void> _settle([int turns = 64]) async {
 
 /// Waits for the home state to reach [predicate], giving the event loop
 /// real turns. A plain [_settle] is not enough after a provider change:
-/// the rebuild is scheduled, and the key-free fetch that follows it is an
-/// async chain of its own — both need event-loop turns, not just drained
+/// the rebuild is scheduled, and the fetch that follows it is an async
+/// chain of its own — both need event-loop turns, not just drained
 /// microtasks.
 Future<void> _waitForHome(
   ProviderContainer container,
@@ -133,17 +134,10 @@ Future<void> _waitForHome(
   fail('homeDataProvider did not reach the expected state');
 }
 
-ProviderContainer _containerWith(
-  SkyStreamProvider? active, [
-  _Sections feed = const {},
-]) {
+ProviderContainer _containerWith(SkyStreamProvider? active) {
   final container = ProviderContainer(
     overrides: [
       activeProviderProvider.overrideWith(() => _FakeActiveProvider(active)),
-      // The key-free feed needs the network; pin it so a deselect or a
-      // fallback lands deterministically instead of hanging on a socket
-      // these tests never let complete.
-      keyFreeHomeFeedProvider.overrideWith((ref) async => feed),
     ],
   );
   addTearDown(container.dispose);
@@ -183,10 +177,7 @@ void main() {
       await _settle();
 
       expect(scraper.callCount, 1);
-      scraper.fail(
-        0,
-        const SocketException('Failed host lookup: a.test'),
-      );
+      scraper.fail(0, const SocketException('Failed host lookup: a.test'));
       await _settle();
 
       expect(container.read(homeDataProvider), isA<HomeOffline>());
@@ -215,7 +206,7 @@ void main() {
       },
     );
 
-    test('a plugin failure keeps its own message instead of offline', () async {
+    test('a plugin failure shows a blank home instead of offline', () async {
       final scraper = _FakeScraper('a');
       final container = _containerWith(scraper);
       await _settle();
@@ -228,63 +219,50 @@ void main() {
       await _settle();
 
       final state = container.read(homeDataProvider);
-      expect(state, isA<HomeError>());
-      expect(
-        (state as HomeError).message,
-        contains('Extension returned invalid home data'),
-      );
+      expect(state, isA<HomeSuccess>());
+      expect(_sectionsOf(state), isEmpty);
     });
   });
 
-  group('HomeData falls back to the For You feed when a plugin home fails', () {
-    test('a plugin failure shows the key-free feed and names the plugin',
-        () async {
+  group('HomeData shows a blank home when a plugin home fails', () {
+    test('a plugin failure shows a blank home, no fallback feed', () async {
       final scraper = _FakeScraper('anikoto');
-      final container = _containerWith(
-        scraper,
-        const {'Popular Anime': <MultimediaItem>[]},
-      );
+      final container = _containerWith(scraper);
       await _settle();
 
       scraper.fail(0, Exception('boom'));
       await _waitForHome(
         container,
-        (state) => state is HomeSuccess && state.fellBackFrom != null,
+        (state) => state is HomeSuccess && state.data.isEmpty,
       );
 
       final state = container.read(homeDataProvider);
       expect(state, isA<HomeSuccess>());
-      expect(_sectionsOf(state), {'Popular Anime'});
-      expect((state as HomeSuccess).fellBackFrom, 'anikoto');
+      expect(_sectionsOf(state), isEmpty);
+      expect((state as HomeSuccess).fellBackFrom, isNull);
     });
 
-    test('a plugin with no main page falls back too', () async {
+    test('a plugin with no main page shows a blank home too', () async {
       final scraper = _FakeScraper('anikoto');
-      final container = _containerWith(
-        scraper,
-        const {'Popular Anime': <MultimediaItem>[]},
-      );
+      final container = _containerWith(scraper);
       await _settle();
 
       // No sections at all: the plugin has no main page worth showing.
       scraper.resolveEmpty(0);
       await _waitForHome(
         container,
-        (state) => state is HomeSuccess && state.fellBackFrom != null,
+        (state) => state is HomeSuccess && state.data.isEmpty,
       );
 
       final state = container.read(homeDataProvider);
       expect(state, isA<HomeSuccess>());
-      expect(_sectionsOf(state), {'Popular Anime'});
-      expect((state as HomeSuccess).fellBackFrom, 'anikoto');
+      expect(_sectionsOf(state), isEmpty);
+      expect((state as HomeSuccess).fellBackFrom, isNull);
     });
 
-    test('a working plugin home never falls back', () async {
+    test('a working plugin home shows its own sections', () async {
       final scraper = _FakeScraper('anikoto');
-      final container = _containerWith(
-        scraper,
-        const {'Popular Anime': <MultimediaItem>[]},
-      );
+      final container = _containerWith(scraper);
       await _settle();
 
       // A section with an item in it: the plugin's own home.
@@ -320,11 +298,9 @@ void main() {
       scraper.resolve(0, 'Stale');
       await _settle();
 
-      expect(
-        _sectionsOf(container.read(homeDataProvider)),
-        {'Fresh'},
-        reason: 'the abandoned first fetch must not win by arriving last',
-      );
+      expect(_sectionsOf(container.read(homeDataProvider)), {
+        'Fresh',
+      }, reason: 'the abandoned first fetch must not win by arriving last');
     });
 
     test(
@@ -359,66 +335,46 @@ void main() {
       },
     );
 
-    test('clearing the active provider is not undone by a late result', () async {
-      final slow = _FakeScraper('slow');
-      final container = _containerWith(slow);
-      await _settle();
-      expect(slow.callCount, 1);
+    test(
+      'clearing the active provider is not undone by a late result',
+      () async {
+        final slow = _FakeScraper('slow');
+        final container = _containerWith(slow);
+        await _settle();
+        expect(slow.callCount, 1);
 
-      // Provider uninstalled / deselected: Home has no feed of its own (an
-      // empty success — the screen shows the "Add a plugin" card), and
-      // only the token bumped in build() can retire the in-flight provider
-      // fetch.
-      unawaited(container.read(activeProviderProvider.notifier).set(null));
-      await _waitForHome(
-        container,
-        (state) => state is HomeSuccess && state.data.isEmpty,
-      );
+        // Provider uninstalled / deselected: Home has no feed of its own (an
+        // empty success — the screen shows the "Add a plugin" card), and
+        // only the token bumped in build() can retire the in-flight provider
+        // fetch.
+        unawaited(container.read(activeProviderProvider.notifier).set(null));
+        await _waitForHome(
+          container,
+          (state) => state is HomeSuccess && state.data.isEmpty,
+        );
 
-      slow.resolve(0, 'Slow');
-      await _settle();
+        slow.resolve(0, 'Slow');
+        await _settle();
 
-      expect(
-        _sectionsOf(container.read(homeDataProvider)),
-        isEmpty,
-        reason: 'a fetch from the removed provider must not resurrect a grid',
-      );
-    });
+        expect(
+          _sectionsOf(container.read(homeDataProvider)),
+          isEmpty,
+          reason: 'a fetch from the removed provider must not resurrect a grid',
+        );
+      },
+    );
 
-    test('no provider shows no feed and never reads the key-free feed', () async {
-      var feedReads = 0;
-      final container = ProviderContainer(
-        overrides: [
-          activeProviderProvider.overrideWith(
-            () => _FakeActiveProvider(null),
-          ),
-          keyFreeHomeFeedProvider.overrideWith((ref) async {
-            feedReads++;
-            return <String, List<MultimediaItem>>{
-              'Popular Anime': [
-                MultimediaItem(
-                  title: 'B',
-                  url: 'anilist:2',
-                  posterUrl: '',
-                  contentType: MultimediaContentType.anime,
-                ),
-              ],
-            };
-          }),
-        ],
-      );
-      addTearDown(container.dispose);
-      container.listen(homeDataProvider, (_, _) {});
+    test('no provider shows no feed', () async {
+      final container = _containerWith(null);
       await _settle();
 
       expect(_sectionsOf(container.read(homeDataProvider)), isEmpty);
 
-      // Pull to refresh: still nothing, still no AniList read.
+      // Pull to refresh: still nothing.
       await container.read(homeDataProvider.notifier).fetch();
       await _settle();
 
       expect(_sectionsOf(container.read(homeDataProvider)), isEmpty);
-      expect(feedReads, 0);
     });
 
     test('a result arriving after dispose does not throw', () async {

@@ -22,7 +22,7 @@ String cleanPluginName(String name) {
 ///
 /// Hidden with no plugin installed. With plugins installed it is the
 /// active provider's own name, or [selectLabel] when none is active and
-/// Home shows the key-free feed. An active provider always shows, even
+/// Home shows no feed. An active provider always shows, even
 /// if the installed list has not caught up with it yet.
 String? homeProviderChipLabel({
   required List<SkyStreamProvider> installed,
