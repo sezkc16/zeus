@@ -25,8 +25,18 @@ class _ClearanceBridgeState extends ConsumerState<ClearanceBridge> {
   void initState() {
     super.initState();
     final clearance = Clearance.instance;
-    if (!clearance.isReady) return;
-    clearance.solver.presenter = _present;
+    if (clearance.isReady) {
+      clearance.solver.presenter = _present;
+    } else {
+      // init() may finish after the 10 s launch timeout the app waits on:
+      // re-set the presenter then, so it is not left null forever.
+      // init() is idempotent — it returns the same future.
+      clearance.init().then((_) {
+        if (!mounted) return;
+        final clearance = Clearance.instance;
+        if (clearance.isReady) clearance.solver.presenter = _present;
+      });
+    }
     ref.read(deviceProfileProvider.future).then(clearance.fitTo).ignore();
   }
 

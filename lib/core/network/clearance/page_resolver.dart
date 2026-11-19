@@ -25,7 +25,10 @@ const showSheetMarker = 'SHOW_SHEET';
 /// the call, waiting for room included) or the page's renderer ends.
 ///
 /// With [script], the page runs it after each request, one run at a time,
-/// and [onScript] gets the result.
+/// and [onScript] gets the result. A request that arrives while a run is
+/// in flight is re-run once the run ends, instead of being dropped, and
+/// the script is also polled every 2 s while the resolve runs — a check
+/// whose single request is missed is still seen.
 ///
 /// When the script returns [showSheetMarker] — its page shows a check that
 /// needs a person — the page is shown in the check sheet once the hidden
@@ -79,15 +82,6 @@ Future<void> resolvePage(
     }
   }
 
-  // A script result that is a token or a link (not the marker): the check
-  // is cleared.
-  void noteCleared(String result) {
-    final decoded = decodeScriptResult(result);
-    if (decoded != null && decoded.isNotEmpty && decoded != showSheetMarker) {
-      markCleared();
-    }
-  }
-
   // Showing the page to a person, once per resolve.
   var sheetRequested = false;
   var sheetShown = false;
@@ -95,29 +89,13 @@ Future<void> resolvePage(
   Future<ChallengeSheetResult?>? sheetDone;
   Timer? sheetTimer;
 
-  // One script run at a time, shared by the re-runs below and the poll.
+  // One script run at a time, shared by the events below and the poll.
   var scripting = false;
 
-  // The script, polled while the sheet shows: a tick is seen even when
-  // the page makes no request after it.
-  Future<void> pollScript() async {
-    if (script == null || onScript == null) return;
-    while (sheetOpen && !done.isCompleted) {
-      await Future<void>.delayed(const Duration(seconds: 1));
-      if (!sheetOpen || done.isCompleted || scripting) continue;
-      scripting = true;
-      try {
-        final result = await page.evaluate(script);
-        if (done.isCompleted) return;
-        await onScript(result);
-        noteCleared(result);
-      } catch (_) {
-        // Between documents, or the page has closed.
-      } finally {
-        scripting = false;
-      }
-    }
-  }
+  // A run was asked for while one was in flight: the latest DOM state
+  // is read once the run finishes, instead of the ask being lost (a
+  // Turnstile iframe, for one, reports exactly once).
+  var scriptDirty = false;
 
   Future<void> showSheet() async {
     if (sheetShown || done.isCompleted || cleared.isCompleted) return;
@@ -130,7 +108,6 @@ Future<void> resolvePage(
       cleared: cleared.future,
     );
     sheetDone = shown;
-    unawaited(pollScript());
     final left = await shown;
     sheetOpen = false;
     if (left == null) {
@@ -181,6 +158,52 @@ Future<void> resolvePage(
     }
   }
 
+  // One script run, and a re-run for any ask that arrived mid-run.
+  Future<void> runScript() async {
+    if (script == null || onScript == null || scripting) return;
+    scripting = true;
+    try {
+      while (!done.isCompleted) {
+        try {
+          final result = await page.evaluate(script);
+          if (!done.isCompleted) await onScript(result);
+          noteScriptResult(result);
+        } catch (_) {
+          // Between documents, or the page has closed.
+        }
+        if (!scriptDirty || done.isCompleted) break;
+        scriptDirty = false;
+      }
+    } finally {
+      scripting = false;
+    }
+  }
+
+  // An ask to run the script, now or once the run in flight ends.
+  void requestScriptRun() {
+    if (script == null || onScript == null) return;
+    if (scripting) {
+      scriptDirty = true;
+      return;
+    }
+    unawaited(runScript());
+  }
+
+  // The script, polled while the resolve runs: every 2 s until the sheet
+  // shows, every 1 s while it does — a tick is seen even when the page
+  // makes no request after it, and a check the events below missed is
+  // still seen.
+  Future<void> pollScript() async {
+    if (script == null || onScript == null) return;
+    while (!done.isCompleted) {
+      await Future<void>.delayed(
+        Duration(seconds: sheetOpen ? 1 : 2),
+      );
+      if (done.isCompleted) return;
+      requestScriptRun();
+    }
+  }
+
   // Each request is handed over once the one before has been answered.
   var reported = Future<void>.value();
   final events = page.events.listen((event) {
@@ -197,19 +220,7 @@ Future<void> resolvePage(
         finish();
       }
     });
-    if (script == null || onScript == null || scripting) return;
-    scripting = true;
-    unawaited(() async {
-      try {
-        final result = await page.evaluate(script);
-        if (!done.isCompleted) await onScript(result);
-        noteScriptResult(result);
-      } catch (_) {
-        // Between documents, or the page has closed.
-      } finally {
-        scripting = false;
-      }
-    }());
+    requestScriptRun();
   });
   try {
     // The budget had no room until the deadline had passed.
@@ -222,6 +233,9 @@ Future<void> resolvePage(
           if (!_ownedByTheBrowser.contains(e.key.toLowerCase())) e.key: e.value,
       },
     );
+    // From here on, the script is polled too (see above): a check whose
+    // single request the events above missed is still seen.
+    unawaited(pollScript());
     await done.future.timeout(
       deadline.difference(DateTime.now()),
       onTimeout: () {},

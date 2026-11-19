@@ -514,7 +514,12 @@ class ClearanceSolver {
   }) {
     final result = _sheet.then((_) async {
       final present = presenter;
-      if (present == null) return null;
+      if (present == null) {
+        // No bridge to show it in: the resolve runs on hidden, and its
+        // own timeout ends it — say so, instead of failing silently.
+        talker.debug('[Clearance] no presenter to show $site');
+        return null;
+      }
       return present(page: page, site: site, cleared: cleared);
     });
     _sheet = result.then((_) {}, onError: (Object _) {});

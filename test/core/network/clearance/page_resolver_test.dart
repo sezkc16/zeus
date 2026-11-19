@@ -14,12 +14,17 @@ final _keys = SiteKeys.parse(
   File('assets/clearance/public_suffix_list.dat').readAsStringSync(),
 );
 
-ClearanceSolver _solver(PageFactory pages, {int parallel = 3}) =>
+ClearanceSolver _solver(
+  PageFactory pages, {
+  int parallel = 3,
+  Duration needsPersonAfter = const Duration(seconds: 20),
+}) =>
     ClearanceSolver(
       store: ClearanceStore(),
       siteKeys: _keys,
       openPage: pages.call,
       parallel: parallel,
+      needsPersonAfter: needsPersonAfter,
       callLimit: const Duration(milliseconds: 200),
     );
 
@@ -79,9 +84,13 @@ void main() {
 
   test('the script runs after a request, one run at a time, and its results are handed over', () async {
     final run = Completer<String>();
+    var runs = 0;
     final page = FakePage(const [
       Step('Player'),
-    ], onEvaluate: (_) => run.future);
+    ], onEvaluate: (_) {
+      runs++;
+      return runs == 1 ? run.future : Future.value('"Second"');
+    });
     final results = <String>[];
     final resolving = resolvePage(
       _solver(PageFactory([page])),
@@ -98,10 +107,55 @@ void main() {
     expect(page.evaluated, ['document.title']);
     run.complete('"Player"');
     await pumpEventQueue();
-    expect(results, ['"Player"']);
+    // The second request was not lost: it re-ran once the first run
+    // finished, and its result was handed over too.
+    expect(results, ['"Player"', '"Second"']);
+    expect(page.evaluated, hasLength(2));
     page.emit(_request('https://host.example/done'));
     await resolving;
-    expect(page.evaluated, hasLength(2));
+    expect(page.evaluated, hasLength(3));
+  });
+
+  test('a request dropped while a run is in flight is re-run, and SHOW_SHEET on the re-run opens the sheet', () async {
+    // The first run is slow; the second request arrives while it is in
+    // flight. The script answers '' first, then SHOW_SHEET — as a
+    // Turnstile widget's iframe arriving mid-run would.
+    final firstRun = Completer<String>();
+    var runs = 0;
+    final page = FakePage(const [
+      Step('Player'),
+    ], onEvaluate: (_) {
+      runs++;
+      return runs == 1 ? firstRun.future : Future.value('"SHOW_SHEET"');
+    });
+    var shown = 0;
+    final solver = _solver(
+      PageFactory([page]),
+      needsPersonAfter: Duration.zero,
+    )..presenter = ({required page, required site, required cleared}) async {
+      shown++;
+      return ChallengeSheetResult.closed;
+    };
+    final resolving = resolvePage(
+      solver,
+      url: Uri.parse('https://host.example/'),
+      script: 'document.title',
+      timeout: const Duration(seconds: 5),
+      onRequest: (_) async => false,
+      onScript: (_) async {},
+    );
+    await pumpEventQueue();
+    page.emit(_request('https://host.example/a.js'));
+    page.emit(_request('https://host.example/b.js'));
+    await pumpEventQueue();
+    // Only the first run started; the second request was queued, not lost.
+    expect(page.evaluated, ['document.title']);
+    firstRun.complete('""');
+    await pumpEventQueue();
+    // The re-run read the marker, and the sheet was requested.
+    expect(shown, 1);
+    await resolving;
+    expect(page.disposed, isTrue);
   });
 
   test('a renderer that ends ends it', () async {
