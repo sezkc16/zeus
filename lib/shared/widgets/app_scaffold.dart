@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:zorox/core/providers/device_info_provider.dart';
 import 'package:zorox/core/utils/boot_trace.dart';
 import 'package:zorox/core/utils/layout_constants.dart';
+import 'package:zorox/core/utils/motion.dart';
 import 'package:zorox/core/utils/responsive_breakpoints.dart';
 import 'package:zorox/shared/widgets/custom_bottom_nav.dart';
 import 'package:zorox/shared/widgets/app_sidebar.dart';
@@ -484,13 +485,44 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
                 // pill is parked off-screen on the Settings branch
                 // (hiddenNavPaddingBottom) — mounted, never destroyed,
                 // so the return shows it in the first frame.
-                MediaQuery(
-                  data: mq.copyWith(
-                    padding: mq.padding.copyWith(
-                      bottom: onSettings
-                          ? CustomBottomNavBar.hiddenNavPaddingBottom(context)
-                          : CustomBottomNavBar.navPaddingBottom(context),
+                //
+                // Build 89: the park is ANIMATED, not a jump. Build 88
+                // flipped the padding in one build, so the pill popped
+                // in/out with a jerk while the page itself slid for
+                // 360 ms (user 2026-11-19: "jhatak se na dikhe na jaye,
+                // kuch animation ho acchasa"). The padding now tweens
+                // between the two values over [kMotionPage] with
+                // [kMotionPageCurve] — the exact timing of the Settings
+                // page slide — so the pill glides up out of the screen
+                // as Settings slides in, and glides back down as it
+                // slides out, one motion with the page. It is still
+                // hidden on settled Settings and still back with no
+                // seconds-long gap: the glide IS the 360 ms, it never
+                // waits. Reduced motion jumps instead (same rule as the
+                // branch container). A TweenAnimationBuilder builds no
+                // render object of its own — like the MediaQuery it
+                // wraps, it is not a RenderObjectWidget — so the
+                // package's root Positioned still talks directly to
+                // this Stack (the +15..+19 freeze rule: no
+                // Transform/Padding/Align wrapper around the pill).
+                // The bar itself is passed as `child`, so it is not
+                // rebuilt on every animation frame — only the padding
+                // value changes.
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(
+                    end: onSettings
+                        ? CustomBottomNavBar.hiddenNavPaddingBottom(context)
+                        : CustomBottomNavBar.navPaddingBottom(context),
+                  ),
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : kMotionPage,
+                  curve: kMotionPageCurve,
+                  builder: (context, navPadding, child) => MediaQuery(
+                    data: mq.copyWith(
+                      padding: mq.padding.copyWith(bottom: navPadding),
                     ),
+                    child: child!,
                   ),
                   child: CustomBottomNavBar(
                     currentIndex: pillIndex,

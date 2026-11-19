@@ -17,6 +17,14 @@
 /// user came from while on Settings: the package has no "no selection"
 /// state, and passing 5 would slide its highlight capsule off the
 /// bar's right edge.
+///
+/// Build 89: the park is ANIMATED. Build 88 flipped the padding in one
+/// build, so the pill popped in/out with a jerk ("jhatak se") while the
+/// page slid for 360 ms (user 2026-11-19). The padding now tweens over
+/// kMotionPage with kMotionPageCurve — the Settings slide's own timing
+/// — so the pill glides with the page: still hidden on settled
+/// Settings, still back with no seconds-long gap, never a single-frame
+/// jump in either direction.
 library;
 
 import 'package:flutter/material.dart';
@@ -104,82 +112,100 @@ void main() {
     return topLeft.dy + size.height;
   }
 
-  testWidgets(
-    'pill is hidden on Settings but mounted, and back on-screen in the '
-    'first frame of the return',
-    (tester) async {
-      final router = await pumpShell(tester);
-      final screenHeight =
-          tester.view.physicalSize.height / tester.view.devicePixelRatio;
-      expect(pillPresent(tester), isTrue, reason: 'pill on Home');
-      expect(
-        pillBottom(tester),
-        lessThanOrEqualTo(screenHeight),
-        reason: 'pill on screen on Home',
-      );
-      expect(
-        pillTop(tester),
-        greaterThan(0),
-        reason: 'pill fully on screen on Home',
-      );
+  /// The pill's bottom edge after pumping [duration].
+  Future<double> pumpAndBottom(WidgetTester tester, Duration duration) async {
+    await tester.pump(duration);
+    return pillBottom(tester);
+  }
 
-      router.go('/settings');
-      // One frame: the branch has flipped and the slide-in has started.
-      await tester.pump();
-      expect(
-        pillPresent(tester),
-        isTrue,
-        reason: 'pill stays mounted through the Settings slide-in',
-      );
-      expect(
-        pillBottom(tester),
-        lessThanOrEqualTo(0),
-        reason: 'pill parked fully above the screen top on Settings',
-      );
-      // Mid slide-in.
-      await tester.pump(kMotionPage ~/ 2);
-      expect(
-        pillPresent(tester),
-        isTrue,
-        reason: 'pill stays mounted mid slide-in',
-      );
-      expect(
-        pillBottom(tester),
-        lessThanOrEqualTo(0),
-        reason: 'pill stays parked mid slide-in',
-      );
-      await tester.pumpAndSettle();
-      expect(
-        pillBottom(tester),
-        lessThanOrEqualTo(0),
-        reason: 'pill parked on Settings',
-      );
+  testWidgets('pill glides off-screen on Settings and back on return — mounted '
+      'throughout, no single-frame jump (build 89)', (tester) async {
+    final router = await pumpShell(tester);
+    final screenHeight =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    expect(pillPresent(tester), isTrue, reason: 'pill on Home');
+    expect(
+      pillBottom(tester),
+      lessThanOrEqualTo(screenHeight),
+      reason: 'pill on screen on Home',
+    );
+    expect(
+      pillTop(tester),
+      greaterThan(0),
+      reason: 'pill fully on screen on Home',
+    );
+    final homeBottom = pillBottom(tester);
 
-      router.go('/home');
-      await tester.pump();
-      expect(
-        pillPresent(tester),
-        isTrue,
-        reason: 'pill stays mounted through the slide-out',
-      );
-      expect(
-        pillBottom(tester),
-        lessThanOrEqualTo(screenHeight),
-        reason: 'pill back on screen in the first frame of the return',
-      );
-      expect(
-        pillTop(tester),
-        greaterThan(0),
-        reason: 'pill fully on screen in the first frame of the return',
-      );
-      await tester.pumpAndSettle();
-      expect(
-        pillBottom(tester),
-        lessThanOrEqualTo(screenHeight),
-        reason: 'pill on Home',
-      );
-    },
-  );
+    router.go('/settings');
+    // One frame: the branch has flipped and the slide-in has started,
+    // but the pill's 360 ms glide has not moved yet — it must NOT pop
+    // off-screen in a single frame (build 88 did exactly that: the
+    // padding flipped in one build while the page slid for 360 ms).
+    await tester.pump();
+    expect(
+      pillPresent(tester),
+      isTrue,
+      reason: 'pill stays mounted through the Settings slide-in',
+    );
+    expect(
+      pillBottom(tester),
+      closeTo(homeBottom, 1.0),
+      reason: 'pill has not jumped on the first frame of the slide-in',
+    );
+    // Mid glide: strictly between on-screen and parked, moving up —
+    // one motion with the page, not a pop at either end.
+    final up1 = await pumpAndBottom(tester, kMotionPage ~/ 4);
+    final up2 = await pumpAndBottom(tester, kMotionPage ~/ 4);
+    final up3 = await pumpAndBottom(tester, kMotionPage ~/ 4);
+    expect(up1, lessThan(homeBottom), reason: 'pill gliding up');
+    expect(up2, lessThan(up1), reason: 'pill still gliding up');
+    expect(up3, lessThan(up2), reason: 'pill still gliding up');
+    await tester.pumpAndSettle();
+    expect(
+      pillBottom(tester),
+      lessThanOrEqualTo(0),
+      reason: 'pill parked on Settings',
+    );
+    final parkedBottom = pillBottom(tester);
+
+    router.go('/home');
+    await tester.pump();
+    expect(
+      pillPresent(tester),
+      isTrue,
+      reason: 'pill stays mounted through the slide-out',
+    );
+    expect(
+      pillBottom(tester),
+      lessThanOrEqualTo(0),
+      reason: 'pill still parked on the first frame of the return',
+    );
+    final down1 = await pumpAndBottom(tester, kMotionPage ~/ 4);
+    final down2 = await pumpAndBottom(tester, kMotionPage ~/ 4);
+    final down3 = await pumpAndBottom(tester, kMotionPage ~/ 4);
+    // easeInOutCubic starts slowly, so at a quarter of the glide the
+    // pill is still just off-screen — the glide is proven by the
+    // steady rise, not by an early crossing.
+    expect(down1, greaterThan(parkedBottom), reason: 'pill gliding back down');
+    expect(down2, greaterThan(down1), reason: 'pill still gliding down');
+    expect(down3, greaterThan(down2), reason: 'pill still gliding down');
+    expect(
+      down3,
+      lessThanOrEqualTo(screenHeight),
+      reason: 'pill back on screen by three quarters of the glide',
+    );
+    await tester.pumpAndSettle();
+    expect(
+      pillBottom(tester),
+      lessThanOrEqualTo(screenHeight),
+      reason: 'pill on Home',
+    );
+    expect(
+      pillTop(tester),
+      greaterThan(0),
+      reason: 'pill fully on screen on Home',
+    );
+  });
 
   testWidgets('pill keeps the last tab highlighted on Settings', (
     tester,

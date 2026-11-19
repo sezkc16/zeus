@@ -379,6 +379,12 @@ String switchWaitReason({
 ///
 /// `in 0` = the renderer drew nothing (no data, or no video chain);
 /// `in` high with `shown 0` = the window's layer refused the frames.
+///
+/// Build 89: `cs` is the feed buffers' colour-space tag (`srgb` when
+/// the plugin tagged them, `?` when it never did) — the PiP colour
+/// question needs it next to the frame counts, because an untagged
+/// buffer leaves the display layer's colour interpretation undefined
+/// while the Flutter texture shows the same buffer as sRGB.
 String pipFeedLine(String? diag) {
   final text = diag ?? '';
   String field(String key) {
@@ -389,7 +395,7 @@ String pipFeedLine(String? diag) {
   if (text.trim().isEmpty) return 'pip-feed: -';
   return 'pip-feed: in ${field('ingest')} shown ${field('liveEnq')} '
       'drop ${field('liveDrop')} fail ${field('layerFail')} '
-      'render ${field('rendMs')}ms';
+      'render ${field('rendMs')}ms cs ${field('csTag')}';
 }
 
 // ---------------------------------------------------------------------------
@@ -783,10 +789,7 @@ List<String> exactSeekCommand(Duration position) => <String>[
 /// The overlay's note on an exact landing, appended to the
 /// `switch-wait` line: ` exact +0.00s` — how far from where the film
 /// was it continued (0 = the same frame); ` exact ?` — place not read.
-String exactLandingNote({
-  required Duration? before,
-  required Duration? after,
-}) {
+String exactLandingNote({required Duration? before, required Duration? after}) {
   if (before == null || after == null) return ' exact ?';
   final delta = (after - before).inMilliseconds / 1000;
   final sign = delta < 0 ? '' : '+';

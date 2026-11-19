@@ -214,6 +214,10 @@ public class ZoroxMpvPipPlugin: NSObject, FlutterPlugin,
   private var lastRenderCount = 0
   private var lastRenderMs: Double = 0
 
+  /// Build 89: whether at least one feed buffer has been tagged as
+  /// sRGB (see tagColorSpace). Read for diag().
+  private var colorSpaceTagged = false
+
   // +32: the native 1 s diag snapshot (NSLog, not a Dart timer — the
   // Flutter isolate may be suspended in background). Runs only while
   // PiP is up; see startDiagSnapshot()/stopDiagSnapshot().
@@ -786,6 +790,7 @@ public class ZoroxMpvPipPlugin: NSObject, FlutterPlugin,
     let upd = lastUpdateCount
     let rend = lastRenderCount
     let rendMs = lastRenderMs
+    let csTagged = colorSpaceTagged
     lock.unlock()
     let layerErr = (layer?.error as? NSError)?.localizedDescription ?? "none"
     return "layer=\(layer?.status.rawValue ?? -1) "
@@ -800,6 +805,7 @@ public class ZoroxMpvPipPlugin: NSObject, FlutterPlugin,
       + "poolFail=\(pFail) poolStatus=\(pStatus) "
       + "layerFail=\(lFail) layerErr=\(layerErr) "
       + "ptsDeltaMs=\(ptsDelta) "
+      + "csTag=\(csTagged ? "srgb" : "?") "
       + "upd=\(upd) rend=\(rend) rendMs=\(String(format: "%.1f", rendMs))"
   }
 
@@ -945,6 +951,70 @@ public class ZoroxMpvPipPlugin: NSObject, FlutterPlugin,
     return primeBuffers[primeCurrent]
   }
 
+  /// Tags a PiP feed buffer as sRGB (build 89). The software renderer
+  /// hands this plugin sRGB values — mpv's SW backend writes the
+  /// video's own transfer into the buffer and TextureSW's LUT maps it
+  /// to sRGB (see `applySwGammaCorrection`) — but the pool/prime
+  /// buffers were created with NO colour attachments, so
+  /// `CMVideoFormatDescriptionCreateForImageBuffer` built a format
+  /// description with no colour extensions and the display layer's
+  /// interpretation of the buffer was undefined. The Flutter texture
+  /// shows the same buffer as sRGB, so any other assumption by the
+  /// layer shifts the PiP window's colours against fullscreen — the
+  /// user's QoE video (2026-11-19, Endgame 4K, gamma bt.1886,
+  /// prim bt.709, `sw-lut: sdr-exact`) reads ~3% greener in the PiP
+  /// window (overcast-sky R/G −0.029, B/G −0.028 vs the HW fullscreen
+  /// of the same scene) while the transfer LUT is provably active.
+  /// Tagging the buffer with the space its data is actually in makes
+  /// the layer convert sRGB → display exactly like the Flutter
+  /// texture path; if the layer already assumed sRGB the tag is a
+  /// no-op. Applied at buffer creation, before any format description
+  /// is built from the buffer (the description is cached per
+  /// dimensions and captures the attachments). Returns whether the
+  /// colour-space attachment stuck, for diag().
+  @discardableResult
+  private func tagColorSpace(_ pb: CVPixelBuffer) -> Bool {
+    guard let srgb = CGColorSpace(name: CGColorSpace.sRGB) else {
+      return false
+    }
+    CVBufferSetAttachment(
+      pb,
+      kCVImageBufferCGColorSpaceKey as CFString,
+      srgb,
+      .shouldNotPropagate
+    )
+    CVBufferSetAttachment(
+      pb,
+      kCVImageBufferColorPrimariesKey as CFString,
+      kCVImageBufferColorPrimaries_ITU_R_709_2 as CFString,
+      .shouldNotPropagate
+    )
+    CVBufferSetAttachment(
+      pb,
+      kCVImageBufferTransferFunctionKey as CFString,
+      kCVImageBufferTransferFunction_sRGB as CFString,
+      .shouldNotPropagate
+    )
+    CVBufferSetAttachment(
+      pb,
+      kCVImageBufferYCbCrMatrixKey as CFString,
+      kCVImageBufferYCbCrMatrix_ITU_R_709_2 as CFString,
+      .shouldNotPropagate
+    )
+    // Read back the one attachment the layer actually keys on: a set
+    // that silently failed must not report as tagged.
+    let tagged =
+      CVBufferGetAttachment(
+        pb,
+        kCVImageBufferCGColorSpaceKey as CFString,
+        nil
+      ) != nil
+    lock.lock()
+    if tagged { colorSpaceTagged = true }
+    lock.unlock()
+    return tagged
+  }
+
   /// A fresh prime-slot buffer, created directly — NOT from the
   /// live-feed pool, so holding a prime can never starve the live
   /// feed. IOSurface-backed, like the pool buffers.
@@ -964,6 +1034,8 @@ public class ZoroxMpvPipPlugin: NSObject, FlutterPlugin,
       attrs as CFDictionary,
       &out
     ) == kCVReturnSuccess, let buf = out else { return nil }
+    // Build 89: tag the prime buffer as sRGB (see tagColorSpace).
+    _ = tagColorSpace(buf)
     return buf
   }
 
@@ -1060,7 +1132,10 @@ public class ZoroxMpvPipPlugin: NSObject, FlutterPlugin,
       &out
     )
     lastPoolStatus = status
-    return status == kCVReturnSuccess ? out : nil
+    guard status == kCVReturnSuccess, let buf = out else { return nil }
+    // Build 89: tag the feed buffer as sRGB (see tagColorSpace).
+    _ = tagColorSpace(buf)
+    return buf
   }
 
   /// One dropped live frame, for diag(). A live frame is one enqueued
