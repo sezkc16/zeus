@@ -8,6 +8,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zorox/core/storage/storage_service.dart';
+import 'package:zorox/features/app_lock/app_lock_controller.dart';
 import 'package:zorox/features/app_lock/app_lock_passcode.dart';
 import 'package:zorox/features/profiles/data/zeus_profile.dart';
 import 'package:zorox/features/profiles/data/zeus_profiles_client.dart';
@@ -149,12 +150,12 @@ void main() {
 
   tearDown(() => container.dispose());
 
-  ZeusProfilesNotifier get notifier =>
+  ZeusProfilesNotifier notifier() =>
       container.read(zeusProfilesProvider.notifier);
 
   Future<void> seed({String pin = '1234', String id = 'p_one'}) async {
     client.serverProfiles = [client.profile(id, pin)];
-    await notifier.refreshAfterAuth(
+    await notifier().refreshAfterAuth(
       baseUrl: 'https://example.workers.dev',
       token: 'tok',
     );
@@ -162,7 +163,7 @@ void main() {
 
   group('ZeusProfilesNotifier', () {
     test('empty server list means the first profile still needs its PIN', () async {
-      await notifier.refreshAfterAuth(
+      await notifier().refreshAfterAuth(
         baseUrl: 'https://example.workers.dev',
         token: 'tok',
       );
@@ -192,7 +193,7 @@ void main() {
 
     test('correct PIN verifies and clears the counters', () async {
       await seed();
-      final check = await notifier.checkZeusProfilePin('p_one', '1234');
+      final check = await notifier().checkZeusProfilePin('p_one', '1234');
       expect(check, AppLockPasscodeCheck.ok);
       expect(storage.values.containsKey('profiles_pin_attempts_p_one'), isFalse);
     });
@@ -201,25 +202,25 @@ void main() {
       await seed();
       for (var i = 0; i < 5; i++) {
         expect(
-          await notifier.checkZeusProfilePin('p_one', '0000'),
+          await notifier().checkZeusProfilePin('p_one', '0000'),
           AppLockPasscodeCheck.wrong,
         );
       }
       expect(
-        await notifier.checkZeusProfilePin('p_one', '0000'),
+        await notifier().checkZeusProfilePin('p_one', '0000'),
         AppLockPasscodeCheck.blocked,
       );
       // Even the right PIN is refused while blocked.
       expect(
-        await notifier.checkZeusProfilePin('p_one', '1234'),
+        await notifier().checkZeusProfilePin('p_one', '1234'),
         AppLockPasscodeCheck.blocked,
       );
       expect(
-        notifier.blockedForZeusProfile('p_one'),
+        notifier().blockedForZeusProfile('p_one'),
         greaterThan(Duration.zero),
       );
       expect(
-        notifier.blockedForZeusProfile('p_one'),
+        notifier().blockedForZeusProfile('p_one'),
         lessThanOrEqualTo(const Duration(seconds: 31)),
       );
     });
@@ -227,14 +228,14 @@ void main() {
     test('unknown profile verifies as missing', () async {
       await seed();
       expect(
-        await notifier.checkZeusProfilePin('p_nope', '1234'),
+        await notifier().checkZeusProfilePin('p_nope', '1234'),
         AppLockPasscodeCheck.missing,
       );
     });
 
     test('switching points the storage at the profile boxes', () async {
       await seed();
-      await notifier.switchZeusProfile('p_one');
+      await notifier().switchZeusProfile('p_one');
       expect(storage.activeProfileId, 'p_one');
       expect(
         storage.values[ZeusProfileCacheKeys.activeId],
@@ -248,7 +249,7 @@ void main() {
 
     test('switching to an unknown id is a no-op', () async {
       await seed();
-      await notifier.switchZeusProfile('p_nope');
+      await notifier().switchZeusProfile('p_nope');
       expect(storage.activeProfileId, isNull);
       expect(
         container.read(zeusProfilesProvider).activeProfileId,
@@ -258,7 +259,7 @@ void main() {
 
     test('create makes a 100,000-round record and caches the list', () async {
       await seed();
-      final created = await notifier.createZeusProfile(
+      final created = await notifier().createZeusProfile(
         name: 'Aarav',
         color: 'teal',
         pin: '5678',
@@ -278,11 +279,11 @@ void main() {
     test('create rejects a bad name, colour, or PIN', () async {
       await seed();
       expect(
-        await notifier.createZeusProfile(name: '', color: 'gold', pin: '1234'),
+        await notifier().createZeusProfile(name: '', color: 'gold', pin: '1234'),
         isNull,
       );
       expect(
-        await notifier.createZeusProfile(
+        await notifier().createZeusProfile(
           name: 'Aarav',
           color: 'pink',
           pin: '1234',
@@ -290,7 +291,7 @@ void main() {
         isNull,
       );
       expect(
-        await notifier.createZeusProfile(
+        await notifier().createZeusProfile(
           name: 'Aarav',
           color: 'gold',
           pin: '123',
@@ -303,28 +304,28 @@ void main() {
     test('PIN change replaces the record and resets the counters', () async {
       await seed();
       // One wrong try first, so the reset is visible.
-      await notifier.checkZeusProfilePin('p_one', '0000');
-      final ok = await notifier.updateZeusProfilePin(
+      await notifier().checkZeusProfilePin('p_one', '0000');
+      final ok = await notifier().updateZeusProfilePin(
         profileId: 'p_one',
         newPin: '4321',
         accountPassword: 'account-password',
       );
       expect(ok, isTrue);
       expect(
-        await notifier.checkZeusProfilePin('p_one', '4321'),
+        await notifier().checkZeusProfilePin('p_one', '4321'),
         AppLockPasscodeCheck.ok,
       );
       expect(
-        await notifier.checkZeusProfilePin('p_one', '1234'),
+        await notifier().checkZeusProfilePin('p_one', '1234'),
         AppLockPasscodeCheck.wrong,
       );
     });
 
     test('logout clears the cache, the active profile and the counters', () async {
       await seed();
-      await notifier.switchZeusProfile('p_one');
-      await notifier.checkZeusProfilePin('p_one', '0000');
-      await notifier.clearLocalState();
+      await notifier().switchZeusProfile('p_one');
+      await notifier().checkZeusProfilePin('p_one', '0000');
+      await notifier().clearLocalState();
       final state = container.read(zeusProfilesProvider);
       expect(state.profiles, isEmpty);
       expect(state.activeProfileId, isNull);

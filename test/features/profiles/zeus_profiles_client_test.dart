@@ -86,7 +86,7 @@ void main() {
     });
 
     test('fetch with no profiles returns an empty list', () async {
-      server.answer = (_) => _ok({'ok': true, 'profiles': [], 'updatedAt': 0});
+      server.answer = (_) => _ok({'ok': true, 'profiles': <Object>[], 'updatedAt': 0});
       final profiles = await client.fetchZeusProfiles(
         'https://example.workers.dev',
         'tok',

@@ -13,7 +13,7 @@ import 'package:zorox/features/profiles/data/zeus_profile.dart';
 void main() {
   group('ZeusProfile', () {
     test('JSON round trip keeps every field', () {
-      const profile = ZeusProfile(
+      final profile = ZeusProfile(
         id: 'p_9f2c41a77d3e4b08',
         name: 'Suresh',
         color: 'gold',
@@ -34,7 +34,7 @@ void main() {
     });
 
     test('a profile without a record cannot be opened', () {
-      const profile = ZeusProfile(
+      final profile = ZeusProfile(
         id: 'p_9f2c41a77d3e4b08',
         name: 'Guest',
         color: 'teal',

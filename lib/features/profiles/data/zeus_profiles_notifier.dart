@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/storage/storage_service.dart';
 import '../../account/data/zorox_sync_client.dart';
+import '../../app_lock/app_lock_controller.dart';
 import '../../app_lock/app_lock_passcode.dart';
 import 'zeus_profile.dart';
 import 'zeus_profiles_client.dart';

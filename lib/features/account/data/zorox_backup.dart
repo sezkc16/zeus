@@ -62,6 +62,7 @@ class ZoroxBackup {
   /// The profile this backup belongs to (profiles, Build 1): the `p_…`
   /// id, or null for a backup made before profiles (or for the legacy
   /// key, which carries no profile). Old readers ignore the field.
+  final String? profileId;
 
   /// Installed Stremio add-ons, in the user's order:
   /// `{'url': manifestUrl, 'enabled': bool}`. Add-ons whose URL carries a
