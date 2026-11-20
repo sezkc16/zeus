@@ -47,7 +47,7 @@ class _SyncedProgressSectionState extends ConsumerState<SyncedProgressSection> {
       children: [
         Padding(
           padding: EdgeInsets.fromLTRB(
-            isLarge ? LayoutConstants.dashboardContentPadding : 16,
+            isLarge ? LayoutConstants.dashboardContentPadding : 0,
             24,
             isLarge ? LayoutConstants.dashboardContentPadding : 16,
             12,
@@ -86,10 +86,9 @@ class _SyncedProgressSectionState extends ConsumerState<SyncedProgressSection> {
               // Same as ContinueWatchingSection above it: no vertical padding,
               // and Clip.none so the card's focus ring and glow survive.
               clipBehavior: Clip.none,
-              padding: EdgeInsets.symmetric(
-                horizontal: isLarge
-                    ? LayoutConstants.dashboardContentPadding
-                    : 16,
+              padding: EdgeInsets.only(
+                left: isLarge ? LayoutConstants.dashboardContentPadding : 0,
+                right: isLarge ? LayoutConstants.dashboardContentPadding : 16,
               ),
               scrollDirection: Axis.horizontal,
               itemCount: widget.items.length,

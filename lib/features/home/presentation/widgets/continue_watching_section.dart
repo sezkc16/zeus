@@ -55,7 +55,7 @@ class _ContinueWatchingSectionState
           // `topPadding` override that home_screen set to 0 on widescreen,
           // which is how the title ended up flush against the carousel.
           padding: EdgeInsets.fromLTRB(
-            isLarge ? LayoutConstants.dashboardContentPadding : 16,
+            isLarge ? LayoutConstants.dashboardContentPadding : 0,
             LayoutConstants.spacingLg,
             isLarge ? LayoutConstants.dashboardContentPadding : 16,
             LayoutConstants.spacingSm,
@@ -184,8 +184,9 @@ class _ContinueWatchingSectionState
                   // blurs a glow 8 dp further still, and a clipping viewport
                   // would cut both off with a hard edge on a television.
                   clipBehavior: Clip.none,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isLarge
+                  padding: EdgeInsets.only(
+                    left: isLarge ? LayoutConstants.dashboardContentPadding : 0,
+                    right: isLarge
                         ? LayoutConstants.dashboardContentPadding
                         : 16,
                   ),

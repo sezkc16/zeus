@@ -154,10 +154,10 @@ void main() {
     expect(aboutVersionLabel('1.2.3 +1.2.3'), '1.2.3');
   });
 
-  test('the app is 2.1.1 build 111', () {
+  test('the app is 2.1.2 build 112', () {
     expect(
       File('pubspec.yaml').readAsStringSync(),
-      contains('\nversion: 2.1.1+111\n'),
+      contains('\nversion: 2.1.2+112\n'),
     );
   });
 }

@@ -43,7 +43,15 @@ class _HomeSectionState extends ConsumerState<HomeSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          // Build 112: left inset 0 (rows start at the left screen
+          // edge), right stays 16. Matches MediaHorizontalList's
+          // flushLeft on Home; this widget is currently unused.
+          padding: const EdgeInsets.only(
+            left: 0,
+            right: 16,
+            top: 8,
+            bottom: 8,
+          ),
           child: Text(
             widget.title,
             style: isLarge
@@ -68,9 +76,11 @@ class _HomeSectionState extends ConsumerState<HomeSection> {
 
                 return ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: LayoutConstants.spacingMd,
-                    vertical: LayoutConstants.spacingXs,
+                  padding: const EdgeInsets.only(
+                    left: 0,
+                    right: LayoutConstants.spacingMd,
+                    top: LayoutConstants.spacingXs,
+                    bottom: LayoutConstants.spacingXs,
                   ),
                   scrollDirection: Axis.horizontal,
                   itemCount: widget.items.length,

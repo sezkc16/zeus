@@ -25,6 +25,12 @@ class MediaHorizontalList extends StatefulWidget {
   final String? heroTagPrefix;
   final VoidCallback? onViewAll;
 
+  /// Build 112: when true (Home rows only), the section heading and the
+  /// poster rail start exactly at the left screen edge — left inset 0,
+  /// right inset stays spacingMd. Defaults to false so Browse / Addons /
+  /// AniList rows keep their 16pt inset.
+  final bool flushLeft;
+
   const MediaHorizontalList({
     super.key,
     required this.title,
@@ -34,6 +40,7 @@ class MediaHorizontalList extends StatefulWidget {
     this.showViewAll = true,
     this.heroTagPrefix,
     this.onViewAll,
+    this.flushLeft = false,
   });
 
   @override
@@ -161,7 +168,7 @@ class _MediaHorizontalListState extends State<MediaHorizontalList> {
           padding: EdgeInsets.fromLTRB(
             isDesktop
                 ? LayoutConstants.dashboardContentPadding
-                : LayoutConstants.spacingMd,
+                : (widget.flushLeft ? 0 : LayoutConstants.spacingMd),
             LayoutConstants.spacingLg,
             isDesktop
                 ? LayoutConstants.dashboardContentPadding
@@ -284,8 +291,11 @@ class _MediaHorizontalListState extends State<MediaHorizontalList> {
               return ListView.builder(
                 controller: _scrollController,
                 clipBehavior: Clip.none,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isDesktop
+                padding: EdgeInsets.only(
+                  left: isDesktop
+                      ? LayoutConstants.dashboardContentPadding
+                      : (widget.flushLeft ? 0 : LayoutConstants.spacingMd),
+                  right: isDesktop
                       ? LayoutConstants.dashboardContentPadding
                       : LayoutConstants.spacingMd,
                 ),

@@ -41,8 +41,12 @@ class AddonTmdbIdParams {
   int get hashCode => Object.hash(moviedbId, title, year, isShow);
 }
 
-final addonTmdbIdProvider =
-    FutureProvider.family<int?, AddonTmdbIdParams>((ref, params) async {
+// autoDispose (build 112): a null or errored resolution used to stick for
+// the whole app session — reopening the page reused the cached null and
+// the rows never appeared until the app was killed. Leaving the page now
+// drops the result, so reopening retries.
+final addonTmdbIdProvider = FutureProvider.autoDispose
+    .family<int?, AddonTmdbIdParams>((ref, params) async {
       // The add-on already knows: no search, no network.
       if (params.moviedbId != null) return params.moviedbId;
       if (TmdbConfig.apiKey.isEmpty) return null;

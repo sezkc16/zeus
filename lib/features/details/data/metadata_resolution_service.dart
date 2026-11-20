@@ -92,64 +92,75 @@ class MetadataResolutionService {
       );
     }
 
-    if (results.isNotEmpty) {
-      final bestMatch = _findBestMatch(item, results);
-      if (bestMatch != null) {
-        if (kDebugMode) {
-          debugPrint(
-            'MetadataResolutionService: Found best match: ${bestMatch.title} (tmdbId: ${bestMatch.tmdbId}, imdbId: ${bestMatch.imdbId})',
-          );
-        }
-        String? imdbId = bestMatch.imdbId;
-        final int? tmdbId = bestMatch.tmdbId;
+    var bestMatch = results.isNotEmpty ? _findBestMatch(item, results) : null;
+    if (bestMatch == null && item.year != null) {
+      // A wrong scraper year must not veto an exact title: multiSearch's
+      // strict year filter drops the true result before scoring ever runs,
+      // and a >3-year drift sinks even a perfect title below the threshold.
+      // Retry title-only and score without the year. (copyWith cannot clear
+      // a year — `year ?? this.year` — so the retry source is built fresh.)
+      final titleOnlySource = MultimediaItem(
+        title: item.title,
+        url: item.url,
+        posterUrl: item.posterUrl,
+      );
+      final titleOnlyResults = await _tmdbService.multiSearch(
+        query: item.title,
+      );
+      bestMatch = _findBestMatch(titleOnlySource, titleOnlyResults);
+    }
 
-        if (tmdbId != null && imdbId == null) {
-          if (kDebugMode) {
-            debugPrint(
-              'MetadataResolutionService: imdbId is missing, fetching extra details for tmdbId: $tmdbId (type: ${bestMatch.contentType})',
-            );
-          }
-          if (bestMatch.contentType == MultimediaContentType.movie) {
-            final extra = await _tmdbService.getMovieExtra(tmdbId);
-            if (extra != null) {
-              imdbId = _extractImdbId(extra);
-            }
-          } else {
-            final extra = await _tmdbService.getTvExtra(tmdbId);
-            if (extra != null) {
-              imdbId = _extractImdbId(extra);
-            }
-          }
-          if (kDebugMode) {
-            debugPrint(
-              'MetadataResolutionService: Fetched extra details. Found imdbId: $imdbId',
-            );
-          }
-        }
-
-        final enriched = item.copyWith(
-          tmdbId: tmdbId ?? item.tmdbId,
-          imdbId: imdbId ?? item.imdbId,
-        );
-        if (kDebugMode) {
-          debugPrint(
-            'MetadataResolutionService: Resolution complete. Final item: tmdbId: ${enriched.tmdbId}, imdbId: ${enriched.imdbId}',
-          );
-        }
-        return enriched;
-      } else {
-        if (kDebugMode) {
-          debugPrint(
-            'MetadataResolutionService: Could not find a best match among the results.',
-          );
-        }
-      }
-    } else {
+    if (bestMatch != null) {
       if (kDebugMode) {
         debugPrint(
-          'MetadataResolutionService: No results found for query: $query',
+          'MetadataResolutionService: Found best match: ${bestMatch.title} (tmdbId: ${bestMatch.tmdbId}, imdbId: ${bestMatch.imdbId})',
         );
       }
+      String? imdbId = bestMatch.imdbId;
+      final int? tmdbId = bestMatch.tmdbId;
+
+      if (tmdbId != null && imdbId == null) {
+        if (kDebugMode) {
+          debugPrint(
+            'MetadataResolutionService: imdbId is missing, fetching extra details for tmdbId: $tmdbId (type: ${bestMatch.contentType})',
+          );
+        }
+        if (bestMatch.contentType == MultimediaContentType.movie) {
+          final extra = await _tmdbService.getMovieExtra(tmdbId);
+          if (extra != null) {
+            imdbId = _extractImdbId(extra);
+          }
+        } else {
+          final extra = await _tmdbService.getTvExtra(tmdbId);
+          if (extra != null) {
+            imdbId = _extractImdbId(extra);
+          }
+        }
+        if (kDebugMode) {
+          debugPrint(
+            'MetadataResolutionService: Fetched extra details. Found imdbId: $imdbId',
+          );
+        }
+      }
+
+      final enriched = item.copyWith(
+        tmdbId: tmdbId ?? item.tmdbId,
+        imdbId: imdbId ?? item.imdbId,
+      );
+      if (kDebugMode) {
+        debugPrint(
+          'MetadataResolutionService: Resolution complete. Final item: tmdbId: ${enriched.tmdbId}, imdbId: ${enriched.imdbId}',
+        );
+      }
+      return enriched;
+    }
+
+    if (kDebugMode) {
+      debugPrint(
+        results.isEmpty
+            ? 'MetadataResolutionService: No results found for query: $query'
+            : 'MetadataResolutionService: Could not find a best match among the results.',
+      );
     }
 
     return item;

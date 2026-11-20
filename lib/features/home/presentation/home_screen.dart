@@ -625,6 +625,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     mediaList: data[rowId] ?? const [],
                     category: ViewAllCategory.providerContent,
                     showViewAll: true,
+                    // Build 112: Home rows start at the left screen edge.
+                    flushLeft: true,
                     onTap: (item) {
                       DetailsRoute($extra: DetailsRouteExtra(item: item))
                           .push<void>(context);
