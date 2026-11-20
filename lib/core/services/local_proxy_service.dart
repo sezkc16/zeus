@@ -571,7 +571,16 @@ class LocalProxyService {
     }
 
     // Check if this is an M3U8 request to handle Range headers and rewriting
-    final isRequestM3u8 = targetUrl.toLowerCase().contains(".m3u8");
+    // Build 95: a playlist whose upstream URL carries no .m3u8 (Nebula's
+    // variant playlists are `1080p/playlist.jpg`, served as image/jpeg)
+    // is forced to the rewrite path by `&extension=.m3u8` — see
+    // [_rewriteM3u8Response], which rewrites variant lines with
+    // `forceM3u8Extension`. Without this the variant is fetched with the
+    // binary client and binary-piped, and ffmpeg probes it as a JPEG.
+    final forceM3u8 =
+        request.uri.queryParameters['extension'] == '.m3u8';
+    final isRequestM3u8 =
+        targetUrl.toLowerCase().contains(".m3u8") || forceM3u8;
 
     // Pooled, long-lived, and TLS-validating — see [_clientFor]. Content-Length
     // is stripped for M3U8 responses further down (the body is rewritten, so
@@ -681,10 +690,12 @@ class LocalProxyService {
       // Dart's HttpResponse has already stored the value internally and still
       // enforces the limit — causing "Content size exceeds specified
       // contentLength" when we write the larger rewritten body.
-      final isResponseM3u8 = _isM3u8(
-        response.headers.contentType?.mimeType,
-        targetUrl,
-      );
+      final isResponseM3u8 =
+          forceM3u8 ||
+          _isM3u8(
+            response.headers.contentType?.mimeType,
+            targetUrl,
+          );
       if (kDebugMode) {
         debugPrint("[PROXY] Detected isM3u8: $isResponseM3u8 for $targetUrl");
       }
@@ -956,38 +967,66 @@ class LocalProxyService {
     // debugPrint("[PROXY] Rewriting M3U8 content (${content.length} chars)");
     final baseUrl = Uri.parse(originalUrl);
 
-    final rewritten = content
-        .split('\n')
-        .map((line) {
-          final trimmed = line.trim();
-          if (trimmed.isEmpty) return line;
+    // Build 95: a bare URI line is a variant playlist when it follows
+    // `#EXT-X-STREAM-INF:` and a segment otherwise — the old code rewrote
+    // every bare line as a segment (`&_ext=.ts`), so a disguised variant
+    // playlist (Nebula's `1080p/playlist.jpg`) was fetched as a binary
+    // pipe and ffmpeg probed it as a JPEG instead of HLS. Variants (and
+    // `#EXT-X-MEDIA` rendition playlists) are rewritten with
+    // `forceM3u8Extension`, which both tells the proxy to rewrite them
+    // (`&extension=.m3u8`, see [_handleProxyRequest]) and tells ffmpeg's
+    // probe the URL is a playlist. `#EXT-X-KEY` / `#EXT-X-MAP` URIs stay
+    // as they are: a key and an init segment are binary, not playlists.
+    var awaitingVariant = false;
+    final rewrittenLines = <String>[];
+    for (final line in content.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) {
+        rewrittenLines.add(line);
+        continue;
+      }
 
-          if (trimmed.startsWith("#")) {
-            if (trimmed.contains('URI="')) {
-              return trimmed.replaceAllMapped(RegExp(r'URI="([^"]+)"'), (
-                match,
-              ) {
-                final uri = match.group(1)!;
-                final r = _rewriteUrl(uri, baseUrl, stickyHeaders, options);
-                // debugPrint("[PROXY] Rewrote Tag URI: $uri");
-                return 'URI="$r"';
-              });
-            }
-            return line;
-          }
-
-          // Segment URL
-          final r = _rewriteUrl(
-            trimmed,
-            baseUrl,
-            stickyHeaders,
-            options,
-            isSegment: true,
+      if (trimmed.startsWith("#")) {
+        final isStreamInf = trimmed.startsWith('#EXT-X-STREAM-INF:');
+        if (trimmed.contains('URI="')) {
+          final isMedia = trimmed.startsWith('#EXT-X-MEDIA:');
+          rewrittenLines.add(
+            trimmed.replaceAllMapped(RegExp(r'URI="([^"]+)"'), (match) {
+              final uri = match.group(1)!;
+              final r = _rewriteUrl(
+                uri,
+                baseUrl,
+                stickyHeaders,
+                options,
+                forceM3u8Extension: isMedia,
+              );
+              // debugPrint("[PROXY] Rewrote Tag URI: $uri");
+              return 'URI="$r"';
+            }),
           );
-          // debugPrint("[PROXY] Rewrote Segment: $trimmed");
-          return r;
-        })
-        .join('\n');
+        } else {
+          rewrittenLines.add(line);
+        }
+        awaitingVariant = isStreamInf;
+        continue;
+      }
+
+      // A bare URI line: a variant playlist when it follows
+      // #EXT-X-STREAM-INF, a segment otherwise.
+      final isVariant = awaitingVariant;
+      awaitingVariant = false;
+      final r = _rewriteUrl(
+        trimmed,
+        baseUrl,
+        stickyHeaders,
+        options,
+        isSegment: !isVariant,
+        forceM3u8Extension: isVariant,
+      );
+      // debugPrint("[PROXY] Rewrote ${isVariant ? 'Variant' : 'Segment'}: $trimmed");
+      rewrittenLines.add(r);
+    }
+    final rewritten = rewrittenLines.join('\n');
 
     clientRequest.response.add(utf8.encode(rewritten));
     await clientRequest.response.close();
@@ -1019,6 +1058,7 @@ class LocalProxyService {
     Map<String, String> stickyHeaders,
     ProxyOptions? options, {
     bool isSegment = false,
+    bool forceM3u8Extension = false,
   }) {
     try {
       Uri resolved = baseUrl.resolve(uri);
@@ -1041,6 +1081,7 @@ class LocalProxyService {
         resolved.toString(),
         headers: stickyHeaders,
         options: options,
+        forceM3u8Extension: forceM3u8Extension,
       );
       // FFmpeg's HLS demuxer calls av_match_ext(url, allowed_extensions) on
       // segment URLs. It uses strrchr(url, '.') to extract the extension, so

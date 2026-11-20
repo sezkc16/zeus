@@ -73,6 +73,7 @@ import 'package:zorox_mpv_pip/zorox_mpv_pip.dart';
 import '../../../../core/domain/entity/multimedia_item.dart';
 import '../../../../core/providers/device_info_provider.dart';
 import '../../../../core/providers/thermal_state.dart';
+import '../../../../core/services/local_proxy_service.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../../core/services/stream_cache/stream_cache_proxy.dart';
 import '../../../../core/services/stream_cache/stream_cache_service.dart';
@@ -86,6 +87,7 @@ import '../../../skip/data/aniskip_service.dart';
 import '../../../skip/data/skip_service.dart';
 import '../../../tracking/data/simkl_service.dart';
 import '../../domain/episode_navigator.dart';
+import '../../domain/hls_video_length.dart';
 import '../../domain/next_episode_autoplay.dart';
 import '../../domain/episode_duration.dart';
 import '../../domain/playback_progress.dart';
@@ -3426,6 +3428,22 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       _proxyOff = proxied != null
           ? null
           : (bypass ?? StreamCacheService.instance.lastFailure ?? 'start');
+      // Build 98: an HLS film opens through the local proxy
+      // (LocalProxyService), which rewrites its playlists so ffmpeg's
+      // HLS demuxer sees real playlists and .ts segments. The mpv path
+      // never did this — only VLC's `_deliverableUri` did — so a server
+      // that disguises HLS as images (Cinejoy Nebula:
+      // `1080p/playlist.jpg`, segments `playlist_NNN.jpg`) stalled on a
+      // black screen with zero streams. The stream-cache proxy still
+      // does not apply: HLS bypasses it, and a 127.0.0.1 address
+      // bypasses it as 'local'.
+      if (bypass == 'hls') {
+        final hlsUri = Uri.tryParse(stream.url);
+        if (hlsUri != null && looksLikeHls(hlsUri)) {
+          final proxiedHls = await _hlsProxyUrl(stream);
+          if (proxiedHls != null) mediaUrl = proxiedHls;
+        }
+      }
       try {
         await _player.open(
           Media(
@@ -3463,6 +3481,36 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       _waitForPrebuffer(autoPlay: autoPlay);
     }
     if (mounted) setState(() {});
+  }
+
+  /// Build 98: an HLS address through the local proxy, mirroring VLC's
+  /// `_proxied`: the server is started explicitly first (a cold first
+  /// call would otherwise build a URL pointing at port 0), and exactly
+  /// the cookies the source supplied are kept, so the proxy re-injects
+  /// them upstream. Null when the proxy is not up — the caller then
+  /// opens the address directly, as before.
+  Future<String?> _hlsProxyUrl(StreamResult stream) async {
+    await LocalProxyService.instance.startServer();
+    if (LocalProxyService.instance.port == 0) return null;
+    return LocalProxyService.instance.getProxyUrl(
+      stream.url,
+      headers: stream.headers,
+      options: ProxyOptions(keepCookies: _cookieNames(stream.headers)),
+    );
+  }
+
+  /// The cookie names in [headers], for the local proxy's keep list.
+  List<String> _cookieNames(Map<String, String>? headers) {
+    if (headers == null) return const <String>[];
+    for (final entry in headers.entries) {
+      if (entry.key.toLowerCase() != 'cookie') continue;
+      return entry.value
+          .split(';')
+          .map((pair) => pair.split('=').first.trim())
+          .where((name) => name.isNotEmpty)
+          .toList();
+    }
+    return const <String>[];
   }
 
   /// Holds an opened stream paused until the pre-buffer target is met, then
