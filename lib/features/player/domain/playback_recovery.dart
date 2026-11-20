@@ -311,6 +311,20 @@ bool isFalseEnd({required Duration position, required Duration duration}) =>
     duration <= Duration.zero ||
     position < duration - const Duration(seconds: 2);
 
+/// What a false end earns (build 106, mpv screen): the first one reopens
+/// the film from the start through the proxy — the proxy is the one path
+/// that sustained playback from the start, and the origin is what just
+/// died. A second one on the same source fails over instead: a source
+/// that keeps ending eleven seconds in is not replayed forever.
+///
+/// [recoveries] counts false ends on this source including this one.
+enum FalseEndRecovery { reopenFromStart, failover }
+
+FalseEndRecovery falseEndRecovery({required int recoveries}) =>
+    recoveries <= 1
+        ? FalseEndRecovery.reopenFromStart
+        : FalseEndRecovery.failover;
+
 /// Whether a move to paused or stopped is one nobody asked for (spec 2,
 /// *Detection*), which counts as a failure.
 ///

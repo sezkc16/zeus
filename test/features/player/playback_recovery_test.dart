@@ -891,6 +891,32 @@ void main() {
         isTrue,
       );
     });
+
+    test('the phone case: eleven seconds of a 67-minute episode is a '
+        'false end', () {
+      expect(
+        isFalseEnd(
+          position: const Duration(seconds: 11),
+          duration: const Duration(minutes: 67, seconds: 30),
+        ),
+        isTrue,
+      );
+    });
+
+    test('a false end reopens from the start once, then fails over', () {
+      expect(
+        falseEndRecovery(recoveries: 1),
+        FalseEndRecovery.reopenFromStart,
+      );
+      expect(
+        falseEndRecovery(recoveries: 2),
+        FalseEndRecovery.failover,
+      );
+      expect(
+        falseEndRecovery(recoveries: 3),
+        FalseEndRecovery.failover,
+      );
+    });
   });
 
   group('a pause or stop nobody asked for (spec 2)', () {

@@ -54,6 +54,9 @@ void main() {
     // can be tested without waiting out the real 30 s.
     Duration maxReadForwardWait = const Duration(seconds: 30),
     int maxReadForwardUnknown = 64 * mib,
+    // Build 106: a short starvation cap, so a stalled session can be
+    // tested without waiting out the real 20 s.
+    Duration clientStarveAfter = const Duration(seconds: 20),
   }) async {
     final server = StreamCacheProxyServer(
       directory: dir.path,
@@ -67,6 +70,7 @@ void main() {
       maxUnwritten: maxUnwritten,
       maxReadForwardWait: maxReadForwardWait,
       maxReadForwardUnknown: maxReadForwardUnknown,
+      clientStarveAfter: clientStarveAfter,
     );
     await server.start();
     proxy = server;
@@ -765,6 +769,78 @@ void main() {
       final stats = server.stats(session.token)!;
       expect(stats.dead, isTrue);
       expect(stats.reason, 'http 503');
+    });
+  });
+
+  group('a stalled host never holds the player on a black screen '
+      '(build 106)', () {
+    test('a far seek on a host that has gone silent is refused at once, '
+        'not skipped forever', () async {
+      host.length = 64 * mib;
+      host.ignoreRange = true;
+      // A slow host (~640 KiB/s), so the fetch pauses cleanly at its
+      // read-ahead cap instead of overshooting it with buffered data.
+      host.pace = const Duration(milliseconds: 50);
+      final server = await startProxy(
+        capacity: 96 * mib,
+        readAhead: 512 * kib,
+      );
+      final session = server.openSession('${host.base}/film.mkv');
+      // The film plays from the start: the session is established and
+      // the host has delivered bytes.
+      await playerGet(session.url, from: 0, take: 100 * kib);
+      // Let the fetch run ahead to its cap and pause there.
+      await until(
+        () => (server.stats(session.token)?.ahead ?? 0) >= 400 * kib,
+        ms: 5000,
+      );
+      // The host goes silent (the phone: ~1 KiB/s after the early
+      // seek to 02:00). Polling the stats keeps the rate window
+      // honest, so the proxy sees no speed at all.
+      host.stallAfter = 0;
+      for (var i = 0; i < 6; i++) {
+        server.stats(session.token);
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+      // The early seek, to 02:00 in film terms.
+      final clock = Stopwatch()..start();
+      final far = await playerGet(session.url, from: 30 * mib, take: 100 * kib);
+      // Refused at once — no skip attempted on a host delivering
+      // nothing — and the film is given up to the origin (b101
+      // behaviour) instead of loading forever.
+      expect(far.status, 302);
+      expect(far.headers['location'], '${host.base}/film.mkv');
+      expect(clock.elapsedMilliseconds, lessThan(3000));
+      final stats = server.stats(session.token)!;
+      expect(stats.dead, isTrue);
+      expect(stats.reason, 'no range');
+    });
+
+    test('a reader waiting on a stalled host is cut off, and the next '
+        'request goes to the origin', () async {
+      host.length = 64 * mib;
+      host.ignoreRange = true;
+      // The host stalls after 100 KiB and holds the line open.
+      host.stallAfter = 100 * kib;
+      final server = await startProxy(
+        capacity: 96 * mib,
+        readAhead: 4 * mib,
+        clientStarveAfter: const Duration(seconds: 1),
+      );
+      final session = server.openSession('${host.base}/film.mkv');
+      // The player reads from the start and gets the 100 KiB the host
+      // sent — then nothing more, for as long as it waits.
+      final answer = await playerGet(session.url, from: 0);
+      expect(answer.body.length, 100 * kib);
+      expect(answer.body, film(0, 100 * kib));
+      // The session is given up as stalled, not left alive: the next
+      // request goes to the film's own address (b101 behaviour).
+      await until(() => server.stats(session.token)!.dead, ms: 8000);
+      expect(server.stats(session.token)!.reason, 'stalled');
+      final again =
+          await playerGet(session.url, from: 100 * kib, take: 10 * kib);
+      expect(again.status, 302);
+      expect(again.headers['location'], '${host.base}/film.mkv');
     });
   });
 

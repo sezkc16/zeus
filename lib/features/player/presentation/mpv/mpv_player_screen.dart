@@ -362,6 +362,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   final Set<int> _proxySlow = <int>{};
   final StreamProxySlowWatch _proxySlowWatch = StreamProxySlowWatch();
 
+  /// Build 106: how many times the current source has reported itself
+  /// finished far short of its duration ([isFalseEnd]). The first one
+  /// reopens the film from the start through the proxy; the second
+  /// fails over — a source that keeps ending eleven seconds in is not
+  /// replayed forever. Reset when a different source opens.
+  int _falseEndRecoveries = 0;
+
   /// Orders overlapping opens: only the newest goes on after the
   /// proxy has answered.
   int _proxyOpenToken = 0;
@@ -3221,12 +3228,24 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       _player.stream.completed.listen((completed) {
         if (_disposed) return;
         if (completed) {
-          _flushProgress();
-          try {
-            _tracker?.finish();
-          } catch (_) {}
-          _chrome.poke();
-          _onEnded();
+          // Build 106: a finish far short of the known duration is a
+          // failure wearing an ending's clothes (a no-range origin
+          // stream that died mid-film — the phone: 00:11 of 1:07:30,
+          // data still flowing). Never show "finished" for it, and
+          // never mark the episode finished — recover instead (the
+          // VLC screen does the same with [isFalseEnd]).
+          if (!_isLive &&
+              _duration > Duration.zero &&
+              isFalseEnd(position: _position, duration: _duration)) {
+            _onFalseEnd();
+          } else {
+            _flushProgress();
+            try {
+              _tracker?.finish();
+            } catch (_) {}
+            _chrome.poke();
+            _onEnded();
+          }
         }
         _publishAdapter();
         setState(() {});
@@ -3431,6 +3450,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       _stallRecoveries = 0;
       _stallLastAction = StallAction.none;
       _stallClock.reset();
+      // Build 106: a different source earns a fresh false-end budget.
+      _falseEndRecoveries = 0;
     }
     _stallBufferedAt = Duration.zero;
     // Build 72: a renderer move is the same play of the same film — it
@@ -5523,6 +5544,44 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   }
 
   // -- ended / up-next ------------------------------------------------------
+
+  /// Build 106: the engine reported the media finished far short of
+  /// its known duration — a stream that died mid-film, not an ending
+  /// (the phone: the origin fallback played the CJ ENM logo to 00:11
+  /// of a 1:07:30 episode, then "You've finished"). The progress is
+  /// deliberately NOT flushed as finished: the episode is not done.
+  ///
+  /// First time on this source, the film is reopened from the start
+  /// through the proxy — the proxy is the one path that sustained
+  /// playback from the start (it buffers ahead and smooths a trickling
+  /// host), and the origin is what just died. The proxy block/slow
+  /// marks are cleared for this one recovery, so the reopen really
+  /// goes through the proxy. If that recovery false-ends too, the
+  /// source is failed over to the next candidate instead of looping
+  /// on the same eleven seconds forever.
+  void _onFalseEnd() {
+    if (_disposed || !mounted) return;
+    _falseEndRecoveries++;
+    switch (falseEndRecovery(recoveries: _falseEndRecoveries)) {
+      case FalseEndRecovery.reopenFromStart:
+        _proxyBlocked.remove(_streamIndex);
+        _proxySlow.remove(_streamIndex);
+        try {
+          ref.read(notificationServiceProvider).showInfo(
+                'Stream ended early — reopening from the start',
+                title: 'Stream interrupted',
+              );
+        } catch (_) {}
+        unawaited(_openStream(_streamIndex, start: Duration.zero));
+      case FalseEndRecovery.failover:
+        // The proxy-from-start recovery died the same way: this source
+        // is done. Mark it blocked first, so [_tryNextStream] goes to
+        // the next candidate instead of retrying the origin that just
+        // ended it.
+        _proxyBlocked.add(_streamIndex);
+        _tryNextStream();
+    }
+  }
 
   /// The engine reached the end of the media. Everything that is a failure
   /// wearing an ending's clothes is caught before this (the watchdog, the

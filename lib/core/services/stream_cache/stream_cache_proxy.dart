@@ -118,6 +118,25 @@ const Duration kStreamCacheMaxReadForwardWait = Duration(seconds: 30);
 /// be timed, so it is capped by distance instead.
 const int kStreamCacheMaxReadForwardUnknown = 64 * kMiB;
 
+/// Build 106: how long a player connection may wait for its next bytes
+/// before the session is given up as stalled.
+///
+/// The phone (b105, Twinkling Watermelon S1 E2): after an early seek
+/// to 02:00 the player sat on a black screen for minutes with
+/// `cache: 0.000000s 982 B/s` and `proxy: on held 6MB ahead 0s` — the
+/// session alive, the fetch trickling, nothing decodable reaching the
+/// player. Nothing else fires in that state: no side read is refused
+/// (`side 0`, so build 105's kill never runs), mpv does not report
+/// buffering (`paused-cache: no`, so the slow-proxy watch never trips),
+/// and the playhead keeps creeping (the viewer's +10 s taps), which
+/// resets the stall ladder's budget every tick. So the proxy watches
+/// the one thing that cannot lie — bytes actually delivered to the
+/// player: a reader still waiting after this long with nothing
+/// arriving means the session is given up to the origin (b101
+/// behaviour: it plays from the start) instead of holding the player
+/// on a black screen.
+const Duration kClientStarveAfter = Duration(seconds: 20);
+
 /// What the proxy knows about one open film, for the player's overlay.
 class StreamCacheStats {
   const StreamCacheStats({
@@ -254,6 +273,7 @@ class StreamCacheProxyServer {
     this.responseTimeout = const Duration(seconds: 15),
     this.maxReadForwardWait = kStreamCacheMaxReadForwardWait,
     this.maxReadForwardUnknown = kStreamCacheMaxReadForwardUnknown,
+    this.clientStarveAfter = kClientStarveAfter,
     HttpClient Function()? clientFactory,
   }) : _clientFactory = clientFactory ?? HttpClient.new;
 
@@ -289,6 +309,11 @@ class StreamCacheProxyServer {
   /// Build 104: the longest skip attempted when the host speed is
   /// not known yet (see [kStreamCacheMaxReadForwardUnknown]).
   final int maxReadForwardUnknown;
+
+  /// Build 106: how long a waiting reader goes without bytes before
+  /// its session is given up (see [kClientStarveAfter]).
+  final Duration clientStarveAfter;
+
   final HttpClient Function() _clientFactory;
 
   HttpServer? _server;
@@ -638,6 +663,15 @@ class StreamCacheProxyServer {
             math.min(session.end, reader.endExclusive) - reader.offset;
         if (available <= 0) {
           if (session.complete) break;
+          // Build 106: the player is waiting and nothing has reached
+          // it for a while — the session is not delivering, whatever
+          // the host is doing (a trickle, a skip that never lands).
+          // Give the film up to the origin instead of holding the
+          // player on a black screen.
+          if (session.clientStarved(clientStarveAfter)) {
+            session.kill('stalled');
+            break;
+          }
           session.pump(this);
           await session.waitForData(const Duration(seconds: 5));
           continue;
@@ -668,6 +702,7 @@ class StreamCacheProxyServer {
         await reader.socket.flush();
         reader.offset += count;
         session.clientRate.add(count);
+        session.noteClientBytes();
         session.pump(this);
       }
     } catch (_) {
@@ -1150,6 +1185,14 @@ class StreamCacheProxyServer {
     if (rate > 0) {
       return offset / rate <= maxReadForwardWait.inSeconds;
     }
+    // Build 106: no speed observed right now. On a fresh session that
+    // means nothing yet — the distance cap still applies. On a session
+    // that has already been fed, a silent host is a stalled host: a
+    // skip would spend the player's wait discarding bytes that never
+    // arrive (the b105 blank phase: the early seek's refetch re-skipped
+    // 40 MiB on a host delivering ~1 KiB/s, forever). Refuse, so the
+    // caller gives the film up to the origin instead.
+    if (session.end > 0 || session.skipped > 0) return false;
     return offset <= maxReadForwardUnknown;
   }
 
@@ -1444,6 +1487,23 @@ class _Session {
   int sides = 0;
   final _Rate hostRate = _Rate();
   final _Rate clientRate = _Rate();
+
+  /// Build 106: when bytes were last written to a player connection.
+  /// The starvation watch in [_serve] reads it: a reader still waiting
+  /// this long after the last byte means the session is not delivering
+  /// decodable data any more, whatever the host is doing. Side reads
+  /// do not refresh it — they are the film's index, not the picture.
+  DateTime _lastClientByteAt = DateTime.now();
+
+  /// Bytes reached a player connection just now.
+  void noteClientBytes() {
+    _lastClientByteAt = DateTime.now();
+  }
+
+  /// True when no byte has reached a player connection for [limit]
+  /// (see [StreamCacheProxyServer.clientStarveAfter]).
+  bool clientStarved(Duration limit) =>
+      DateTime.now().difference(_lastClientByteAt) > limit;
 
   /// Bytes received from the host and not on the file yet.
   int get unwritten => store == null ? 0 : math.max(0, end - store!.end);
