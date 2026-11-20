@@ -31,8 +31,9 @@ class ZoroxBackup {
   static const int currentVersion = 1;
 
   /// The additive revision of the format: 1 = history, library, plugins
-  /// (v8 and before); 2 = + add-ons, Nuvio, settings (v9).
-  static const int currentSchema = 2;
+  /// (v8 and before); 2 = + add-ons, Nuvio, settings (v9); 3 = + the
+  /// profile the backup belongs to (profiles, Build 1).
+  static const int currentSchema = 3;
 
   const ZoroxBackup({
     this.version = currentVersion,
@@ -50,12 +51,17 @@ class ZoroxBackup {
     this.settings,
     this.settingsUpdatedAt = 0,
     this.addonsSkippedForSecrets = 0,
+    this.profileId,
   });
 
   final int version;
 
   /// See [currentSchema]. 1 for a backup made before v9.
   final int schema;
+
+  /// The profile this backup belongs to (profiles, Build 1): the `p_…`
+  /// id, or null for a backup made before profiles (or for the legacy
+  /// key, which carries no profile). Old readers ignore the field.
 
   /// Installed Stremio add-ons, in the user's order:
   /// `{'url': manifestUrl, 'enabled': bool}`. Add-ons whose URL carries a
@@ -122,6 +128,7 @@ class ZoroxBackup {
     'settings': ?settings,
     'settingsUpdatedAt': settingsUpdatedAt,
     'addonsSkippedForSecrets': addonsSkippedForSecrets,
+    'profileId': ?profileId,
   };
 
   factory ZoroxBackup.fromJson(Map<String, dynamic> json) {
@@ -196,6 +203,9 @@ class ZoroxBackup {
       settingsUpdatedAt: (json['settingsUpdatedAt'] as num?)?.toInt() ?? 0,
       addonsSkippedForSecrets:
           (json['addonsSkippedForSecrets'] as num?)?.toInt() ?? 0,
+      profileId: json['profileId'] is String
+          ? json['profileId'] as String
+          : null,
     );
   }
 }

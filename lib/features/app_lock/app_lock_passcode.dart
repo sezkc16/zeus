@@ -45,13 +45,17 @@ class AppLockPasscodeHash {
   static const int _saltLength = 16;
 
   /// A new record for [passcode] with a fresh random salt.
-  static String create(String passcode, {Random? random}) {
+  ///
+  /// [rounds] defaults to the app lock's 10,000. Profiles pass 100,000
+  /// ([kZeusProfilePinRounds]): their record leaves the device, so it
+  /// gets the account-password count. `verify` already parses any rounds.
+  static String create(String passcode, {Random? random, int rounds = _rounds}) {
     final rng = random ?? Random.secure();
     final salt = Uint8List.fromList(
       List<int>.generate(_saltLength, (_) => rng.nextInt(256)),
     );
-    final hash = _pbkdf2(utf8.encode(passcode), salt, _rounds);
-    return 'v1\$$_rounds\$${base64.encode(salt)}\$${base64.encode(hash)}';
+    final hash = _pbkdf2(utf8.encode(passcode), salt, rounds);
+    return 'v1\$$rounds\$${base64.encode(salt)}\$${base64.encode(hash)}';
   }
 
   /// Whether [record] is a record this class can check.

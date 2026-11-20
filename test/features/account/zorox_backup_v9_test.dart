@@ -72,8 +72,10 @@ void main() {
       final json = ZoroxBackup(exportedAt: 1).toJson();
       expect(json['format'], 'zorox-backup');
       // v8 refuses any version but 1, so the additive revision is `schema`.
+      // Profiles (Build 1) bumped it 2 -> 3; v8/v9 readers ignore the
+      // unknown `profileId` field, as they ignore any field they do not know.
       expect(json['version'], 1);
-      expect(json['schema'], 2);
+      expect(json['schema'], 3);
     });
 
     test('a v8 backup restores: old sections read, new ones empty', () {

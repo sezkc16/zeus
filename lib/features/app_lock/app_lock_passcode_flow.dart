@@ -20,6 +20,16 @@ enum AppLockPasscodeFlowKind {
 
   /// The current passcode, then a new one twice.
   change,
+
+  /// A Zeus profile's 4-digit PIN: type it once; [verifyProfilePin]
+  /// checks it against the profile's record (locally, with its own
+  /// lockout). No biometrics, no device-owner fallback — "Forgot PIN?"
+  /// is [onForgotProfilePin].
+  profilePin,
+
+  /// Choose a profile's 4-digit PIN: type it twice; [onProfilePinCreated]
+  /// receives it. The caller makes the record and sends it to the server.
+  profilePinCreate,
 }
 
 enum _Stage { current, fresh, confirm }
@@ -38,8 +48,21 @@ class AppLockPasscodeFlow extends StatefulWidget {
     this.onCancel,
     this.showLogo = false,
     this.strings,
+    this.verifyProfilePin,
+    this.onProfilePinCreated,
+    this.onForgotProfilePin,
+    this.profilePinBlockedFor,
     super.key,
-  });
+  }) : assert(
+         kind != AppLockPasscodeFlowKind.profilePin ||
+             verifyProfilePin != null,
+         'profilePin needs verifyProfilePin',
+       ),
+       assert(
+         kind != AppLockPasscodeFlowKind.profilePinCreate ||
+             onProfilePinCreated != null,
+         'profilePinCreate needs onProfilePinCreated',
+       );
 
   final AppLockController controller;
   final AppLockPasscodeFlowKind kind;
@@ -53,6 +76,25 @@ class AppLockPasscodeFlow extends StatefulWidget {
 
   final bool showLogo;
   final AppLockStrings? strings;
+
+  /// Profile PINs only ([AppLockPasscodeFlowKind.profilePin]): checks the
+  /// typed PIN against the profile's record and counts the try, with the
+  /// profile's own lockout. Required for that kind.
+  final Future<AppLockPasscodeCheck> Function(String pin)? verifyProfilePin;
+
+  /// Profile PINs only ([AppLockPasscodeFlowKind.profilePinCreate]): the
+  /// twice-typed PIN, for the caller to record. Required for that kind.
+  final ValueChanged<String>? onProfilePinCreated;
+
+  /// Profile PINs only ([AppLockPasscodeFlowKind.profilePin]): replaces
+  /// the device-owner "forgot" flow — the profile's forgot path asks for
+  /// the account password instead.
+  final VoidCallback? onForgotProfilePin;
+
+  /// Profile PINs only: how long no PIN is accepted for this profile, or
+  /// zero. The app lock's own [AppLockController.blockedFor] does not
+  /// apply to a profile.
+  final Duration Function()? profilePinBlockedFor;
 
   @override
   State<AppLockPasscodeFlow> createState() => AppLockPasscodeFlowState();
@@ -75,7 +117,18 @@ class AppLockPasscodeFlowState extends State<AppLockPasscodeFlow> {
   AppLockStrings get _s => widget.strings ?? AppLockStrings.current();
 
   bool get _needsCurrent =>
-      widget.kind != AppLockPasscodeFlowKind.create;
+      widget.kind != AppLockPasscodeFlowKind.create &&
+      widget.kind != AppLockPasscodeFlowKind.profilePinCreate;
+
+  bool get _isProfileKind =>
+      widget.kind == AppLockPasscodeFlowKind.profilePin ||
+      widget.kind == AppLockPasscodeFlowKind.profilePinCreate;
+
+  /// How long no code is accepted right now: the profile's own wait for
+  /// a profile kind, the app lock's for the rest.
+  Duration _currentBlockedFor() => _isProfileKind
+      ? (widget.profilePinBlockedFor?.call() ?? Duration.zero)
+      : _c.blockedFor;
 
   @override
   void initState() {
@@ -100,11 +153,11 @@ class AppLockPasscodeFlowState extends State<AppLockPasscodeFlow> {
 
   /// Ticks once a second while a wait is running, for the countdown.
   void _syncTicker() {
-    final waiting = _c.blockedFor > Duration.zero;
+    final waiting = _currentBlockedFor() > Duration.zero;
     if (waiting && _ticker == null) {
       _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!mounted) return;
-        if (_c.blockedFor <= Duration.zero) {
+        if (_currentBlockedFor() <= Duration.zero) {
           _ticker?.cancel();
           _ticker = null;
         }
@@ -116,7 +169,8 @@ class AppLockPasscodeFlowState extends State<AppLockPasscodeFlow> {
     }
   }
 
-  bool get _blocked => _stage == _Stage.current && _c.blockedFor > Duration.zero;
+  bool get _blocked =>
+      _stage == _Stage.current && _currentBlockedFor() > Duration.zero;
 
   String get _title => switch (_stage) {
     _Stage.current => widget.kind == AppLockPasscodeFlowKind.unlock
@@ -154,7 +208,9 @@ class AppLockPasscodeFlowState extends State<AppLockPasscodeFlow> {
     switch (_stage) {
       case _Stage.current:
         setState(() => _busy = true);
-        final result = widget.kind == AppLockPasscodeFlowKind.unlock
+        final result = widget.kind == AppLockPasscodeFlowKind.profilePin
+            ? await widget.verifyProfilePin!(code)
+            : widget.kind == AppLockPasscodeFlowKind.unlock
             ? await _c.submitPasscode(code)
             : await _c.checkPasscode(code);
         if (!mounted) return;
@@ -187,6 +243,12 @@ class AppLockPasscodeFlowState extends State<AppLockPasscodeFlow> {
             _stage = _Stage.fresh;
           });
           _reject(_s.mismatch);
+          return;
+        }
+        if (widget.kind == AppLockPasscodeFlowKind.profilePinCreate) {
+          // A profile's PIN is recorded by the caller, not by the app
+          // lock controller.
+          widget.onProfilePinCreated?.call(code);
           return;
         }
         setState(() => _busy = true);
@@ -222,7 +284,10 @@ class AppLockPasscodeFlowState extends State<AppLockPasscodeFlow> {
   }
 
   /// Face ID / fingerprint in place of the current passcode.
+  /// Profiles never offer it: device biometrics belong to the device
+  /// owner, not a profile.
   Future<void> useBiometric() async {
+    if (_isProfileKind) return;
     if (_busy || _stage != _Stage.current || !_c.biometricEnabled) return;
     if (widget.kind == AppLockPasscodeFlowKind.unlock) {
       await _c.unlockWithBiometric(_s.unlockReason);
@@ -235,6 +300,12 @@ class AppLockPasscodeFlowState extends State<AppLockPasscodeFlow> {
 
   Future<void> _forgot() async {
     if (_busy) return;
+    // A profile's forgot path asks for the account password, not the
+    // phone's own authentication.
+    if (_isProfileKind && widget.onForgotProfilePin != null) {
+      widget.onForgotProfilePin!();
+      return;
+    }
     final ok = await _c.confirmDeviceOwner(_s.forgotReason);
     if (!mounted) return;
     if (!ok) {
@@ -268,10 +339,11 @@ class AppLockPasscodeFlowState extends State<AppLockPasscodeFlow> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final wait = _c.blockedFor;
+    final wait = _currentBlockedFor();
     final blocked = _blocked;
     final message = blocked ? _s.tryAgainIn(wait) : _message;
-    final showBiometric = _stage == _Stage.current && _c.biometricEnabled;
+    final showBiometric =
+        !_isProfileKind && _stage == _Stage.current && _c.biometricEnabled;
     final showForgot = _stage == _Stage.current && !_resetting;
 
     final header = Column(

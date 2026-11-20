@@ -55,6 +55,32 @@ class StorageService {
   late Box<dynamic> _extensionsBox;
   late Box<dynamic> _historyBox;
 
+  /// The boxes [init] opened, before any profile was picked: the store
+  /// for logged-out use. `_historyBox` / `_libraryBox` below are the
+  /// ACTIVE pair and are swapped by [setActiveZeusProfile]; these two
+  /// always point at the legacy boxes, so "Reset Data" deletes the right
+  /// files even while a profile is active.
+  Box<dynamic>? _legacyHistoryBox;
+  Box<dynamic>? _legacyLibraryBox;
+
+  /// Per-profile boxes, opened on first use and cached: `history_box_<id>`
+  /// and `library_box_<id>`. The key scheme inside each pair is unchanged
+  /// (URL / md5(URL), `EP_` per-episode entries), so backup round-trips
+  /// work against the active pair without any caller changing.
+  final Map<String, Box<dynamic>> _zeusProfileHistoryBoxes = {};
+  final Map<String, Box<dynamic>> _zeusProfileLibraryBoxes = {};
+
+  /// The profile the active pair belongs to, or null for the legacy
+  /// (logged-out) boxes.
+  String? _activeZeusProfileId;
+
+  /// The profile a history/library box belongs to: `history_box_<id>`,
+  /// `library_box_<id>`.
+  static String zeusProfileHistoryBoxName(String profileId) =>
+      'history_box_$profileId';
+  static String zeusProfileLibraryBoxName(String profileId) =>
+      'library_box_$profileId';
+
   static const String kLibraryBox = 'library_box';
   static const String kSettingsBox = 'settings_box';
   static const String kExtensionsBox = 'extension_data_box';
@@ -76,6 +102,9 @@ class StorageService {
       kDownloadMetadataBox,
     ); // Opened here; later reads go through Hive.box().
     await initHistory();
+    // The pair init() opened is the legacy (logged-out) pair.
+    _legacyLibraryBox = _libraryBox;
+    _legacyHistoryBox = _historyBox;
   }
 
   /// Opens a box, and if it will not open, preserves whatever is on disk
@@ -608,6 +637,122 @@ class StorageService {
     _historyBox = await _safeOpenBox(kHistoryBox);
   }
 
+  // --- Zeus profiles (Build 1): per-profile history + library -----------
+
+  /// The profile the history/library pair currently belongs to, or null
+  /// for the legacy (logged-out) boxes.
+  String? get activeZeusProfileId => _activeZeusProfileId;
+
+  Future<Box<dynamic>> _zeusProfileHistoryBox(String profileId) async {
+    var box = _zeusProfileHistoryBoxes[profileId];
+    box ??= await _safeOpenBox(zeusProfileHistoryBoxName(profileId));
+    _zeusProfileHistoryBoxes[profileId] = box;
+    return box;
+  }
+
+  Future<Box<dynamic>> _zeusProfileLibraryBox(String profileId) async {
+    var box = _zeusProfileLibraryBoxes[profileId];
+    box ??= await _safeOpenBox(zeusProfileLibraryBoxName(profileId));
+    _zeusProfileLibraryBoxes[profileId] = box;
+    return box;
+  }
+
+  /// Points the history/library accessors at [profileId]'s boxes
+  /// (opening them on first use), or back at the legacy boxes for null
+  /// (logged out). Every reader is scoped for free: `saveProgress`,
+  /// `getWatchHistory`, `getLibraryItems`, the backup collect/restore and
+  /// the player resume positions all read the active pair.
+  ///
+  /// Switching invalidates the history cache, so the next read is the new
+  /// profile's data, not the old profile's. `clearAllHistory` clears only
+  /// the active profile's box, never all profiles'.
+  Future<void> setActiveZeusProfile(String? profileId) async {
+    _activeZeusProfileId = profileId;
+    if (profileId == null) {
+      final legacyHistory = _legacyHistoryBox;
+      final legacyLibrary = _legacyLibraryBox;
+      if (legacyHistory != null) _historyBox = legacyHistory;
+      if (legacyLibrary != null) _libraryBox = legacyLibrary;
+    } else {
+      _historyBox = await _zeusProfileHistoryBox(profileId);
+      _libraryBox = await _zeusProfileLibraryBox(profileId);
+    }
+    _historyCacheDirty = true;
+  }
+
+  /// Copies every entry from the legacy history/library boxes into
+  /// [profileId]'s boxes (migration, §9 case 2). An API copy, not a file
+  /// rename — the boxes are open and Hive files must not be renamed while
+  /// open. Existing entries in the profile's boxes are left alone when
+  /// the legacy box has nothing newer to say: the copy is keyed, and a
+  /// key already present is overwritten with the legacy entry, which is
+  /// the migration's "current data becomes the first profile" rule.
+  Future<void> copyLegacyHistoryAndLibraryToZeusProfile(
+    String profileId,
+  ) async {
+    final legacyHistory = _legacyHistoryBox;
+    final legacyLibrary = _legacyLibraryBox;
+    if (legacyHistory == null || legacyLibrary == null) return;
+    final historyBox = await _zeusProfileHistoryBox(profileId);
+    final libraryBox = await _zeusProfileLibraryBox(profileId);
+    for (var i = 0; i < legacyHistory.length; i++) {
+      final key = legacyHistory.keyAt(i);
+      await historyBox.put(key, legacyHistory.get(key));
+    }
+    for (var i = 0; i < legacyLibrary.length; i++) {
+      final key = legacyLibrary.keyAt(i);
+      await libraryBox.put(key, legacyLibrary.get(key));
+    }
+    _historyCacheDirty = true;
+  }
+
+  /// Clears the legacy boxes after a successful migration upload, so the
+  /// same data does not live in two places. The server backup is the
+  /// safety net: callers clear only once the profile backup (and the
+  /// legacy alias) are uploaded.
+  Future<void> clearLegacyHistoryAndLibrary() async {
+    await _legacyHistoryBox?.clear();
+    await _legacyLibraryBox?.clear();
+    _historyCacheDirty = true;
+  }
+
+  /// Whether the legacy boxes still hold anything (migration §9 case 3:
+  /// the account already has profiles and this device has data to move).
+  bool get legacyHistoryOrLibraryNonEmpty {
+    final history = _legacyHistoryBox;
+    final library = _legacyLibraryBox;
+    return (history != null && history.isNotEmpty) ||
+        (library != null && library.isNotEmpty);
+  }
+
+  /// The profile ids this device has opened boxes for (the cached pairs).
+  /// "Reset Data" deletes their files too; a profile opened on another
+  /// device and never on this one has no local box to delete.
+  List<String> get _knownZeusProfileIds => <String>{
+    ..._zeusProfileHistoryBoxes.keys,
+    ..._zeusProfileLibraryBoxes.keys,
+  }.toList();
+
+  /// The profile ids in the cached profile list (`profiles_cache_json`,
+  /// owned by the profiles feature — the key is spelled out here rather
+  /// than imported, so core/storage does not depend on a feature). Read
+  /// before the settings box is deleted, so "Reset Data" can delete the
+  /// boxes of profiles whose boxes were never opened this run.
+  List<String> _cachedZeusProfileIds() {
+    try {
+      final raw = _settingsBox.get('profiles_cache_json');
+      if (raw is! String) return const [];
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map || decoded['profiles'] is! List) return const [];
+      return [
+        for (final p in decoded['profiles'] as List)
+          if (p is Map && p['id'] is String) p['id'] as String,
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
   Future<void> saveProgress(
     MultimediaItem item,
     int positionMillis,
@@ -1019,10 +1164,43 @@ class StorageService {
         }
       }
 
-      // Delete Hive Boxes (Library, History, Settings)
-      await _closeAndDeleteBox(kLibraryBox, () => _libraryBox);
+      // Delete Hive Boxes (Library, History, Settings). The library and
+      // history fields point at the ACTIVE pair (a profile's boxes while
+      // one is active), so the legacy fields are named here, and every
+      // profile's local boxes go too — a reset must not leave one
+      // profile's Continue Watching behind. Profile ids come from the
+      // cached profile list (read before the settings box is deleted)
+      // and from the boxes opened this run; a profile never opened on
+      // this device has no local box to delete.
+      final zeusProfileIdsToDelete = <String>{
+        ..._knownZeusProfileIds,
+        ..._cachedZeusProfileIds(),
+      };
+      await _closeAndDeleteBox(
+        kLibraryBox,
+        () => _legacyLibraryBox ?? _libraryBox,
+      );
       await _closeAndDeleteBox(kSettingsBox, () => _settingsBox);
-      await _closeAndDeleteBox(kHistoryBox, () => _historyBox);
+      await _closeAndDeleteBox(
+        kHistoryBox,
+        () => _legacyHistoryBox ?? _historyBox,
+      );
+      for (final profileId in zeusProfileIdsToDelete) {
+        await _closeAndDeleteBox(
+          zeusProfileHistoryBoxName(profileId),
+          () =>
+              _zeusProfileHistoryBoxes[profileId] ??
+              _zeusProfileLibraryBoxes[profileId] ??
+              _historyBox,
+        );
+        await _closeAndDeleteBox(
+          zeusProfileLibraryBoxName(profileId),
+          () =>
+              _zeusProfileLibraryBoxes[profileId] ??
+              _zeusProfileHistoryBoxes[profileId] ??
+              _libraryBox,
+        );
+      }
 
       // Only delete extension data box if NOT keeping extensions
       if (!keepRepos) {

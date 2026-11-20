@@ -90,24 +90,41 @@ class ZoroxSyncClient {
 
   /// Uploads [backup] (a [ZoroxBackup.toJson] map). Returns the server's
   /// `updatedAt` (unix milliseconds).
+  ///
+  /// With [profileId] the backup is written to that profile's key
+  /// (`backup:<email>:<profileId>`, Worker v2); without it, the legacy
+  /// `backup:<email>` key (what old clients and Build 1's regular sync
+  /// use). Per-profile auto-sync passes it in Build 2.
   Future<int> upload(
     String baseUrl,
     String token,
-    Map<String, dynamic> backup,
-  ) async {
+    Map<String, dynamic> backup, {
+    String? profileId,
+  }) async {
     final body = await _post(baseUrl, '/sync', {
       'token': token,
       'backup': backup,
+      if (profileId != null) 'profileId': profileId,
     });
     return (body['updatedAt'] as num?)?.toInt() ?? 0;
   }
 
   /// Downloads the saved backup, or null when the account has never synced.
-  Future<Map<String, dynamic>?> download(String baseUrl, String token) async {
+  ///
+  /// With [profileId] that profile's backup is downloaded; without it,
+  /// the legacy key.
+  Future<Map<String, dynamic>?> download(
+    String baseUrl,
+    String token, {
+    String? profileId,
+  }) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '$baseUrl/backup',
-        queryParameters: {'token': token},
+        queryParameters: {
+          'token': token,
+          if (profileId != null) 'profileId': profileId,
+        },
       );
       final body = response.data ?? const {};
       if (body['ok'] != true) {
