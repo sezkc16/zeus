@@ -69,22 +69,20 @@ void main() {
     expect(tapped, 3);
   });
 
-  testWidgets('the selected tab wears the theme accent', (tester) async {
+  testWidgets('the selected tab is white on its dark bubble', (tester) async {
     await pump(tester, Brightness.dark, currentIndex: 2);
     await tester.pumpAndSettle();
-    // Build 104: the dock's selected state follows the user's accent
-    // (colorScheme.primary), not the fixed Olympus gold.
-    final primary = Theme.of(
-      tester.element(find.byType(LiquidGlassNavBar)),
-    ).colorScheme.primary;
+    // Build 109 reference look: the selected tab is WHITE (the package
+    // paints its dark bubble behind it) — the accent no longer tints
+    // the selection (build 104's nav-follows-accent is superseded).
     expect(
       tester.widget<Icon>(find.byIcon(ReiconFilledIcons.puzzle)).color,
-      primary,
+      Colors.white,
     );
     // ... and an unselected tab does not wear it.
     expect(
       tester.widget<Icon>(find.byIcon(ReiconFilledIcons.home)).color,
-      isNot(primary),
+      isNot(Colors.white),
     );
   });
 
@@ -162,7 +160,7 @@ void main() {
     await tester.pumpAndSettle();
     // The package's root Positioned: left/right are the side margins
     // (insets = 8) and bottom is the pill's gap from the screen edge.
-    // The Olympus rim is a second Positioned with the same margins but a
+    // The neutral rim is a second Positioned with the same margins but a
     // fixed height, so it is filtered out here.
     final positioned = tester
         .widgetList<Positioned>(find.byType(Positioned))
@@ -172,7 +170,7 @@ void main() {
     expect(positioned.single.bottom, CustomBottomNavBar.targetBottomGap);
   });
 
-  testWidgets('navPaddingBottom only ever lowers the pill', (tester) async {
+  testWidgets('navPaddingBottom sets the pill to the target gap', (tester) async {
     double? seen34;
     double? seen0;
     await tester.pumpWidget(
@@ -203,14 +201,23 @@ void main() {
         ),
       ),
     );
-    expect(seen34, 0.0);
-    expect(seen0, 0.0);
+    // Build 109: the padding is exactly gap − insets (12) — it lowers
+    // the pill on iOS (real 34) and raises it on Android (real 0), so
+    // the pill lands 20 pt up on both.
+    expect(seen34, 12.0);
+    expect(seen0, 12.0);
   });
 
   test('content clearance covers the pill top plus buffer', () {
-    expect(CustomBottomNavBar.targetBottomGap, 8.0);
-    // 8 (gap) + 68 (pill) + 12 (buffer).
-    expect(CustomBottomNavBar.contentClearance, 88.0);
+    expect(CustomBottomNavBar.targetBottomGap, 20.0);
+    // 20 (gap) + 63 (pill) + 12 (buffer).
+    expect(CustomBottomNavBar.contentClearance, 95.0);
+  });
+
+  testWidgets('the pill is 63 pt tall', (tester) async {
+    await pump(tester, Brightness.dark);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byType(LiquidGlassNavBar)).height, 63.0);
   });
 
   testWidgets('the fork glass pill renders in both dark and light mode', (
@@ -270,20 +277,23 @@ void main() {
         find.byType(LiquidGlassNavBar),
       );
       expect(bar.inactiveColor, theme.colorScheme.onSurfaceVariant);
-      // Build 104: the selected tab follows the theme accent, not the
-      // fixed Olympus gold — the dark glass pill keeps the accent
-      // legible in both brightnesses.
-      expect(bar.activeColor, theme.colorScheme.primary);
+      // Build 109 reference look: the selected tab is WHITE, not the
+      // theme accent — the dark glass pill keeps it legible in both
+      // brightnesses.
+      expect(bar.activeColor, Colors.white);
       expect(bar.labelStyle?.shadows, isNotEmpty);
     });
 
-    testWidgets('Frost (light, not glass) keeps its own pill', (tester) async {
+    testWidgets('Frost (light) gets the clear glass too', (tester) async {
+      // Build 109 (user 2026-11-21 00:46): Frost's pill was milky and
+      // frosted; it now gets the same clear (dark) glass as light
+      // Liquid Glass — pure liquid glass, not frosted.
       await pumpTheme(tester, themed(Brightness.light, glass: false));
-      expect(barBrightness(tester), Brightness.light);
+      expect(barBrightness(tester), Brightness.dark);
       final bar = tester.widget<LiquidGlassNavBar>(
         find.byType(LiquidGlassNavBar),
       );
-      expect(bar.labelStyle?.shadows, isNull);
+      expect(bar.labelStyle?.shadows, isNotEmpty);
     });
 
     testWidgets('dark Liquid Glass is untouched', (tester) async {
@@ -296,8 +306,10 @@ void main() {
       expect(bar.labelStyle?.shadows, isNull);
     });
 
-    testWidgets('the pill sits in the same place with and without the '
-        'clear glass', (tester) async {
+    testWidgets('the pill sits in the same place on Frost and on light '
+        'Liquid Glass', (tester) async {
+      // Both light themes get the clear glass now (build 109); the
+      // geometry must not move between them.
       await pumpTheme(tester, themed(Brightness.light, glass: false));
       final frost = tester.getRect(find.byType(LiquidGlassNavBar));
       await pumpTheme(tester, themed(Brightness.light, glass: true));

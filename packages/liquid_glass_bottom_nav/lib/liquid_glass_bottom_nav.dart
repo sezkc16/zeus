@@ -150,7 +150,7 @@ class LiquidGlassNavBar extends StatefulWidget {
   final double insets;
 
   /// Corner radius of the floating capsule. Defaults to 34.0, which — at the
-  /// fixed 68px bar height — renders as a full stadium/pill shape. Lower
+  /// fixed 63px bar height — renders as a full stadium/pill shape. Lower
   /// values produce a squarer capsule; the active tab bubble follows the same
   /// radius so its shape always matches the capsule around it.
   ///
@@ -180,8 +180,8 @@ class LiquidGlassNavBar extends StatefulWidget {
 
   /// Vertical space the floating nav occupies above the system bottom inset.
   /// Tab screens with scrollable content should add this as bottom padding.
-  /// Composition: pill height 68 + bottom margin 16 + 12px breathing buffer = 96.0.
-  static const double contentBottomInset = 96.0;
+  /// Composition: pill height 63 + bottom margin 16 + 12px breathing buffer = 91.0.
+  static const double contentBottomInset = 91.0;
 
   const LiquidGlassNavBar({
     super.key,
@@ -382,7 +382,7 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
               ),
             ),
             SizedBox(
-              height: 68,
+              height: 63,
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final itemWidth = constraints.maxWidth / widget.items.length;
@@ -465,15 +465,19 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
                         Builder(
                           builder: (context) {
                             // Normal state: Original stadium pill capsule
-                            final normalWidth = itemWidth - 8; 
-                            final normalHeight = 58.0; // Taller, closer to the edges
-                            final normalTop = (68.0 - normalHeight) / 2;
+                            final normalWidth = itemWidth - 8;
+                            // Build 109: 58 -> 53, so the resting bubble
+                            // keeps its 5 px inset in the 63 px pill.
+                            const normalHeight = 53.0; // Taller, closer to the edges
+                            const normalTop = (63.0 - normalHeight) / 2;
                             final normalLeft = displayIndex * itemWidth + 4.0;
 
                             // Held state: Enlarged capsule (maintains horizontal pill shape)
-                            final heldWidth = itemWidth + 16.0; 
-                            final heldHeight = 80.0; // Overlaps top and bottom of 68px container
-                            final heldTop = (68.0 - heldHeight) / 2;
+                            final heldWidth = itemWidth + 16.0;
+                            // Build 109: 80 -> 75, so it still overlaps the
+                            // 63px container by 6 px top and bottom.
+                            const heldHeight = 75.0; // Overlaps top and bottom of 63px container
+                            const heldTop = (63.0 - heldHeight) / 2;
                             
                             // Track exact finger position clamped within the bar bounds
                             final exactCenterX = _dragX?.clamp(0.0, constraints.maxWidth) 
@@ -534,10 +538,13 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
                                           // No tint while held — the light gray stroke (or the
                                           // rainbow sheen, if opted into) is the only drag-state
                                           // accent.
+                                          // Build 109: the resting bubble is DARK (a black
+                                          // tint, not the old faint white one) — the
+                                          // reference-app look: dark bubble, white icon.
                                           color: isDragging
                                               ? Colors.transparent
                                               : (isDark
-                                                  ? Colors.white.withValues(alpha: 0.08)
+                                                  ? Colors.black.withValues(alpha: 0.45)
                                                   : activeColor.withValues(alpha: 0.15)),
                                           borderRadius: BorderRadius.circular(widget.borderRadius),
                                         ),
@@ -583,7 +590,7 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
                             final color = isActive ? activeColor : inactiveColor;
                             return SizedBox(
                               width: itemWidth,
-                              height: 68,
+                              height: 63,
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [

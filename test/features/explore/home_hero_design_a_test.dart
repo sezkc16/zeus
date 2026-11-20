@@ -462,8 +462,9 @@ void main() {
       // Centred as a group.
       final last = tester.getRect(find.byKey(const ValueKey('hcd_2')));
       expect((active.left + last.right) / 2, closeTo(411 / 2, 1.0));
-      // The poster is tall: about two thirds of the screen.
-      expect(card.height, closeTo(915 * 0.66, 1.0));
+      // The poster is tall: about 64% of the screen (build 109: 0.66 ->
+      // 0.64, hero bottom ~1790 px on a 2796 px screen, preview v4).
+      expect(card.height, closeTo(915 * 0.64, 1.0));
       expect(card.left, 0);
       expect(card.right, 411);
 

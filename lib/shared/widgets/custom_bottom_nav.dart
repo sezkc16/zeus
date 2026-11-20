@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_bottom_nav/liquid_glass_bottom_nav.dart';
 import 'package:reicons/reicons.dart';
-import 'package:zorox/core/theme/theme_variant.dart';
 import 'package:zorox/core/utils/boot_trace.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
 
@@ -17,14 +16,13 @@ import 'package:zorox/l10n/generated/app_localizations.dart';
 /// same icons render on iOS and Android — the font is bundled in the app,
 /// no per-platform work, no asset files.
 ///
-/// Olympus Noir (build 102) layers the redesign on top without touching
-/// the package: the selected tab wears the user's accent colour (build
-/// 104 — it used to be the fixed Olympus gold whichever accent was
-/// picked), a soft glow in the same accent sits under the selected
-/// item, and a fine metallic rim outlines the pill. The icons,
-/// labels, routes and the liquid-glass material itself are exactly as
-/// they were — the glow and rim are Positioned siblings around the
-/// package bar inside [_OlympusDockTreatment], never inside the package.
+/// Build 109 (user-approved reference look, preview v4): the selected
+/// tab is a DARK bubble with a WHITE icon and label — the accent colour
+/// no longer tints the selection (build 104's nav-follows-accent is
+/// superseded) — and the pill wears a thin NEUTRAL rim, no gold rim, no
+/// gold glow. The icons, labels, routes and the liquid-glass material
+/// itself are exactly as they were — the rim is a Positioned sibling
+/// around the package bar inside [_NavPillRim], never inside the package.
 /// A Stack is the one wrapper that does not break the +15..+19 rule: the
 /// package's root Positioned needs a Stack ancestor, and this Stack is
 /// one (a Transform/Padding parent would throw "Incorrect use of
@@ -59,21 +57,20 @@ class CustomBottomNavBar extends StatelessWidget {
   });
 
   /// The pill's bottom offset above the system bottom inset. The package
-  /// default is 16; 8 sits the pill a little lower — closer to the bottom
-  /// edge, so it reads as a proper bottom nav instead of floating mid-row
-  /// over the last posters — without touching the pill itself (glass, gold
-  /// active, icons, labels all unchanged). `insets` also sets the pill's
-  /// side margins, so the pill is a little wider too; the package offers
-  /// no separate bottom offset.
+  /// default is 16; 8 is the side margin too (see [_kBottomMargin]) —
+  /// the bottom gap itself comes from [targetBottomGap] via
+  /// [navPaddingBottom], not from this value.
   static const double _kBottomMargin = 8.0;
 
-  /// The pill's height (package: fixed 68).
-  static const double _kPillHeight = 68.0;
+  /// The pill's height (package: fixed 63 since build 109).
+  static const double _kPillHeight = 63.0;
 
   /// How far the pill's bottom edge sits above the physical screen bottom
-  /// — the Android spot the user asked for (blue mark, 2026-11-14).
-  /// 8pt reads as hugging the bottom edge on both platforms.
-  static const double targetBottomGap = 8.0;
+  /// — the reference app's spot (build 109: 20 pt, was 8). The package
+  /// positions the pill at `MediaQuery.padding.bottom + insets`, so the
+  /// shell feeds it a bottom padding of [targetBottomGap] −
+  /// [_kBottomMargin] (see [navPaddingBottom]).
+  static const double targetBottomGap = 20.0;
 
   /// Breathing room between the pill top and the last content row.
   static const double _kContentBuffer = 12.0;
@@ -87,10 +84,12 @@ class CustomBottomNavBar extends StatelessWidget {
 
   /// The `padding.bottom` the package should see so the pill lands at
   /// [targetBottomGap] above the physical screen bottom. The package
-  /// positions the pill at `MediaQuery.padding.bottom + insets`, so on iOS
-  /// (real safe-area padding ~34) the pill floats mid-screen unless a
-  /// smaller padding is fed in; on Android the real padding is already ~0
-  /// so this is a no-op. Only ever lowers, never raises.
+  /// positions the pill at `MediaQuery.padding.bottom + insets`, so the
+  /// padding must be [targetBottomGap] − [_kBottomMargin] (12): on iOS
+  /// (real safe-area padding ~34) that LOWERS it, on Android (real ~0)
+  /// it RAISES it — either way the pill lands 20 pt up. Build 109
+  /// changed this from lower-only (the old 8 pt gap needed 0, which the
+  /// real padding already covered on Android).
   ///
   /// Implemented as a [MediaQuery] override (see [AppScaffold]) — an
   /// [InheritedWidget], not a [RenderObjectWidget] — so the package's root
@@ -99,16 +98,15 @@ class CustomBottomNavBar extends StatelessWidget {
   /// between them and throw "Incorrect use of ParentDataWidget" on every
   /// frame — that is exactly what froze the app in +15..+19.
   static double navPaddingBottom(BuildContext context) {
-    final real = MediaQuery.paddingOf(context).bottom;
     const needed = targetBottomGap - _kBottomMargin;
-    return math.min(real, math.max(0.0, needed));
+    return math.max(0.0, needed);
   }
 
   /// The `padding.bottom` the shell feeds the package on the Settings
   /// branch so the pill parks entirely below the screen bottom (build
   /// 90). The package positions the pill at
   /// `MediaQuery.padding.bottom + insets` from the bottom edge, so a
-  /// NEGATIVE padding sinks the whole 68 px pill below the screen —
+  /// NEGATIVE padding sinks the whole 63 px pill below the screen —
   /// invisible and untappable, but still mounted, so its State and
   /// glass layer stay warm and the return to a tab shows it in the
   /// first frame. That is the fix for the pre-87 gap (the pill was
@@ -122,7 +120,7 @@ class CustomBottomNavBar extends StatelessWidget {
   /// instead: sink DOWN below the bottom edge on the way in, rise UP
   /// from below on the way back. The value is exactly
   /// [contentClearance] negated, so the parked pill's top sits
-  /// [contentClearance] − insets − pill height = 12 px below the
+  /// [contentClearance] − insets − pill height = 24 px below the
   /// screen bottom — the same breathing buffer the content keeps
   /// above it. A negative MediaQuery padding is fine: EdgeInsets
   /// carries it, and the package reads padding.bottom only for its
@@ -191,16 +189,20 @@ class CustomBottomNavBar extends StatelessWidget {
       impellerSupported: impellerSupported,
       // A little lower than the package default (see [_kBottomMargin]).
       insets: _kBottomMargin,
-      // Olympus accent for the selected tab (build 104: the user's
-      // accent colour, so the dock follows the accent row in
-      // Settings); muted grey otherwise.
-      activeColor: colorScheme.primary,
+      // A stadium at the 63 pt pill: half the height (the package
+      // default 34 is for its old 68 pt pill).
+      borderRadius: _kPillHeight / 2,
+      // Build 109 reference look: the selected tab is WHITE (the
+      // package paints its dark bubble behind it) — the accent colour
+      // no longer tints the selection; build 104's nav-follows-accent
+      // is superseded. Muted grey otherwise.
+      activeColor: Colors.white,
       inactiveColor: theme.brightness == Brightness.dark
           ? const Color(0xFF9D9A92)
           : colorScheme.onSurfaceVariant,
-      iconSize: 28,
+      iconSize: 24,
       labelStyle: TextStyle(
-        fontSize: 10,
+        fontSize: 9,
         fontWeight: FontWeight.w600,
         // Clear glass over a poster: a soft light halo keeps the dark
         // label readable without tinting the pill.
@@ -210,9 +212,9 @@ class CustomBottomNavBar extends StatelessWidget {
       ),
     );
     if (!clearGlass) {
-      return _olympusTreatment(bar);
+      return _rimTreatment(bar);
     }
-    return _olympusTreatment(
+    return _rimTreatment(
       Theme(
         data: theme.copyWith(brightness: Brightness.dark),
         child: bar,
@@ -220,16 +222,17 @@ class CustomBottomNavBar extends StatelessWidget {
     );
   }
 
-  /// Olympus Noir treatment (build 102): gold glow + metallic rim around
-  /// the package bar. The legacy (non-Impeller) bar is not a floating
-  /// pill, so it keeps its plain return path.
-  Widget _olympusTreatment(Widget bar) {
+  /// The thin neutral rim around the floating pill (build 109): the
+  /// reference app has no gold rim and no gold glow, so the old
+  /// accent-coloured rim + glow are gone. The legacy (non-Impeller) bar
+  /// is not a floating pill, so it keeps its plain return path.
+  Widget _rimTreatment(Widget bar) {
     if (!impellerSupported) return bar;
-    return _OlympusDockTreatment(currentIndex: currentIndex, bar: bar);
+    return _NavPillRim(bar: bar);
   }
 }
 
-/// The Olympus Noir glow + rim around the floating dock.
+/// The thin neutral rim around the floating dock.
 ///
 /// A separate widget (not inline in [CustomBottomNavBar.build]) so its
 /// build reads the tweened [MediaQuery] padding itself: the shell feeds
@@ -238,65 +241,38 @@ class CustomBottomNavBar extends StatelessWidget {
 /// on the Settings branch, and [CustomBottomNavBar] is passed to the
 /// tween as a cached `child` — its own build does not re-run per frame.
 /// This widget is a MediaQuery dependent, so it rebuilds on every frame
-/// of the glide and the glow and rim sink with the pill instead of
-/// lingering where it was.
+/// of the glide and the rim sinks with the pill instead of lingering
+/// where it was.
 ///
-/// Children, in paint order: the glow (behind the glass), the package
-/// bar itself (icons, labels, glass — untouched), the metallic rim
-/// (above the glass so it reads on light themes too; 1 px at the pill's
-/// exact edge, so it never touches the icons or labels inside). Both
-/// are IgnorePointer, so taps still land on the bar.
-class _OlympusDockTreatment extends StatelessWidget {
-  const _OlympusDockTreatment({required this.currentIndex, required this.bar});
+/// Children, in paint order: the package bar itself (icons, labels,
+/// glass — untouched), then the rim (above the glass so it reads on
+/// light themes too; 1 px at the pill's exact edge, so it never touches
+/// the icons or labels inside). IgnorePointer, so taps still land on
+/// the bar.
+class _NavPillRim extends StatelessWidget {
+  const _NavPillRim({required this.bar});
 
-  final int currentIndex;
   final Widget bar;
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final paddingBottom = MediaQuery.paddingOf(context).bottom;
-    // Build 104: the glow and rim wear the user's accent colour (the
-    // dock used to be fixed gold whichever accent was picked).
-    final accent = Theme.of(context).colorScheme.primary;
     // The package's side margin: insets, or half that under 360 px.
     final horizontalMargin = screenWidth < 360
         ? CustomBottomNavBar._kBottomMargin / 2
         : CustomBottomNavBar._kBottomMargin;
-    final itemWidth = (screenWidth - 2 * horizontalMargin) / 5;
-    const glowWidth = 56.0;
-    const glowHeight = 30.0;
-    final glowLeft =
-        horizontalMargin +
-        currentIndex * itemWidth +
-        (itemWidth - glowWidth) / 2;
     return Positioned.fill(
       child: Stack(
         children: [
-          // Soft glow under the selected tab, behind the glass.
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.elasticOut,
-            left: glowLeft,
-            bottom: paddingBottom + CustomBottomNavBar._kBottomMargin + 2,
-            width: glowWidth,
-            height: glowHeight,
-            child: IgnorePointer(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    colors: [
-                      accent.withValues(alpha: 0.45),
-                      accent.withValues(alpha: 0.0),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
           // The package bar itself — icons, labels, glass unchanged.
           bar,
-          // Fine metallic rim on the pill's exact outline.
+          // Thin neutral rim on the pill's exact outline. White at low
+          // alpha: the pill is dark glass in every theme now (light
+          // themes get the clear dark glass — see [clearNavGlassFor]),
+          // so a white rim reads on all of them. The old accent rim
+          // (gold on the default accent) is gone — the reference app
+          // has no coloured rim.
           Positioned(
             left: horizontalMargin,
             right: horizontalMargin,
@@ -305,9 +281,11 @@ class _OlympusDockTreatment extends StatelessWidget {
             child: IgnorePointer(
               child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(34),
+                  borderRadius: BorderRadius.circular(
+                    CustomBottomNavBar._kPillHeight / 2,
+                  ),
                   border: Border.all(
-                    color: accent.withValues(alpha: 0.30),
+                    color: Colors.white.withValues(alpha: 0.18),
                     width: 1,
                   ),
                 ),
@@ -321,8 +299,11 @@ class _OlympusDockTreatment extends StatelessWidget {
 }
 
 /// Whether the nav pill must be forced onto the package's clear (dark)
-/// glass: only on Liquid Glass with Dark Mode off. Frost keeps its own
-/// frosted pill, and every dark theme is already clear.
+/// glass: on every LIGHT theme. Liquid Glass light was the first (build
+/// 85); Frost (build 109, user 2026-11-21 00:46: "nav blurry/milky on
+/// Frost — pure liquid glass, clear not frosted") is the only other
+/// light theme — Arena Gold / Midnight / Obsidian are dark-only — so a
+/// plain brightness check covers both without a new theme flag. Dark
+/// themes are already clear.
 bool clearNavGlassFor(ThemeData theme) =>
-    theme.brightness == Brightness.light &&
-    (theme.extension<ZoroxThemeExtension>()?.isGlass ?? false);
+    theme.brightness == Brightness.light;

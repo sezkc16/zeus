@@ -262,7 +262,11 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
     // The Home hero on a phone (design A, build 82) is taller, and carries
     // its dots inside the poster, under the button.
     final homeHero = _isHomeHero(isDesktop);
-    final heroHeight = size.height * (homeHero ? 0.66 : 0.60);
+    // Build 109: 0.66 -> 0.64 — the hero is a little shorter (bottom
+    // ~1790 px on a 2796 px screen, preview v4). The cut is below the
+    // button + dots (see _homeDotsBottom): the poster loses the empty
+    // space under the dots, the content block is NOT recompressed.
+    final heroHeight = size.height * (homeHero ? 0.64 : 0.60);
 
     return VisibilityDetector(
       key: const Key('explore-carousel-visibility'),
@@ -371,7 +375,11 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
       (widget.showPreviewActions || widget.showHomeHero) && !isDesktop;
 
   /// Where the Home hero's dots sit, from the poster's bottom edge.
-  static const double _homeDotsBottom = 26;
+  /// Build 109: 26 -> 7 — the hero is shorter (0.64), so the dots sit
+  /// just above the new bottom edge and the button + dots keep the
+  /// screen rows they had (the cut is below them, the content is not
+  /// recompressed and does not move).
+  static const double _homeDotsBottom = 7;
 
   /// The hero as a card: rounded corners, the backdrop clipped inside and
   /// no outline (v8: the thin accent line around it was removed at the

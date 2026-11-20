@@ -823,9 +823,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final size = MediaQuery.sizeOf(context);
     final isDesktop =
         size.width > LayoutConstants.exploreCarouselDesktopBreakpoint;
-    // The same height as the hero that replaces it (0.66 on a phone since
-    // build 82), so nothing jumps when the feed arrives.
-    final heroHeight = size.height * (isDesktop ? 0.60 : 0.66);
+    // The same height as the hero that replaces it (0.64 on a phone since
+    // build 109), so nothing jumps when the feed arrives.
+    final heroHeight = size.height * (isDesktop ? 0.60 : 0.64);
 
     if (isDesktop) {
       return Padding(
