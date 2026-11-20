@@ -24,6 +24,8 @@ import '../../../core/theme/theme_provider.dart';
 import '../../../core/theme/theme_variant.dart';
 import '../../home/presentation/home_row_prefs_provider.dart';
 import '../../library/presentation/library_provider.dart';
+import '../../profiles/data/zeus_profile.dart';
+import '../../profiles/data/zeus_profiles_notifier.dart';
 import '../../search/domain/search_plugin_filter.dart';
 import '../../settings/presentation/general_settings_provider.dart';
 import '../../settings/presentation/player_settings_provider.dart';
@@ -261,6 +263,10 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       );
       // Cold start (v9): the session is known now — sync once, quietly.
       unawaited(autoSync());
+      // Profiles (Build 1): fetch the list so the gate knows whether to
+      // show the picker or the first-profile setup. Never throws: a
+      // failure leaves the cached list (offline).
+      unawaited(refreshZeusProfiles());
     } catch (e) {
       talker.warning('[ZoroX Account] restoring the session failed: $e');
     }
@@ -332,6 +338,9 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       await _saveSession(email.trim().toLowerCase(), token);
       // A fresh account has no cloud backup to download; upload local.
       await uploadBackup();
+      // Profiles (Build 1): a fresh account has none — the gate shows
+      // the first-profile setup, and the migration runs from there.
+      await refreshZeusProfiles();
       return true;
     } on ZoroxSyncException catch (e) {
       if (ref.mounted) state = state.copyWith(busy: false, error: e.message);
@@ -368,6 +377,9 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       // copy this app could not read is never overwritten.
       final outcome = await _downloadAndRestore(cloudSettingsWin: true);
       if (outcome != _DownloadOutcome.failed) await uploadBackup();
+      // Profiles (Build 1): fetch the list (and work out the migration
+      // case) now that the session is live.
+      await refreshZeusProfiles();
       return true;
     } on ZoroxSyncException catch (e) {
       if (ref.mounted) state = state.copyWith(busy: false, error: e.message);
@@ -409,6 +421,10 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       final tokens = ref.read(secureTokenStorageProvider);
       await tokens.delete(_kTokenKey);
       await tokens.delete(_kEmailKey);
+      // Profiles (Build 1): the cached list, the active profile and the
+      // PIN counters go; the pair goes back to the legacy boxes. The
+      // server list is untouched — the next login re-fetches it.
+      await ref.read(zeusProfilesProvider.notifier).clearLocalState();
       if (ref.mounted) {
         state = state.copyWith(
           email: null,
@@ -418,6 +434,93 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
         );
       }
     }
+  }
+
+  // --- profiles (Build 1) --------------------------------------------------------
+
+  /// Fetches the profile list after auth (login / register / cold start),
+  /// so the gate knows whether to show the picker or the first-profile
+  /// setup. Never throws: a failure leaves the cached list (offline).
+  Future<void> refreshZeusProfiles() async {
+    if (!state.loggedIn) return;
+    try {
+      final baseUrl = await _requireWorkerUrl();
+      final token = await _token();
+      if (token == null || token.isEmpty) return;
+      await ref
+          .read(zeusProfilesProvider.notifier)
+          .refreshAfterAuth(baseUrl: baseUrl, token: token);
+    } catch (_) {
+      // Offline or unconfigured: the cached list stands.
+    }
+  }
+
+  /// Migration case 2 (design §9): the account has no profiles yet, so
+  /// the current Continue Watching / My List becomes the first profile.
+  ///
+  /// Creates the profile (the PIN record is made on this device),
+  /// switches to it, copies the legacy history + library into its boxes,
+  /// uploads the copy as that profile's backup (and once to the legacy
+  /// key, so old clients are not left with a stale-empty backup), then
+  /// clears the legacy boxes and marks the migration done.
+  ///
+  /// Returns the profile, or null when the profile itself could not be
+  /// created. A failed upload does NOT fail the migration: the profile
+  /// and its local copy exist, the legacy boxes are left alone, and the
+  /// next sync round (or Build 2's move prompt) picks the data up — the
+  /// server backup is the safety net, and nothing is lost either way.
+  Future<ZeusProfile?> completeZeusProfileMigration({
+    required String name,
+    required String color,
+    required String pin,
+  }) async {
+    if (!state.loggedIn) return null;
+    final profilesNotifier = ref.read(zeusProfilesProvider.notifier);
+    final profile = await profilesNotifier.createZeusProfile(
+      name: name,
+      color: color,
+      pin: pin,
+    );
+    if (profile == null) {
+      if (ref.mounted) {
+        state = state.copyWith(
+          error:
+              ref.read(zeusProfilesProvider).error ??
+              'Could not create the profile.',
+        );
+      }
+      return null;
+    }
+    final storage = ref.read(storageServiceProvider);
+    await profilesNotifier.switchZeusProfile(profile.id);
+    await storage.copyLegacyHistoryAndLibraryToZeusProfile(profile.id);
+    try {
+      final baseUrl = await _requireWorkerUrl();
+      final token = await _token();
+      if (token == null || token.isEmpty) {
+        throw const ZoroxSyncException(
+          'Session expired. Log in again.',
+          statusCode: 401,
+        );
+      }
+      final backup = await collectBackup();
+      await _client.upload(baseUrl, token, backup.toJson(), profileId: profile.id);
+      await _client.upload(baseUrl, token, backup.toJson());
+      await storage.clearLegacyHistoryAndLibrary();
+      await profilesNotifier.markMigrated();
+      await _markSynced();
+    } catch (e) {
+      // The profile and its local copy exist; the upload is retried by
+      // the next sync round. The legacy boxes stay until it succeeds.
+      talker.warning('[ZoroX Account] profile migration upload failed: $e');
+      if (ref.mounted) {
+        state = state.copyWith(
+          error:
+              'The profile was created, but its backup could not be uploaded yet. Your data is safe on this device.',
+        );
+      }
+    }
+    return profile;
   }
 
   // --- sync server URL --------------------------------------------------------
@@ -600,6 +703,15 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
     )) {
       return false;
     }
+    // Profiles (Build 1): no sync round until a profile is active, when
+    // the account has profiles. With no profiles (or none fetched yet)
+    // the legacy sync runs as today — the migration copies from the
+    // legacy boxes after it.
+    final zeusProfiles = ref.read(zeusProfilesProvider);
+    if (zeusProfiles.profiles.isNotEmpty &&
+        zeusProfiles.activeProfileId == null) {
+      return false;
+    }
     _autoSyncGate.markRan(at);
     _autoSyncRunning = true;
     try {
@@ -759,6 +871,10 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       settings: settings,
       settingsUpdatedAt: _settingsChangedAt(),
       addonsSkippedForSecrets: addonsSkipped,
+      // Profiles (Build 1): the active profile's id, or null for the
+      // legacy (logged-out) backup. The history/library above already
+      // come from the active pair, so the stamp and the contents agree.
+      profileId: ref.read(zeusProfilesProvider).activeProfileId,
     );
   }
 

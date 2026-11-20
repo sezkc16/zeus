@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'features/account/presentation/zeus_auto_sync.dart';
 import 'features/app_lock/app_lock_gate.dart';
+import 'features/profiles/presentation/profile_gate.dart';
 import 'package:flutter/material.dart';
 
 import 'features/player/presentation/player_debug_flags.dart'
@@ -753,6 +754,12 @@ class _MyAppState extends ConsumerState<MyApp> {
             // `MaterialApp.router`'s builder, i.e. around the Navigator that
             // builds the player route.
             result = UpdatePromptHost(child: M3ToastOverlay(child: result));
+
+            // Profiles (Build 1): the "Who's watching?" picker over the
+            // whole app while no profile is active. It sits between the
+            // update prompt and the app lock, so the lock wraps it and
+            // paints over it: app unlock first, then profile pick.
+            result = ProfileGate(router: appRouter, child: result);
 
             // App lock (v7): the lock screen / privacy cover over the whole
             // app, toasts included. It stands down over the player.
