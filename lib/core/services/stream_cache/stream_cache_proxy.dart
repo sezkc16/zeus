@@ -67,6 +67,34 @@ const int kStreamCacheSkipAhead = 2 * kMiB;
 /// end) right after opening it, then goes back to the start.
 const int kStreamCacheSideMax = 8 * kMiB;
 
+/// Build 105: how old a session must be for a refused side read (the
+/// film's index, at a seek) to give the film up instead of only
+/// redirecting that one read.
+///
+/// The phone (b104, Twinkling Watermelon): after playing to 02:35 the
+/// viewer sought to 06:14. mpv first asked for the index at the end;
+/// the host ignores Range, so the probe was sent to the origin — and
+/// the session stayed alive. The player never came back with the seek
+/// target (its next requests went to the origin, where the host
+/// answers every Range with the whole film from byte 0), the proxy's
+/// own fetch kept eating the host's bandwidth, and the picture froze
+/// on the old frame, then went black, forever — while the overlay
+/// still said `proxy: on`. A refused side read once the session is
+/// past its opening means the seek behind it cannot be served: the
+/// session is killed, so the fetch stops and every later request goes
+/// to the film's own address (b101 behaviour: it plays from the
+/// start). A probe inside the opening (the head read, under a second
+/// or two in) leaves the session alone, so a film still plays through
+/// the proxy after it (build 104's test).
+///
+/// Age, not how far the player has read: the proxy only knows how much
+/// it has *written* to the player, and on a fast host the reader races
+/// several MiB ahead of what the player has consumed before the
+/// hangup is noticed — the open-time probe would read as mid-film.
+/// The opening is over in a second or two even on a slow host; a real
+/// seek comes minutes in.
+const Duration kStreamCacheSideKillAfter = Duration(seconds: 5);
+
 /// Build 78: see [StreamCacheProxyServer.memoryKeep].
 const int kStreamCacheMemoryKeep = 4 * kMiB;
 
@@ -691,8 +719,18 @@ class StreamCacheProxyServer {
         _discard(upstream.response);
         throw const _Unusable('length changed');
       }
-    } catch (_) {
-      // Not this way: the player asks the host itself for this one.
+    } catch (error) {
+      // Build 105: not this way — the player asks the host itself for
+      // this one. And once the player is into the film, a refused
+      // index read means the seek behind it cannot be served either:
+      // the film is given up (see [kStreamCacheSideKillAfter]) so the
+      // fetch stops and the player's next request goes to the host
+      // itself, instead of the player freezing on a proxy that stays
+      // alive but can no longer serve it.
+      if (DateTime.now().difference(session.createdAt) >
+          kStreamCacheSideKillAfter) {
+        session.kill(error is _Unusable ? error.reason : 'host');
+      }
       await _redirect(request, session.origin);
       return;
     }
@@ -1367,6 +1405,10 @@ class _Session {
   final Uri origin;
   final String name;
   final String path;
+
+  /// Build 105: when the film was opened. A side read refused after
+  /// the opening gives the film up (see [kStreamCacheSideKillAfter]).
+  final DateTime createdAt = DateTime.now();
 
   RingStore? store;
   int? total;

@@ -702,6 +702,72 @@ void main() {
     });
   });
 
+  group('a refused index read mid-film never strands the player '
+      '(build 105)', () {
+    test('a seek-time index probe on a no-range host gives the film up '
+        'to the origin instead of leaving the player frozen', () async {
+      host.length = 64 * mib;
+      host.ignoreRange = true;
+      // A host with a speed, so the fetch is still mid-film when the
+      // seek comes (the phone: host ~0.5 MiB/s, film ~1.9 GiB) — and
+      // slow enough that reading 2 MiB takes past the opening, the
+      // way playing to 02:35 did on the phone.
+      host.pace = const Duration(milliseconds: 100);
+      final server = await startProxy(
+        capacity: 96 * mib,
+        readAhead: 4 * mib,
+        sideMax: 2 * mib,
+      );
+      final session = server.openSession('${host.base}/film.mkv');
+      // The film plays: the player reads 2 MiB from the start, past
+      // the head (the phone: 02:35 in, ~78 MiB read).
+      await playerGet(session.url, from: 0, take: 2 * mib);
+      // The seek: mpv first asks for the index at the end.
+      final tail = await playerGet(session.url, from: host.length - 300 * kib);
+      // The index read itself is sent to the host, as before.
+      expect(tail.status, 302);
+      expect(tail.headers['location'], '${host.base}/film.mkv');
+      // But the film is given up, not left on a proxy that can no
+      // longer serve it: the fetch stops, and the seek target the
+      // player asks for next goes to the host itself (b101 behaviour)
+      // instead of the player freezing on the old frame forever.
+      final stats = server.stats(session.token)!;
+      expect(stats.dead, isTrue);
+      expect(stats.reason, 'no range');
+      final clock = Stopwatch()..start();
+      final far = await playerGet(session.url, from: 30 * mib, take: 100 * kib);
+      expect(far.status, 302);
+      expect(far.headers['location'], '${host.base}/film.mkv');
+      expect(clock.elapsedMilliseconds, lessThan(10000));
+      // And the fetch stopped with the session: the host saw the
+      // film's one connection and the short one, and nothing after.
+      expect(host.filmRequests, 2);
+    });
+
+    test('a seek-time index probe that fails any other way also gives '
+        'the film up', () async {
+      host.length = 64 * mib;
+      // Slow enough that the playback read takes past the opening.
+      host.pace = const Duration(milliseconds: 100);
+      final server = await startProxy(
+        capacity: 96 * mib,
+        readAhead: 4 * mib,
+        sideMax: 2 * mib,
+      );
+      final session = server.openSession('${host.base}/film.mkv');
+      await playerGet(session.url, from: 0, take: 2 * mib);
+      host
+        ..failStatus = 503
+        ..failFromRequest = 1;
+      final tail = await playerGet(session.url, from: host.length - 100 * kib);
+      expect(tail.status, 302);
+      host.failStatus = null;
+      final stats = server.stats(session.token)!;
+      expect(stats.dead, isTrue);
+      expect(stats.reason, 'http 503');
+    });
+  });
+
   group('the host connection breaking', () {
     test('is picked up again from where it stopped; the player sees one '
         'unbroken film', () async {
