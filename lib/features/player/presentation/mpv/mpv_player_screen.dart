@@ -54,12 +54,15 @@
 ///   * Side-car subtitle download, ClearKey DRM, torrent files.
 library;
 
+import '../../../../core/utils/app_utils.dart';
 import '../../../../core/utils/source_language.dart';
 
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:background_downloader/background_downloader.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -74,6 +77,7 @@ import 'package:zorox_mpv_pip/zorox_mpv_pip.dart';
 import '../../../../core/domain/entity/multimedia_item.dart';
 import '../../../../core/providers/device_info_provider.dart';
 import '../../../../core/providers/thermal_state.dart';
+import '../../../../core/services/download_service.dart';
 import '../../../../core/services/local_proxy_service.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../../core/services/stream_cache/stream_cache_proxy.dart';
@@ -365,6 +369,17 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// A straight-from-the-host retry is being decided: further failure
   /// reports for the same open wait for it.
   bool _proxyRetrying = false;
+
+  /// Build 101: sources the viewer has already answered the no-range
+  /// "Download & Play" question for in this screen, so a stall re-open,
+  /// a failover or a renderer move never asks twice.
+  final Set<int> _noRangePrompted = <int>{};
+
+  /// Build 101: the "Download & Play" progress dialog, while it is up.
+  /// The screen is never left while it is up (it is non-dismissible and
+  /// the only way out is finishing or Cancel), but dispose still pops
+  /// it rather than orphaning a route.
+  BuildContext? _downloadPlayDialogContext;
 
   /// What the reachability check found per source, while resolving: the
   /// original ZoroX's rows read "Checking…" (spinner) while a source is
@@ -931,6 +946,16 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   @override
   void dispose() {
     _disposed = true;
+    // Build 101: a "Download & Play" progress dialog still up is popped
+    // rather than orphaned (it is non-dismissible, so this only fires if
+    // the screen is torn down from outside).
+    final downloadPlayDialogContext = _downloadPlayDialogContext;
+    _downloadPlayDialogContext = null;
+    if (downloadPlayDialogContext != null) {
+      try {
+        Navigator.of(downloadPlayDialogContext).pop();
+      } catch (_) {}
+    }
     _sleepTimer.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _watchdogTimer?.cancel();
@@ -3325,7 +3350,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // A row tapped during the hold already opened its source; do not
       // overrule the viewer's pick with the auto-pick.
       if (_streamIndex != resolved.index) return;
-      await _openStream(_streamIndex, start: _resumePosition);
+      await _openStream(
+        _streamIndex,
+        start: _resumePosition,
+        allowNoRangePrompt: true,
+      );
     } on StreamResolutionException catch (e) {
       if (_disposed) return;
       setState(() {
@@ -3349,6 +3378,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     bool autoPlay = true,
     bool keepSession = false,
     bool skipPrebuffer = false,
+    // Build 101: only a viewer-facing open (the initial auto-pick, a row
+    // tapped on the startup list, a source picked in the Sources tab)
+    // may ask the no-range "Download & Play" question. Stall re-opens,
+    // failovers, renderer moves and PiP returns never ask.
+    bool allowNoRangePrompt = false,
   }) async {
     if (_disposed || _streams.isEmpty) return;
     // A genuinely different source (failover / source pick) ends the old
@@ -3466,6 +3500,38 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       _proxyOff = proxied != null
           ? null
           : (bypass ?? StreamCacheService.instance.lastFailure ?? 'start');
+      // Build 101: this host answers every Range request with the whole
+      // file from byte 0 ('no range'), so mpv cannot seek in it — a
+      // skip snaps back to where the film was running. Offer to
+      // download the whole file first and play it from the phone,
+      // where seeking always works. Only on a viewer-facing open, and
+      // once per source in this screen.
+      if (proxied == null &&
+          _proxyOff == 'no range' &&
+          allowNoRangePrompt &&
+          !_noRangePrompted.contains(index)) {
+        _noRangePrompted.add(index);
+        final openToken = _proxyOpenToken;
+        String? localUrl;
+        try {
+          localUrl = await _downloadAndPlayLocal(index);
+        } catch (_) {
+          // A Download & Play failure must never fail the source over
+          // to the next one: fall back to playing from the origin.
+          localUrl = null;
+        }
+        // Left, picked another source, or a newer open overtook this
+        // one while the file downloaded: open nothing here.
+        if (_disposed ||
+            openToken != _proxyOpenToken ||
+            _streamIndex != index) {
+          return;
+        }
+        if (localUrl != null) {
+          mediaUrl = localUrl;
+          _proxyOff = 'local';
+        }
+      }
       // Build 98: an HLS film opens through the local proxy
       // (LocalProxyService), which rewrites its playlists so ffmpeg's
       // HLS demuxer sees real playlists and .ts segments. The mpv path
@@ -3545,6 +3611,306 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     if (mounted) setState(() {});
   }
 
+  /// Build 101: the "Download & Play" answer to a host that does not
+  /// serve ranges (`proxy: off(no range)`): offer to download the whole
+  /// file first, then play it from the phone, where seeking always
+  /// works. Returns the local file address, or null to play from the
+  /// origin as before (the viewer said no, the download failed, or it
+  /// was cancelled).
+  ///
+  /// The download goes through the download manager ([DownloadService],
+  /// the same one the details page uses), into `Documents/ZoroX/`
+  /// under the same name the details page would give it, so a film
+  /// downloaded either way lands once. The offer says plainly what it
+  /// costs: the file's size in free space and the minutes to fetch it.
+  Future<String?> _downloadAndPlayLocal(int index) async {
+    if (_disposed || !mounted) return null;
+    final stream = _streams[index];
+    final downloadService = ref.read(downloadServiceProvider);
+    // Already on the phone (downloaded from the details page, or an
+    // earlier Download & Play)? Open it straight away — no download,
+    // no question.
+    final existing = await downloadService.getDownloadedFile(
+      widget.item,
+      episode: _currentEpisode,
+    );
+    if (existing != null) {
+      return AppUtils.normalizeUrl(existing.path);
+    }
+    // How big is it? A HEAD; "Unknown size" when the host will not say.
+    final metadata = await downloadService
+        .getMetadata(stream.url, headers: stream.headers)
+        .timeout(const Duration(seconds: 8), onTimeout: () => null);
+    if (_disposed || !mounted) return null;
+    final sizeText = metadata?.sizeString ?? 'Unknown size';
+    final download = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        title: const Text('This source can\'t seek'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'This server doesn\'t support seeking, so skipping jumps '
+              'back to where you were. Download the whole file first and '
+              'play it from your phone — then you can seek anywhere, '
+              'instantly.',
+            ),
+            const SizedBox(height: 12),
+            Text('Size: $sizeText'),
+            const Text(
+              'It needs that much free space, and a few minutes to '
+              'download on Wi-Fi.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Play without seeking'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Download & Play'),
+          ),
+        ],
+      ),
+    );
+    if (download != true) return null;
+    if (_disposed || !mounted) return null;
+    // The tracking URL keys the download manager's progress map, so the
+    // progress dialog below reads it — and so a second tap finds the
+    // running task instead of starting a second download.
+    final trackingUrl = _currentVideoUrl;
+    bool started = false;
+    try {
+      started = await _startDownloadAndPlayFile(
+        stream,
+        metadata: metadata,
+        trackingUrl: trackingUrl,
+      );
+    } catch (_) {
+      started = false;
+    }
+    if (!started) {
+      if (mounted) {
+        ref
+            .read(notificationServiceProvider)
+            .showInfo(
+              'Couldn\'t start the download. Check storage and try again.',
+              title: 'Download & Play',
+            );
+      }
+      return null;
+    }
+    return _waitForDownloadAndPlay(trackingUrl);
+  }
+
+  /// Hands one verified source to the download manager: works out the
+  /// folder and the file name, then enqueues. The folder and name mirror
+  /// DownloadLauncher.queueDirect (details page), so a film downloaded
+  /// from the details page and one downloaded here land in the same
+  /// place under the same name. Returns whether the manager took it.
+  Future<bool> _startDownloadAndPlayFile(
+    StreamResult stream, {
+    required DownloadMetadata? metadata,
+    required String trackingUrl,
+  }) async {
+    final downloadService = ref.read(downloadServiceProvider);
+    final episodeData =
+        _currentEpisode ??
+        widget.item.episodes?.firstWhereOrNull(
+          (e) => e.url == _currentVideoUrl,
+        );
+    final saveDir = await downloadService.getDownloadPath(
+      widget.item,
+      episode: episodeData,
+    );
+    final extension = _downloadPlayExtension(stream.url, metadata?.mimeType);
+    String filename;
+    if (episodeData != null &&
+        widget.item.contentType != MultimediaContentType.movie) {
+      final sanitizedEpName = episodeData.name
+          .replaceAll(RegExp(r'[^\w\s-]'), '')
+          .trim();
+      filename =
+          'S${episodeData.season}-E${episodeData.episode} $sanitizedEpName$extension';
+    } else {
+      final sanitizedTitle = widget.item.title
+          .replaceAll(RegExp(r'[^\w\s-]'), '')
+          .trim();
+      filename = '$sanitizedTitle$extension';
+    }
+    return downloadService.startDownload(
+      url: stream.url,
+      filename: filename,
+      directory: saveDir,
+      item: widget.item,
+      episode: episodeData,
+      trackingUrl: trackingUrl,
+      headers: stream.headers,
+    );
+  }
+
+  /// The file extension for a download: the MIME type first, the URL
+  /// second, `.mp4` when neither says (same rule as
+  /// DownloadLauncher's file-extension helper).
+  String _downloadPlayExtension(String url, String? mimeType) {
+    if (mimeType != null) {
+      if (mimeType.contains('video/mp4')) return '.mp4';
+      if (mimeType.contains('video/x-matroska')) return '.mkv';
+      if (mimeType.contains('video/webm')) return '.webm';
+    }
+    final uri = Uri.tryParse(url);
+    if (uri != null) {
+      final path = uri.path.toLowerCase();
+      if (path.endsWith('.mp4')) return '.mp4';
+      if (path.endsWith('.mkv')) return '.mkv';
+      if (path.endsWith('.webm')) return '.webm';
+      if (path.endsWith('.avi')) return '.avi';
+    }
+    return '.mp4';
+  }
+
+  /// Waits for the download keyed by [trackingUrl] to finish, showing
+  /// its progress, and returns the local file address — or null when it
+  /// fails, is cancelled, or this screen stops being the one playing.
+  /// The progress dialog is non-dismissible: the only ways out are the
+  /// download finishing, failing, or the Cancel button — so the pop
+  /// below never closes the player by mistake.
+  Future<String?> _waitForDownloadAndPlay(String trackingUrl) async {
+    final downloadService = ref.read(downloadServiceProvider);
+    final done = Completer<bool>();
+    var taskId = await _downloadTaskId(trackingUrl);
+    final sub = downloadService.updates.listen((update) {
+      final tracking = update.task.metaData.isNotEmpty
+          ? update.task.metaData
+          : update.task.url;
+      if (tracking != trackingUrl) return;
+      taskId ??= update.task.taskId;
+      if (update is TaskStatusUpdate) {
+        if (update.status == TaskStatus.complete) {
+          if (!done.isCompleted) done.complete(true);
+        } else if (update.status == TaskStatus.failed ||
+            update.status == TaskStatus.canceled) {
+          if (!done.isCompleted) done.complete(false);
+        }
+      }
+    });
+    _subs.add(sub);
+    // The download may already have finished between the start and this
+    // listen (a fast file, or a resumed one): the progress map says so.
+    final already = ref.read(downloadProgressProvider)[trackingUrl];
+    if (already != null && already.status == TaskStatus.complete) {
+      if (!done.isCompleted) done.complete(true);
+    }
+    if (_disposed || !mounted) {
+      await sub.cancel();
+      _subs.remove(sub);
+      return null;
+    }
+    var cancelled = false;
+    var progressOpen = false;
+    progressOpen = true;
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) {
+          _downloadPlayDialogContext = ctx;
+          return PopScope(
+            canPop: false,
+            child: Consumer(
+              builder: (ctx, ref, _) {
+                final data = ref.watch(downloadProgressProvider)[trackingUrl];
+                final progress = data?.progress ?? 0;
+                final downloaded = data?.downloadedSizeString ?? '0 MB';
+                final total = data?.totalSizeString ?? 'Unknown size';
+                final speed = data?.speedString ?? 'Calculating...';
+                final remaining = data?.timeRemainingString ?? '';
+                return AlertDialog(
+                  title: const Text('Downloading for offline play'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      LinearProgressIndicator(
+                        value: progress > 0 ? progress : null,
+                      ),
+                      const SizedBox(height: 12),
+                      Text('$downloaded of $total'),
+                      Text(
+                        '$speed${remaining.isNotEmpty ? ' • $remaining' : ''}',
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'The film plays from your phone when this '
+                        'finishes, and you can seek anywhere in it.',
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () async {
+                        cancelled = true;
+                        final id = taskId ?? await _downloadTaskId(trackingUrl);
+                        if (id != null) {
+                          await downloadService.cancelDownload(id, trackingUrl);
+                        }
+                        if (ctx.mounted && progressOpen) {
+                          Navigator.of(ctx).pop();
+                        }
+                      },
+                      child: const Text('Cancel download'),
+                    ),
+                  ],
+                );
+              },
+            ),
+          );
+        },
+      ).then((_) {
+        progressOpen = false;
+        _downloadPlayDialogContext = null;
+      }),
+    );
+    final ok = await done.future;
+    await sub.cancel();
+    _subs.remove(sub);
+    if (progressOpen && mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+      progressOpen = false;
+    }
+    if (!ok || cancelled) return null;
+    if (_disposed) return null;
+    final file = await downloadService.getDownloadedFile(
+      widget.item,
+      episode: _currentEpisode,
+    );
+    if (file == null) return null;
+    return AppUtils.normalizeUrl(file.path);
+  }
+
+  /// The download manager's task id for [trackingUrl], if one is
+  /// enqueued, running or paused — the same lookup `startDownload`
+  /// does for its dedupe, so Cancel finds the task even before its
+  /// first progress update.
+  Future<String?> _downloadTaskId(String trackingUrl) async {
+    try {
+      final records = await FileDownloader().database.allRecords();
+      final record = records.firstWhereOrNull(
+        (r) =>
+            (r.task.metaData.isNotEmpty ? r.task.metaData : r.task.url) ==
+            trackingUrl,
+      );
+      return record?.task.taskId;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Build 98: an HLS address through the local proxy, mirroring VLC's
   /// `_proxied`: the server is started explicitly first (a cold first
   /// call would otherwise build a URL pointing at port 0), and exactly
@@ -3604,9 +3970,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     client.connectionTimeout = _kFmp4FetchTimeout;
     try {
       final request = await client.getUrl(url);
-      final response = await request
-          .close()
-          .timeout(_kFmp4FetchTimeout);
+      final response = await request.close().timeout(_kFmp4FetchTimeout);
       if (response.statusCode != 200) return null;
       final bytes = <int>[];
       await for (final chunk in response.timeout(_kFmp4FetchTimeout)) {
@@ -4675,7 +5039,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         start = Duration.zero;
       }
     }
-    unawaited(_openStream(index, start: start));
+    unawaited(_openStream(index, start: start, allowNoRangePrompt: true));
   }
 
   /// A source picked in the panel's Sources tab: open it from where the
@@ -4683,7 +5047,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   Future<void> _pickSource(int index) async {
     if (_disposed || index < 0 || index >= _streams.length) return;
     if (index == _streamIndex) return;
-    await _openStream(index, start: _position);
+    await _openStream(index, start: _position, allowNoRangePrompt: true);
   }
 
   /// Re-applies the audio/subtitle picks the viewer made in the panel, when
