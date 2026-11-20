@@ -58,6 +58,7 @@ import '../../../../core/utils/source_language.dart';
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -87,6 +88,7 @@ import '../../../skip/data/aniskip_service.dart';
 import '../../../skip/data/skip_service.dart';
 import '../../../tracking/data/simkl_service.dart';
 import '../../domain/episode_navigator.dart';
+import '../../domain/hls_fmp4_detection.dart';
 import '../../domain/hls_video_length.dart';
 import '../../domain/next_episode_autoplay.dart';
 import '../../domain/episode_duration.dart';
@@ -191,6 +193,17 @@ const Duration _kThermalPoll = Duration(seconds: 30);
 /// The mpv stats overlay's refresh (+34): the live measurements are
 /// re-read this often while playing.
 const Duration _kMpvStatsInterval = Duration(seconds: 2);
+
+/// Build 100: the fMP4 probe's bounds. The playlist head is read through
+/// the local proxy (no headers needed — the proxy re-injects them
+/// upstream), at most [_kFmp4HeadBytes] — an init segment always sits in
+/// the header, ahead of the segments — and [_kFmp4FetchTimeout] per
+/// request, [_kFmp4DetectTimeout] for the whole probe (master + variant).
+/// A probe that runs out is "unknown", and the open falls back to the
+/// b99-wide software decode so the film still plays.
+const int _kFmp4HeadBytes = 32 << 10;
+const Duration _kFmp4FetchTimeout = Duration(seconds: 3);
+const Duration _kFmp4DetectTimeout = Duration(seconds: 6);
 
 /// Pinch-zoom range, same as the VLC screen.
 const double _kMinZoom = 0.5;
@@ -610,20 +623,21 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// once until hardware decode is seen again.
   bool _hwdecSeenAlive = false;
 
-  /// Build 99 (diagnostic): whether the current open is on the HLS
-  /// proxy path with hardware decode off. The QoE overlay pinned the
-  /// Nebula black-video failure to VideoToolbox decoding but never
-  /// reaching the output texture (`src: 1920x800`, `out: x tex: 0x0`,
-  /// `hwdec: videotoolbox`) — and the Paris control test proved it is
-  /// Nebula-fMP4-specific, not general HLS — so this build opens
-  /// HLS-proxy streams with `hwdec=no` (software decode) to prove or
-  /// rule out VideoToolbox as the culprit. Scoped to that path only:
-  /// a normal open restores the usual decoder (see
-  /// [_applyHlsProxyHwdec]), and the resume machinery stands down on
-  /// its own — it only ever restores a decoder that was seen alive
-  /// ([_hwdecSeenAlive] stays false under software decode). iOS only:
-  /// the fMP4 HLS shape lives there, and 4K smoothness elsewhere
-  /// depends on hardware decode.
+  /// Build 99 (diagnostic) made permanent in build 100: whether the
+  /// current open plays with hardware decode off. The QoE overlay
+  /// pinned the Nebula black-video failure to VideoToolbox decoding
+  /// but never reaching the output texture (`src: 1920x800`, `out: x
+  /// tex: 0x0`, `hwdec: videotoolbox`) — and the Paris control test
+  /// proved it is Nebula-fMP4-specific, not general HLS — so b99
+  /// opened HLS-proxy streams with `hwdec=no` (software decode) and
+  /// the phone test proved VideoToolbox was the culprit. Build 100
+  /// scopes it: only fMP4 HLS (or an HLS probe that could not tell)
+  /// sets this; plain .ts HLS keeps VideoToolbox. A normal open
+  /// restores the usual decoder (see [_applyHlsProxyHwdec]), and the
+  /// resume machinery stands down on its own — it only ever restores a
+  /// decoder that was seen alive ([_hwdecSeenAlive] stays false under
+  /// software decode). iOS only: the fMP4 HLS shape lives there, and
+  /// 4K smoothness elsewhere depends on hardware decode.
   bool _hlsProxyHwdecNo = false;
 
   /// Where the open source started (its resume point, else zero): the
@@ -3461,23 +3475,36 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // black screen with zero streams. The stream-cache proxy still
       // does not apply: HLS bypasses it, and a 127.0.0.1 address
       // bypasses it as 'local'.
-      // Build 99 (diagnostic, iOS only): whether this open goes
-      // through the HLS proxy — the Nebula path — decides the decoder
-      // (see [_applyHlsProxyHwdec]): `hwdec=no` (software decode) on
-      // that path, the usual VideoToolbox decoder otherwise.
-      var hlsProxied = false;
+      // Build 100 (iOS only): an HLS-proxy open decides its decoder by
+      // shape, not by path. b99 proved `hwdec=no` plays Nebula's fMP4
+      // HLS (VideoToolbox decoded it but never produced a texture) and
+      // the Paris control test proved plain .ts HLS plays fine on
+      // VideoToolbox — so only fMP4 (an init segment in the playlist,
+      // see [detectFmp4Hls]) opens with software decode, and .ts HLS
+      // keeps the hardware decoder. A probe that cannot tell falls back
+      // to the b99-wide software decode, so an unreadable HLS shape
+      // still plays rather than risking a black screen.
+      var useSoftwareDecode = false;
       if (bypass == 'hls') {
         final hlsUri = Uri.tryParse(stream.url);
         if (hlsUri != null && looksLikeHls(hlsUri)) {
           final proxiedHls = await _hlsProxyUrl(stream);
           if (proxiedHls != null) {
             mediaUrl = proxiedHls;
-            hlsProxied = true;
+            useSoftwareDecode = true;
+            final proxiedUri = Uri.tryParse(proxiedHls);
+            if (proxiedUri != null) {
+              final isFmp4 = await detectFmp4Hls(
+                proxiedUri,
+                _fetchPlaylistHead,
+              ).timeout(_kFmp4DetectTimeout, onTimeout: () => null);
+              if (isFmp4 == false) useSoftwareDecode = false;
+            }
           }
         }
       }
       if (defaultTargetPlatform == TargetPlatform.iOS) {
-        await _applyHlsProxyHwdec(hlsProxied);
+        await _applyHlsProxyHwdec(useSoftwareDecode);
       }
       try {
         await _player.open(
@@ -3534,33 +3561,64 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     );
   }
 
-  /// Build 99 (diagnostic): applies the HLS-proxy hardware-decode
-  /// mode for this open, before [_player.open] so it governs the file
-  /// being opened (mpv's `hwdec` applies to the next file loaded).
-  /// An HLS-proxy open ([hlsProxied]) sets `hwdec=no` — software
-  /// decode — so the phone can prove whether VideoToolbox is what
-  /// keeps the frame off the output texture. A normal open restores
-  /// the usual decoder, but only when the previous open left it off,
-  /// so ordinary opens cost no extra property set. Best-effort: a
-  /// failed set never breaks the open.
-  Future<void> _applyHlsProxyHwdec(bool hlsProxied) async {
+  /// Build 100: applies the hardware-decode mode for this open, before
+  /// [_player.open] so it governs the file being opened (mpv's `hwdec`
+  /// applies to the next file loaded). [useSoftwareDecode] is true only
+  /// for fMP4 HLS (see [detectFmp4Hls]) and for an HLS probe that could
+  /// not tell — the b99 fallback — so those open with `hwdec=no`
+  /// (software decode). Everything else restores the usual VideoToolbox
+  /// decoder, but only when the previous open left it off, so ordinary
+  /// opens cost no extra property set. Best-effort: a failed set never
+  /// breaks the open.
+  Future<void> _applyHlsProxyHwdec(bool useSoftwareDecode) async {
     final platform = _player.platform;
     if (platform is! NativePlayer) return;
     try {
-      if (hlsProxied) {
+      if (useSoftwareDecode) {
         await platform.setProperty('hwdec', 'no');
         _hlsProxyHwdecNo = true;
-        debugPrint('[mpv] build 99: HLS proxy open, hwdec=no');
+        debugPrint('[mpv] build 100: fMP4/unknown HLS open, hwdec=no');
       } else if (_hlsProxyHwdecNo) {
         await platform.setProperty(
           'hwdec',
           mpvIosHwdec(pipEnabled: _iosMpvPipEnabled),
         );
         _hlsProxyHwdecNo = false;
-        debugPrint('[mpv] build 99: normal open, hwdec restored');
+        debugPrint('[mpv] build 100: normal open, hwdec restored');
       }
     } catch (e) {
-      debugPrint('[mpv] build 99: hwdec set failed: $e');
+      debugPrint('[mpv] build 100: hwdec set failed: $e');
+    }
+  }
+
+  /// Build 100: reads the head of the playlist at [url] — through the
+  /// local proxy, so no headers are needed (the proxy re-injects them
+  /// upstream) — or null when it cannot be read. Bounded: at most
+  /// [_kFmp4HeadBytes] (an init segment always sits in the header,
+  /// ahead of the segments) and [_kFmp4FetchTimeout] per step, so a
+  /// slow source never stalls the open; the caller treats null as
+  /// "unknown". A non-playlist answer (a film behind an adaptive
+  /// address) is null too.
+  Future<String?> _fetchPlaylistHead(Uri url) async {
+    final client = HttpClient();
+    client.connectionTimeout = _kFmp4FetchTimeout;
+    try {
+      final request = await client.getUrl(url);
+      final response = await request
+          .close()
+          .timeout(_kFmp4FetchTimeout);
+      if (response.statusCode != 200) return null;
+      final bytes = <int>[];
+      await for (final chunk in response.timeout(_kFmp4FetchTimeout)) {
+        bytes.addAll(chunk);
+        if (bytes.length >= _kFmp4HeadBytes) break;
+      }
+      final text = utf8.decode(bytes, allowMalformed: true);
+      return text.contains('#EXTM3U') ? text : null;
+    } catch (_) {
+      return null;
+    } finally {
+      client.close();
     }
   }
 
