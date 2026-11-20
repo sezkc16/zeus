@@ -680,7 +680,7 @@ class StreamCacheProxyServer {
 
   Future<void> _pipeSide(
     _Session session,
-    HttpClientResponse response,
+    Stream<List<int>> response,
     Socket socket,
     int length,
   ) async {
@@ -803,13 +803,25 @@ class StreamCacheProxyServer {
         ..memStart = offset
         ..end = offset
         ..complete = false
-        ..lastOffset = offset;
+        ..lastOffset = offset
+        ..skipped = 0;
       _attach(session, upstream.response, sniff: known == null && offset == 0);
-      final deadline = DateTime.now().add(responseTimeout);
+      // Build 103: a read-forward anchor only gets its first bytes
+      // after the skipped prefix has arrived, which can take a while
+      // on a slow host. The deadline is on silence, not on the whole
+      // skip: as long as bytes keep arriving (skipped or stored) the
+      // wait goes on; only a stall gives the film up.
+      var deadline = DateTime.now().add(responseTimeout);
+      var lastProgress = offset + session.skipped;
       while (!session.dead && !session.complete && session.end <= offset) {
         final left = deadline.difference(DateTime.now());
         if (left <= Duration.zero) throw const _Unusable('no data');
         await session.waitForData(left);
+        final progress = session.end + session.skipped;
+        if (progress > lastProgress) {
+          lastProgress = progress;
+          deadline = DateTime.now().add(responseTimeout);
+        }
       }
       return !session.dead;
     } catch (error) {
@@ -831,7 +843,7 @@ class StreamCacheProxyServer {
     return null;
   }
 
-  void _attach(_Session session, HttpClientResponse response, {bool sniff = false}) {
+  void _attach(_Session session, Stream<List<int>> response, {bool sniff = false}) {
     final fetch = _Fetch();
     session.fetch = fetch;
     var first = sniff;
@@ -981,6 +993,35 @@ class StreamCacheProxyServer {
           contentType: response.headers.value(HttpHeaders.contentTypeHeader),
         );
       }
+      if (status == HttpStatus.ok) {
+        // Build 103: the host ignores Range and answers with the
+        // whole film from byte 0 (Driveseed). Do not give the film
+        // up: take the film from byte 0 and skip to [offset]
+        // instead. The skipped prefix is never written anywhere —
+        // only the ring cache holds what the player reads, so no
+        // file is downloaded. Without a Content-Length the film's
+        // length is unknown, so this cannot be served; fall through
+        // to the old 'no range' failure below.
+        final length = response.contentLength;
+        if (length > 0) {
+          if (remember) session.resolved = uri;
+          final contentType =
+              response.headers.value(HttpHeaders.contentTypeHeader);
+          if (offset <= 0) {
+            return _Upstream(
+              response: response,
+              total: length,
+              contentType: contentType,
+            );
+          }
+          return _Upstream(
+            response: _skipPrefix(response, offset, session),
+            total: length,
+            contentType: contentType,
+            readForward: true,
+          );
+        }
+      }
       _discard(response);
       if (!triedOrigin) {
         // The place a redirect led to has stopped answering (a signed
@@ -994,7 +1035,40 @@ class StreamCacheProxyServer {
     throw const _Unusable('redirect');
   }
 
-  void _discard(HttpClientResponse response) {
+  /// Build 103: drops the first [skip] bytes of a host answer that
+  /// ignored Range (200 with the whole film from byte 0), so the
+  /// caller is fed the film from [skip] on. Reports progress on the
+  /// session so an anchor waiting for its first bytes can tell a
+  /// slow host from a stalled one. If the answer ends before [skip]
+  /// bytes are dropped, the stream just ends — the anchor times out
+  /// and the film is given up, as before.
+  Stream<List<int>> _skipPrefix(
+    Stream<List<int>> source,
+    int skip,
+    _Session session,
+  ) async* {
+    var remaining = skip;
+    await for (final chunk in source) {
+      if (session.dead) break;
+      if (remaining <= 0) {
+        yield chunk;
+        continue;
+      }
+      if (chunk.length <= remaining) {
+        remaining -= chunk.length;
+        session.skipped += chunk.length;
+        session.notify();
+        continue;
+      }
+      final drop = remaining;
+      session.skipped += drop;
+      remaining = 0;
+      session.notify();
+      yield chunk.sublist(drop);
+    }
+  }
+
+  void _discard(Stream<List<int>> response) {
     try {
       unawaited(
         response.listen((_) {}, onError: (Object _) {}).cancel().catchError(
@@ -1071,10 +1145,21 @@ class _Upstream {
     required this.response,
     required this.total,
     required this.contentType,
+    this.readForward = false,
   });
-  final HttpClientResponse response;
+
+  /// The host's answer, from the requested offset on. For a
+  /// read-forward answer this is the 200 body with its prefix
+  /// already skipped (see [_skipPrefix]).
+  final Stream<List<int>> response;
   final int total;
   final String? contentType;
+
+  /// Build 103: the host answered a ranged request with the whole
+  /// film from byte 0 (200) instead of 206, and [response] is that
+  /// answer with the bytes before the requested offset skipped.
+  /// Nothing before the offset was written anywhere.
+  final bool readForward;
 }
 
 class _Chunk {
@@ -1214,6 +1299,12 @@ class _Session {
   bool anchoring = false;
   bool complete = false;
   int failures = 0;
+
+  /// Build 103: bytes a read-forward fetch has dropped from the
+  /// front of a 200 answer so far (a host that ignores Range). The
+  /// anchor's wait uses it as progress, so a slow host is not
+  /// mistaken for a stalled one.
+  int skipped = 0;
 
   final Set<_Reader> readers = <_Reader>{};
   int lastOffset = 0;

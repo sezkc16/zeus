@@ -510,12 +510,6 @@ void main() {
       expect(File('${dir.path}/${session.token}.ring').existsSync(), isFalse);
     }
 
-    test('a host that ignores ranges', () async {
-      await startProxy();
-      host.ignoreRange = true;
-      await expectBypass('${host.base}/film.mkv', 'no range');
-    });
-
     test('a host that refuses (403)', () async {
       await startProxy();
       host.failStatus = 403;
@@ -584,6 +578,62 @@ void main() {
       expect(() => server.openSession('rtmp://x/y'), throwsArgumentError);
       expect(() => server.openSession('/local/file.mkv'), throwsArgumentError);
       expect(() => server.openSession('magnet:?xt=urn'), throwsArgumentError);
+    });
+  });
+
+  group('a host that ignores ranges (read-forward, build 103)', () {
+    test('the film plays from the start, through the proxy', () async {
+      await startProxy();
+      host.ignoreRange = true;
+      final server = proxy!;
+      final session = server.openSession('${host.base}/film.mkv');
+      final answer = await playerGet(session.url, from: 0);
+      expect(answer.status, 206);
+      expect(answer.headers['content-range'],
+          'bytes 0-${host.length - 1}/${host.length}');
+      expect(answer.body.length, host.length);
+      expect(answer.body, film(0, host.length));
+      final stats = server.stats(session.token)!;
+      expect(stats.dead, isFalse);
+      expect(stats.reason, isNull);
+    });
+
+    test('a far seek from a fresh session serves the right bytes',
+        () async {
+      await startProxy();
+      host.ignoreRange = true;
+      final server = proxy!;
+      final session = server.openSession('${host.base}/film.mkv');
+      final answer =
+          await playerGet(session.url, from: 2 * mib, take: 200 * kib);
+      expect(answer.status, 206);
+      expect(answer.headers['content-range'],
+          'bytes ${2 * mib}-${host.length - 1}/${host.length}');
+      expect(answer.body, film(2 * mib, 200 * kib));
+      expect(server.stats(session.token)!.dead, isFalse);
+      // The anchor asked the host for the seek point; the host
+      // answered with the whole film and the proxy skipped to it.
+      expect(host.requests.last.rangeStart, 2 * mib);
+    });
+
+    test('a far seek after playing from the start serves the right '
+        'bytes', () async {
+      await startProxy();
+      host.ignoreRange = true;
+      // The host stalls after 200 KiB, so the window stays near the
+      // start and the seek cannot be answered from the cache.
+      host.stallAfter = 200 * kib;
+      final server = proxy!;
+      final session = server.openSession('${host.base}/film.mkv');
+      await playerGet(session.url, from: 0, take: 100 * kib);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      host.stallAfter = null;
+      final answer =
+          await playerGet(session.url, from: 2 * mib, take: 200 * kib);
+      expect(answer.status, 206);
+      expect(answer.body, film(2 * mib, 200 * kib));
+      expect(server.stats(session.token)!.dead, isFalse);
+      expect(host.requests.last.rangeStart, 2 * mib);
     });
   });
 
