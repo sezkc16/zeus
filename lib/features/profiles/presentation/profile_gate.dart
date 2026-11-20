@@ -78,13 +78,7 @@ class _ProfileGateState extends ConsumerState<ProfileGate> {
     _movePromptShown = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      unawaited(
-        showZeusLegacyMoveDialog(
-          context,
-          ref,
-          targetProfile: active,
-        ),
-      );
+      unawaited(showZeusLegacyMoveDialog(context, ref, targetProfile: active));
     });
   }
 
@@ -102,8 +96,8 @@ class _ProfileGateState extends ConsumerState<ProfileGate> {
     final listReady = account.loggedIn || profiles.localMode;
     if (listReady && !_playerOnTop()) {
       // A profile deleted on another device must not keep its PIN pad up.
-      final pinFor = _pinFor != null &&
-              profiles.profiles.any((p) => p.id == _pinFor!.id)
+      final pinFor =
+          _pinFor != null && profiles.profiles.any((p) => p.id == _pinFor!.id)
           ? _pinFor
           : null;
       if (profiles.needsDefaultPin && !profiles.loading) {
@@ -119,7 +113,7 @@ class _ProfileGateState extends ConsumerState<ProfileGate> {
                     color: color,
                     pin: pin,
                   );
-              return profile != null;
+              return profile;
             }
             // Local-only (Build 2): no account, so the first profile is
             // made on this device and the legacy data moves into it.
@@ -130,7 +124,7 @@ class _ProfileGateState extends ConsumerState<ProfileGate> {
                   color: color,
                   pin: pin,
                 );
-            return profile != null;
+            return profile;
           },
         );
       } else if (pinFor != null) {
@@ -157,9 +151,8 @@ class _ProfileGateState extends ConsumerState<ProfileGate> {
                 .createZeusProfile(name: name, color: color, pin: pin);
             if (profile != null && mounted) {
               setState(() => _creating = false);
-              return true;
             }
-            return false;
+            return profile;
           },
         );
       } else if (profiles.profiles.isNotEmpty &&

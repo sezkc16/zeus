@@ -1,12 +1,16 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../app_lock/app_lock_passcode_flow.dart';
 import '../../app_lock/app_lock_provider.dart';
 import '../data/zeus_profile.dart';
+import '../data/zeus_profile_photos_notifier.dart';
 import '../data/zeus_profiles_notifier.dart';
+import 'profile_photo_picker.dart';
 import 'profile_pin_screen.dart';
+import 'zeus_profile_avatar.dart';
 
 /// Add a profile: a name, a palette colour, and a 4-digit PIN (required
 /// — every profile has one).
@@ -32,9 +36,11 @@ class ZeusProfileCreateScreen extends ConsumerStatefulWidget {
   final bool isFirstProfile;
 
   /// Creates the profile from the collected name, colour and PIN.
-  /// Returns true when the profile exists; the screen shows the
-  /// profiles/account error and stays up on false.
-  final Future<bool> Function(String name, String color, String pin)
+  /// Returns the created profile, or null when creation failed; the
+  /// screen shows the profiles/account error and stays up on null.
+  /// (Build 110: the created profile is returned so a photo picked on
+  /// this screen can be saved against its id.)
+  final Future<ZeusProfile?> Function(String name, String color, String pin)
   onCreated;
 
   /// Shows a Cancel button when set (the "+" tile). The first profile
@@ -54,6 +60,11 @@ class _ZeusProfileCreateScreenState
   bool _busy = false;
   String? _error;
   int _padKey = 0;
+
+  /// A photo picked for the new profile (build 110): saved against the
+  /// created profile's id in [_submit]. Null means the colour/initial
+  /// avatar.
+  XFile? _pendingPhoto;
 
   @override
   void initState() {
@@ -130,6 +141,59 @@ class _ZeusProfileCreateScreenState
               ),
               const SizedBox(height: 24),
               if (!_pinStep) ...[
+                // Photo (build 110): tap the avatar to pick from the
+                // gallery or take a photo. Local-only, saved on submit.
+                Center(
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      GestureDetector(
+                        onTap: _pickPhoto,
+                        child: ZeusProfileAvatar(
+                          // A preview profile: the id is empty (no
+                          // profile exists yet), so the avatar shows the
+                          // pending photo, else the colour/initial.
+                          profile: ZeusProfile(
+                            id: '',
+                            name: _nameController.text.trim(),
+                            color: _color,
+                            pinRecord: '',
+                            createdAt: DateTime.now(),
+                            updatedAt: DateTime.now(),
+                          ),
+                          photoPath: _pendingPhoto?.path,
+                        ),
+                      ),
+                      Positioned(
+                        right: -4,
+                        bottom: -4,
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: theme.scaffoldBackgroundColor,
+                              width: 2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt_rounded,
+                            size: 15,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_pendingPhoto != null)
+                  TextButton(
+                    onPressed: () => setState(() => _pendingPhoto = null),
+                    child: const Text('Remove photo'),
+                  ),
+                const SizedBox(height: 8),
                 TextField(
                   key: const ValueKey('profile-create-name'),
                   controller: _nameController,
@@ -142,7 +206,8 @@ class _ZeusProfileCreateScreenState
                     counterText: '',
                   ),
                   onChanged: (_) {
-                    if (_error != null) setState(() => _error = null);
+                    // The avatar preview's initial follows the name.
+                    setState(() => _error = null);
                   },
                   onSubmitted: (_) => _continue(),
                 ),
@@ -224,26 +289,40 @@ class _ZeusProfileCreateScreenState
     });
   }
 
+  Future<void> _pickPhoto() async {
+    final picked = await pickZeusProfilePhoto(context, ref);
+    if (picked != null && mounted) {
+      setState(() => _pendingPhoto = picked);
+    }
+  }
+
   Future<void> _submit(String pin) async {
     if (_busy) return;
     setState(() {
       _busy = true;
       _error = null;
     });
-    final ok = await widget.onCreated(
+    final profile = await widget.onCreated(
       _nameController.text.trim(),
       _color,
       pin,
     );
     if (!mounted) return;
     setState(() => _busy = false);
-    if (!ok) {
+    if (profile == null) {
       // The caller put the reason in the profiles/account error; keep
       // the pad up so the PIN can be typed again.
       setState(() {
         _error ??= 'Could not create the profile. Try again.';
         _padKey++;
       });
+      return;
+    }
+    // A photo picked on this screen is saved against the new id.
+    if (_pendingPhoto != null) {
+      await ref
+          .read(zeusProfilePhotosProvider.notifier)
+          .savePhoto(profile.id, _pendingPhoto!);
     }
     // On success the gate moves on (the picker, or straight into the
     // profile) and this screen is gone.
@@ -273,16 +352,9 @@ class _ColourSwatch extends StatelessWidget {
         decoration: BoxDecoration(
           color: color,
           shape: BoxShape.circle,
-          border: selected
-              ? Border.all(color: Colors.white, width: 3)
-              : null,
+          border: selected ? Border.all(color: Colors.white, width: 3) : null,
           boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.5),
-                    blurRadius: 8,
-                  ),
-                ]
+              ? [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 8)]
               : null,
         ),
         child: selected

@@ -18,25 +18,24 @@ void main() {
     Brightness brightness, {
     int currentIndex = 0,
     void Function(int)? onTap,
-  }) =>
-      tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(brightness: brightness),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: Stack(
-              children: [
-                const SizedBox.expand(),
-                CustomBottomNavBar(
-                  currentIndex: currentIndex,
-                  onTap: onTap ?? (_) {},
-                ),
-              ],
+  }) => tester.pumpWidget(
+    MaterialApp(
+      theme: ThemeData(brightness: brightness),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: Scaffold(
+        body: Stack(
+          children: [
+            const SizedBox.expand(),
+            CustomBottomNavBar(
+              currentIndex: currentIndex,
+              onTap: onTap ?? (_) {},
             ),
-          ),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 
   testWidgets('shows all five tabs with their labels', (tester) async {
     await pump(tester, Brightness.dark);
@@ -69,20 +68,25 @@ void main() {
     expect(tapped, 3);
   });
 
-  testWidgets('the selected tab is white on its dark bubble', (tester) async {
+  testWidgets('the selected tab wears the theme accent on its dark bubble', (
+    tester,
+  ) async {
     await pump(tester, Brightness.dark, currentIndex: 2);
     await tester.pumpAndSettle();
-    // Build 109 reference look: the selected tab is WHITE (the package
-    // paints its dark bubble behind it) — the accent no longer tints
-    // the selection (build 104's nav-follows-accent is superseded).
+    // Build 110 (user 2026-11-21 01:44): nav-follows-accent is back —
+    // the selected tab takes colorScheme.primary (the user's accent)
+    // on the package's dark bubble; build 109's white is gone.
+    final accent = Theme.of(tester.element(find.byType(CustomBottomNavBar)))
+        .colorScheme
+        .primary;
     expect(
       tester.widget<Icon>(find.byIcon(ReiconFilledIcons.puzzle)).color,
-      Colors.white,
+      accent,
     );
     // ... and an unselected tab does not wear it.
     expect(
       tester.widget<Icon>(find.byIcon(ReiconFilledIcons.home)).color,
-      isNot(Colors.white),
+      isNot(accent),
     );
   });
 
@@ -117,8 +121,9 @@ void main() {
   // MediaQuery.padding.bottom + insets, so with the shell's MediaQuery
   // override the pill's bottom must equal targetBottomGap even when the
   // real safe-area padding is 34 (iPhone home indicator).
-  testWidgets('pill lands at the bottom edge on an iPhone-like safe area',
-      (tester) async {
+  testWidgets('pill lands at the bottom edge on an iPhone-like safe area', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData(brightness: Brightness.dark),
@@ -139,15 +144,10 @@ void main() {
                     return MediaQuery(
                       data: mq.copyWith(
                         padding: mq.padding.copyWith(
-                          bottom: CustomBottomNavBar.navPaddingBottom(
-                            context,
-                          ),
+                          bottom: CustomBottomNavBar.navPaddingBottom(context),
                         ),
                       ),
-                      child: CustomBottomNavBar(
-                        currentIndex: 0,
-                        onTap: (_) {},
-                      ),
+                      child: CustomBottomNavBar(currentIndex: 0, onTap: (_) {}),
                     );
                   },
                 ),
@@ -170,7 +170,9 @@ void main() {
     expect(positioned.single.bottom, CustomBottomNavBar.targetBottomGap);
   });
 
-  testWidgets('navPaddingBottom sets the pill to the target gap', (tester) async {
+  testWidgets('navPaddingBottom sets the pill to the target gap', (
+    tester,
+  ) async {
     double? seen34;
     double? seen0;
     await tester.pumpWidget(
@@ -178,9 +180,7 @@ void main() {
         home: Column(
           children: [
             MediaQuery(
-              data: const MediaQueryData(
-                padding: EdgeInsets.only(bottom: 34),
-              ),
+              data: const MediaQueryData(padding: EdgeInsets.only(bottom: 34)),
               child: Builder(
                 builder: (context) {
                   seen34 = CustomBottomNavBar.navPaddingBottom(context);
@@ -218,6 +218,22 @@ void main() {
     await pump(tester, Brightness.dark);
     await tester.pumpAndSettle();
     expect(tester.getRect(find.byType(LiquidGlassNavBar)).height, 63.0);
+  });
+
+  testWidgets('the pill is a 20 pt rounded rectangle, not a stadium', (
+    tester,
+  ) async {
+    await pump(tester, Brightness.dark);
+    await tester.pumpAndSettle();
+    // Build 110 (user 2026-11-21 01:49–01:50): SkyStream-like corners,
+    // measured ~20 pt with pixel detection. The package paints the
+    // selected bubble with this same radius, so the two stay consistent.
+    expect(
+      tester
+          .widget<LiquidGlassNavBar>(find.byType(LiquidGlassNavBar))
+          .borderRadius,
+      20.0,
+    );
   });
 
   testWidgets('the fork glass pill renders in both dark and light mode', (
@@ -258,11 +274,10 @@ void main() {
           ),
         );
 
-    ThemeData themed(Brightness brightness, {required bool glass}) =>
-        ThemeData(
-          brightness: brightness,
-          extensions: [ZoroxThemeExtension(isGlass: glass)],
-        );
+    ThemeData themed(Brightness brightness, {required bool glass}) => ThemeData(
+      brightness: brightness,
+      extensions: [ZoroxThemeExtension(isGlass: glass)],
+    );
 
     Brightness barBrightness(WidgetTester tester) =>
         Theme.of(tester.element(find.byType(LiquidGlassNavBar))).brightness;
@@ -277,10 +292,9 @@ void main() {
         find.byType(LiquidGlassNavBar),
       );
       expect(bar.inactiveColor, theme.colorScheme.onSurfaceVariant);
-      // Build 109 reference look: the selected tab is WHITE, not the
-      // theme accent — the dark glass pill keeps it legible in both
-      // brightnesses.
-      expect(bar.activeColor, Colors.white);
+      // Build 110 (user 2026-11-21 01:44): nav-follows-accent is back —
+      // the selected tab wears the theme accent on the dark glass pill.
+      expect(bar.activeColor, theme.colorScheme.primary);
       expect(bar.labelStyle?.shadows, isNotEmpty);
     });
 

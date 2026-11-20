@@ -16,13 +16,14 @@ import 'package:zorox/l10n/generated/app_localizations.dart';
 /// same icons render on iOS and Android — the font is bundled in the app,
 /// no per-platform work, no asset files.
 ///
-/// Build 109 (user-approved reference look, preview v4): the selected
-/// tab is a DARK bubble with a WHITE icon and label — the accent colour
-/// no longer tints the selection (build 104's nav-follows-accent is
-/// superseded) — and the pill wears a thin NEUTRAL rim, no gold rim, no
-/// gold glow. The icons, labels, routes and the liquid-glass material
-/// itself are exactly as they were — the rim is a Positioned sibling
-/// around the package bar inside [_NavPillRim], never inside the package.
+/// Build 110 (user 2026-11-21 01:44, 01:49–01:50): the selected tab is
+/// a DARK bubble with the theme ACCENT icon and label — build 104's
+/// nav-follows-accent, back on the new nav — and the pill is a rounded
+/// rectangle (20 pt corners, SkyStream-like), not a full stadium. The
+/// pill wears a thin NEUTRAL rim, no gold rim, no gold glow. The icons,
+/// labels, routes and the liquid-glass material itself are exactly as
+/// they were — the rim is a Positioned sibling around the package bar
+/// inside [_NavPillRim], never inside the package.
 /// A Stack is the one wrapper that does not break the +15..+19 rule: the
 /// package's root Positioned needs a Stack ancestor, and this Stack is
 /// one (a Transform/Padding parent would throw "Incorrect use of
@@ -64,6 +65,15 @@ class CustomBottomNavBar extends StatelessWidget {
 
   /// The pill's height (package: fixed 63 since build 109).
   static const double _kPillHeight = 63.0;
+
+  /// The pill's corner radius (build 110, user 2026-11-21 01:49–01:50):
+  /// SkyStream-like rounded rectangle, not a full stadium. Measured
+  /// from the user's SkyStream shot with pixel detection: ~20 pt.
+  /// The package paints the selected bubble with this same radius, so
+  /// the bubble follows it (the ~16 pt bubble asked for is the same
+  /// value rounded down by the package — one radius keeps pill and
+  /// bubble consistent).
+  static const double _kPillRadius = 20.0;
 
   /// How far the pill's bottom edge sits above the physical screen bottom
   /// — the reference app's spot (build 109: 20 pt, was 8). The package
@@ -189,14 +199,16 @@ class CustomBottomNavBar extends StatelessWidget {
       impellerSupported: impellerSupported,
       // A little lower than the package default (see [_kBottomMargin]).
       insets: _kBottomMargin,
-      // A stadium at the 63 pt pill: half the height (the package
-      // default 34 is for its old 68 pt pill).
-      borderRadius: _kPillHeight / 2,
-      // Build 109 reference look: the selected tab is WHITE (the
-      // package paints its dark bubble behind it) — the accent colour
-      // no longer tints the selection; build 104's nav-follows-accent
-      // is superseded. Muted grey otherwise.
-      activeColor: Colors.white,
+      // A rounded rectangle at the 63 pt pill (build 110: 20 pt,
+      // SkyStream-like — the full stadium is gone).
+      borderRadius: _kPillRadius,
+      // Build 110 (user 2026-11-21 01:44): the selected tab wears the
+      // theme ACCENT again — build 104's nav-follows-accent, back on
+      // the new nav (green accent → green icon, gold → gold, blue →
+      // blue). The bubble itself stays DARK (the package paints it
+      // behind the icon); only the icon + label take the accent.
+      // `colorScheme.primary` IS the user's accent (app_theme.dart).
+      activeColor: colorScheme.primary,
       inactiveColor: theme.brightness == Brightness.dark
           ? const Color(0xFF9D9A92)
           : colorScheme.onSurfaceVariant,
@@ -282,7 +294,7 @@ class _NavPillRim extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(
-                    CustomBottomNavBar._kPillHeight / 2,
+                    CustomBottomNavBar._kPillRadius,
                   ),
                   border: Border.all(
                     color: Colors.white.withValues(alpha: 0.18),
@@ -305,5 +317,4 @@ class _NavPillRim extends StatelessWidget {
 /// light theme — Arena Gold / Midnight / Obsidian are dark-only — so a
 /// plain brightness check covers both without a new theme flag. Dark
 /// themes are already clear.
-bool clearNavGlassFor(ThemeData theme) =>
-    theme.brightness == Brightness.light;
+bool clearNavGlassFor(ThemeData theme) => theme.brightness == Brightness.light;

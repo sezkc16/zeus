@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+
 /// Centralized spacing and layout values for consistent UI.
 /// Use from details_screen, explore_carousel, and other layout code.
 class LayoutConstants {
@@ -27,6 +28,15 @@ class LayoutConstants {
   static const double radiusXl = 16;
   static const double radiusXxl = 24;
   static const double radiusPill = 50;
+
+  // Home poster rows (build 110, user 2026-11-21 01:46): SkyStream-like
+  // portrait cards on phones — 130 pt wide, ~150 pt tall. Measured
+  // from the user's SkyStream shot with pixel detection: SkyStream's
+  // Home posters are NOT 2:3 (~130x150, ratio ~1:1.15), so matching
+  // them means leaving the 2:3 ratio behind on phone rows. Desktop /
+  // widescreen rows keep the 2:3 poster ratio.
+  static const double homePosterCardWidth = 130.0;
+  static const double homePosterImageHeight = 150.0;
 
   // Content constraints
   static const double contentMaxWidth = 800;
@@ -83,5 +93,4 @@ class LayoutConstants {
     final end = bottom + pillFreeEndPadding;
     return end < pillFreeMinEndPadding ? pillFreeMinEndPadding : end;
   }
-
 }

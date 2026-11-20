@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import '../domain/entity/multimedia_item.dart';
+
 import 'package:dio/dio.dart';
+
 import '../models/tmdb_genre.dart';
 import '../config/tmdb_config.dart';
 import '../logger/app_logger.dart';
@@ -860,6 +862,64 @@ class TmdbService {
       );
     } catch (e, st) {
       talker.error('TmdbService.getCredits failed for $movieId', e, st);
+    }
+    return null;
+  }
+
+  /// TMDB recommendations for a movie (build 110, "More Like This").
+  /// Returns the `results` list, or null when the key is missing, the
+  /// request fails, or the title has none.
+  Future<List<Map<String, dynamic>>?> getMovieRecommendations(
+    int movieId, {
+    String language = 'en-US',
+  }) async {
+    if (TmdbConfig.apiKey.isEmpty) return null;
+
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/movie/$movieId/recommendations',
+        queryParameters: {'api_key': TmdbConfig.apiKey, 'language': language},
+      );
+      if (response.statusCode == 200) {
+        final results = response.data?['results'] as List?;
+        if (results == null) return null;
+        return List<Map<String, dynamic>>.from(results);
+      }
+      talker.warning(
+        'TmdbService.getMovieRecommendations: status ${response.statusCode} for $movieId',
+      );
+    } catch (e, st) {
+      talker.error(
+        'TmdbService.getMovieRecommendations failed for $movieId',
+        e,
+        st,
+      );
+    }
+    return null;
+  }
+
+  /// TMDB recommendations for a TV show (build 110, "More Like This").
+  Future<List<Map<String, dynamic>>?> getTvRecommendations(
+    int tvId, {
+    String language = 'en-US',
+  }) async {
+    if (TmdbConfig.apiKey.isEmpty) return null;
+
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/tv/$tvId/recommendations',
+        queryParameters: {'api_key': TmdbConfig.apiKey, 'language': language},
+      );
+      if (response.statusCode == 200) {
+        final results = response.data?['results'] as List?;
+        if (results == null) return null;
+        return List<Map<String, dynamic>>.from(results);
+      }
+      talker.warning(
+        'TmdbService.getTvRecommendations: status ${response.statusCode} for $tvId',
+      );
+    } catch (e, st) {
+      talker.error('TmdbService.getTvRecommendations failed for $tvId', e, st);
     }
     return null;
   }

@@ -9,6 +9,7 @@ import '../../account/data/zorox_account_notifier.dart';
 import '../data/zeus_profile.dart';
 import '../data/zeus_profiles_notifier.dart';
 import 'profile_create_screen.dart';
+import 'profile_photo_picker.dart';
 import 'profile_pin_screen.dart';
 import 'zeus_profile_avatar.dart';
 
@@ -59,9 +60,7 @@ class ZeusManageProfilesScreen extends ConsumerWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(48 * 0.22),
                     border: Border.all(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       width: 1.5,
                     ),
                   ),
@@ -86,9 +85,8 @@ class ZeusManageProfilesScreen extends ConsumerWidget {
                           // The create screen never pops itself; the
                           // caller removes it on success.
                           Navigator.of(context).pop();
-                          return true;
                         }
-                        return false;
+                        return created;
                       },
                     ),
                   ),
@@ -98,7 +96,7 @@ class ZeusManageProfilesScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           Text(
             'Each profile has its own Continue Watching and My List. '
-            'Deleting a profile also deletes its history and My List.',
+            'Deleting a profile also deletes its history, My List and photo.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -120,8 +118,7 @@ class ZeusProfileEditScreen extends ConsumerStatefulWidget {
       _ZeusProfileEditScreenState();
 }
 
-class _ZeusProfileEditScreenState
-    extends ConsumerState<ZeusProfileEditScreen> {
+class _ZeusProfileEditScreenState extends ConsumerState<ZeusProfileEditScreen> {
   late final TextEditingController _nameController;
   String _color = kZeusProfileDefaultColor;
   bool _busy = false;
@@ -172,8 +169,7 @@ class _ZeusProfileEditScreenState
     }
 
     final isLastProfile = profiles.profiles.length <= 1;
-    final nameChanged =
-        _nameController.text.trim() != profile.name;
+    final nameChanged = _nameController.text.trim() != profile.name;
     final colorChanged = _color != profile.color;
     final error = _error ?? profiles.error;
 
@@ -184,8 +180,54 @@ class _ZeusProfileEditScreenState
           : ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                Center(child: ZeusProfileAvatar(profile: profile)),
-                const SizedBox(height: 24),
+                // Photo (build 110): tap the avatar to pick a new one
+                // from the gallery, take one, or remove it. Local-only.
+                Center(
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      GestureDetector(
+                        onTap: () => pickZeusProfilePhoto(
+                          context,
+                          ref,
+                          profileId: profile.id,
+                        ),
+                        child: ZeusProfileAvatar(profile: profile),
+                      ),
+                      Positioned(
+                        right: -4,
+                        bottom: -4,
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Theme.of(context).scaffoldBackgroundColor,
+                              width: 2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt_rounded,
+                            size: 15,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    'Tap the photo to change it',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 TextField(
                   key: const ValueKey('profile-edit-name'),
                   controller: _nameController,
@@ -205,9 +247,8 @@ class _ZeusProfileEditScreenState
                 const SizedBox(height: 24),
                 Text(
                   'Colour',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  style: Theme.of(context).textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -242,9 +283,8 @@ class _ZeusProfileEditScreenState
                   Text(
                     error,
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: Theme.of(context).colorScheme.error),
                   ),
                 ],
                 const SizedBox(height: 32),
@@ -354,8 +394,8 @@ class _ZeusProfileEditScreenState
     setState(() => _busy = false);
     if (!ok) {
       setState(
-        () => _error =
-            ref.read(zeusProfilesProvider).error ?? 'Could not save.',
+        () =>
+            _error = ref.read(zeusProfilesProvider).error ?? 'Could not save.',
       );
       return;
     }
@@ -403,9 +443,7 @@ class _ZeusProfileEditScreenState
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Enter your Zeus account password to continue.',
-            ),
+            const Text('Enter your Zeus account password to continue.'),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
@@ -415,8 +453,7 @@ class _ZeusProfileEditScreenState
                 labelText: 'Account password',
                 border: OutlineInputBorder(),
               ),
-              onSubmitted: (_) =>
-                  Navigator.of(context).pop(controller.text),
+              onSubmitted: (_) => Navigator.of(context).pop(controller.text),
             ),
           ],
         ),
@@ -473,8 +510,7 @@ class _ZeusProfileEditScreenState
     if (!ok) {
       setState(
         () => _error =
-            ref.read(zeusProfilesProvider).error ??
-            'Could not change the PIN.',
+            ref.read(zeusProfilesProvider).error ?? 'Could not change the PIN.',
       );
       return;
     }
@@ -490,7 +526,8 @@ class _ZeusProfileEditScreenState
         title: Text('Delete ${profile.name}?'),
         content: Text(
           'This also deletes ${profile.name}’s Continue Watching and '
-          'My List, on this device and in the cloud.',
+          'My List, on this device and in the cloud, and its photo on '
+          'this device.',
         ),
         actions: [
           TextButton(
@@ -560,16 +597,9 @@ class _ColourSwatch extends StatelessWidget {
         decoration: BoxDecoration(
           color: color,
           shape: BoxShape.circle,
-          border: selected
-              ? Border.all(color: Colors.white, width: 3)
-              : null,
+          border: selected ? Border.all(color: Colors.white, width: 3) : null,
           boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.5),
-                    blurRadius: 8,
-                  ),
-                ]
+              ? [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 8)]
               : null,
         ),
         child: selected

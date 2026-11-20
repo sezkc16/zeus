@@ -50,9 +50,7 @@ class _ZeusProfileSwitcherScreenState
 
   Future<void> _openManage() async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => const ZeusManageProfilesScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const ZeusManageProfilesScreen()),
     );
     // The list may have changed (rename/delete) — rebuild to match.
     if (mounted) setState(() {});
@@ -76,9 +74,7 @@ class _ZeusProfileSwitcherScreenState
           // background — the user is already home.
           if (account.loggedIn) {
             unawaited(
-              ref
-                  .read(zoroxAccountProvider.notifier)
-                  .syncActiveZeusProfile(),
+              ref.read(zoroxAccountProvider.notifier).syncActiveZeusProfile(),
             );
           }
           _close();
@@ -101,9 +97,8 @@ class _ZeusProfileSwitcherScreenState
           if (profile != null && mounted) {
             // Back to the picker: the new tile is there, its PIN opens it.
             setState(() => _creating = false);
-            return true;
           }
-          return false;
+          return profile;
         },
       );
     } else {

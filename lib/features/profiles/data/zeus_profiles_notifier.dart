@@ -7,6 +7,7 @@ import '../../account/data/zorox_sync_client.dart';
 import '../../app_lock/app_lock_controller.dart';
 import '../../app_lock/app_lock_passcode.dart';
 import 'zeus_profile.dart';
+import 'zeus_profile_photos_notifier.dart';
 import 'zeus_profiles_client.dart';
 
 /// The profile calls' client, overridable in tests.
@@ -144,8 +145,7 @@ class ZeusProfilesNotifier extends Notifier<ZeusProfilesState> {
         if (decoded is Map && decoded['profiles'] is List) {
           cached = [
             for (final e in decoded['profiles'] as List)
-              if (e is Map)
-                ZeusProfile.fromJson(Map<String, dynamic>.from(e)),
+              if (e is Map) ZeusProfile.fromJson(Map<String, dynamic>.from(e)),
           ];
         }
       }
@@ -180,8 +180,7 @@ class ZeusProfilesNotifier extends Notifier<ZeusProfilesState> {
       final profiles = await _client.fetchZeusProfiles(baseUrl, token);
       // A profile deleted on another device must not stay active here.
       var activeId = state.activeProfileId;
-      if (activeId != null &&
-          profiles.every((p) => p.id != activeId)) {
+      if (activeId != null && profiles.every((p) => p.id != activeId)) {
         activeId = null;
         await _storage.setActiveZeusProfile(null);
         await _storage.setString(ZeusProfileCacheKeys.activeId, null);
@@ -409,11 +408,7 @@ class ZeusProfilesNotifier extends Notifier<ZeusProfilesState> {
       final profiles = [
         for (final p in state.profiles)
           if (p.id == profileId)
-            p.copyWith(
-              name: trimmed,
-              color: color,
-              updatedAt: DateTime.now(),
-            )
+            p.copyWith(name: trimmed, color: color, updatedAt: DateTime.now())
           else
             p,
       ];
@@ -435,7 +430,9 @@ class ZeusProfilesNotifier extends Notifier<ZeusProfilesState> {
           if (p.id == profileId) updated else p,
       ];
       await _writeCache(profiles);
-      if (ref.mounted) state = state.copyWith(profiles: profiles, loading: false);
+      if (ref.mounted) {
+        state = state.copyWith(profiles: profiles, loading: false);
+      }
       return true;
     } on ZoroxSyncException catch (e) {
       if (ref.mounted) {
@@ -465,9 +462,7 @@ class ZeusProfilesNotifier extends Notifier<ZeusProfilesState> {
     String? accountPassword,
   }) async {
     if (state.profiles.length <= 1) {
-      state = state.copyWith(
-        error: 'The last profile cannot be deleted.',
-      );
+      state = state.copyWith(error: 'The last profile cannot be deleted.');
       return false;
     }
     if (!state.profiles.any((p) => p.id == profileId)) return false;
@@ -512,6 +507,8 @@ class ZeusProfilesNotifier extends Notifier<ZeusProfilesState> {
     }
     await _setPinAttempts(profileId, 0, 0);
     await _storage.deleteZeusProfileBoxes(profileId);
+    // The local-only photo goes with the profile (build 110).
+    await ref.read(zeusProfilePhotosProvider.notifier).removePhoto(profileId);
     if (ref.mounted) {
       state = state.copyWith(profiles: profiles, loading: false);
     }
@@ -532,11 +529,7 @@ class ZeusProfilesNotifier extends Notifier<ZeusProfilesState> {
     required String color,
     required String pin,
   }) async {
-    final profile = await createZeusProfile(
-      name: name,
-      color: color,
-      pin: pin,
-    );
+    final profile = await createZeusProfile(name: name, color: color, pin: pin);
     if (profile == null) return null;
     final storage = ref.read(storageServiceProvider);
     await switchZeusProfile(profile.id);
@@ -586,9 +579,7 @@ class ZeusProfilesNotifier extends Notifier<ZeusProfilesState> {
   }
 
   int _pinAttempts(String profileId) {
-    final raw = _storage.getString(
-      ZeusProfileCacheKeys.attempts(profileId),
-    );
+    final raw = _storage.getString(ZeusProfileCacheKeys.attempts(profileId));
     return int.tryParse(raw ?? '') ?? 0;
   }
 
@@ -695,7 +686,9 @@ class ZeusProfilesNotifier extends Notifier<ZeusProfilesState> {
       ];
       await _writeCache(profiles);
       await _setPinAttempts(profileId, 0, 0);
-      if (ref.mounted) state = state.copyWith(profiles: profiles, loading: false);
+      if (ref.mounted) {
+        state = state.copyWith(profiles: profiles, loading: false);
+      }
       return true;
     } on ZoroxSyncException catch (e) {
       if (ref.mounted) {

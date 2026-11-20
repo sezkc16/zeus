@@ -305,7 +305,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           // 3. Active profile's avatar (Build 2) — Netflix-style: tap to
           // switch profiles. Only when a profile is open (logged in or
           // local-only); the gate owns the picker before that.
-          if (ref.watch(zeusProfilesProvider).activeProfile case final activeProfile?)
+          // Build 110 (user 2026-11-21 01:55–01:56): exactly the
+          // search/settings buttons' size — CircleAvatar radius 18 =
+          // 36 pt, and this tile is 36 pt too (measured on his shot:
+          // all three render 108x108 px). It LOOKED bigger because a
+          // filled rounded square reads larger than a circle of the
+          // same box, so the top-bar tile is circular like the buttons;
+          // the rounded square stays everywhere else.
+          if (ref.watch(zeusProfilesProvider).activeProfile
+              case final activeProfile?)
             Padding(
               padding: const EdgeInsets.only(right: LayoutConstants.spacingMd),
               child: CardsWrapper(
@@ -314,6 +322,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: ZeusProfileAvatar(
                   profile: activeProfile,
                   size: 36,
+                  circular: true,
                 ),
               ),
             ),
@@ -854,8 +863,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   Widget _buildListShimmer(BuildContext context) {
     final isDesktop = context.isDesktop;
-    final cardWidth = isDesktop ? 200.0 : 130.0;
-    final imageHeight = cardWidth / (2 / 3);
+    // Same geometry as the real rows (build 110): phones use the
+    // SkyStream-like 130x~150 poster card, desktop keeps 2:3.
+    final cardWidth = isDesktop ? 200.0 : LayoutConstants.homePosterCardWidth;
+    final imageHeight = isDesktop
+        ? cardWidth / (2 / 3)
+        : LayoutConstants.homePosterImageHeight;
     final listHeight = imageHeight + 40.0;
 
     return Column(

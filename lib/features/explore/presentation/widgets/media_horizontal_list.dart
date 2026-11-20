@@ -142,9 +142,15 @@ class _MediaHorizontalListState extends State<MediaHorizontalList> {
 
     final double cardWidth = isDesktop
         ? (_isPortrait ? 200.0 : 300.0)
-        : (_isPortrait ? 130.0 : 200.0);
+        : (_isPortrait ? LayoutConstants.homePosterCardWidth : 200.0);
 
-    final double imageHeight = cardWidth / (_isPortrait ? (2 / 3) : (16 / 9));
+    // Phones, portrait: the SkyStream-like 130x~150 card (build 110) —
+    // NOT the 2:3 poster ratio. Desktop keeps 2:3; landscape keeps 16:9.
+    final double imageHeight = isDesktop
+        ? cardWidth / (_isPortrait ? (2 / 3) : (16 / 9))
+        : (_isPortrait
+              ? LayoutConstants.homePosterImageHeight
+              : cardWidth / (16 / 9));
     final double listHeight = imageHeight + 40.0;
 
     return Column(

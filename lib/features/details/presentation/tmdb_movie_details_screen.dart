@@ -23,6 +23,7 @@ import 'widgets/nuvio_sources_card.dart';
 import 'widgets/tmdb_details_stats_section.dart';
 import 'widgets/hero_details_widgets.dart';
 import 'widgets/movie_cast_list.dart';
+import 'widgets/movie_more_like_this.dart';
 import '../data/lightweight_details_provider.dart';
 import 'widgets/movie_trailers_carousel.dart';
 import 'widgets/movie_production_companies.dart';
@@ -287,20 +288,9 @@ class _TmdbMovieDetailsScreenState
             // needed. It ends on the Nuvio card's action now, so this is the
             // same gap that separates every other group on the page.
             const SizedBox(height: kDetailsGroupGap),
-            if (!isMovie) ...[
-              MovieSeasonsList(
-                movieId: widget.movieId,
-                seasons: seasons,
-                textColor: textColor,
-                source: widget.source,
-                title: data.title,
-                posterUrl: data.posterUrl,
-                bannerUrl: data.bannerUrl,
-                overview: data.overview,
-                releaseDateFull: data.releaseDateFull,
-                imdbId: data.imdbId,
-              ),
-            ],
+            // Cast, then Trailers & Extras, then Seasons (TV), then
+            // More Like This, then Production (build 110, user
+            // 2026-11-21 01:51: SkyStream's order).
             if (isHeavyLoading || cast.isNotEmpty) ...[
               MovieCastList(
                 cast: cast,
@@ -316,6 +306,25 @@ class _TmdbMovieDetailsScreenState
                 textColor: textColor,
               ),
             ],
+            if (!isMovie) ...[
+              MovieSeasonsList(
+                movieId: widget.movieId,
+                seasons: seasons,
+                textColor: textColor,
+                source: widget.source,
+                title: data.title,
+                posterUrl: data.posterUrl,
+                bannerUrl: data.bannerUrl,
+                overview: data.overview,
+                releaseDateFull: data.releaseDateFull,
+                imdbId: data.imdbId,
+              ),
+            ],
+            MovieMoreLikeThis(
+              movieId: widget.movieId,
+              mediaType: widget.mediaType,
+              source: widget.source,
+            ),
             if (isHeavyLoading || productionCompanies.isNotEmpty) ...[
               MovieProductionCompanies(
                 productionCompanies: productionCompanies,
@@ -589,17 +598,11 @@ class _TmdbMovieDetailsScreenState
 
                     const SizedBox(height: 28),
 
-                    // Cast Section
+                    // Cast, then Trailers & Extras, then Seasons (TV),
+                    // then More Like This, then Production (build 110,
+                    // user 2026-11-21 01:51: SkyStream's order).
                     if (isHeavyLoading || cast.isNotEmpty) ...[
                       MovieCastList(cast: cast, isLoading: isHeavyLoading),
-                    ],
-
-                    // Production Section
-                    if (isHeavyLoading || productionCompanies.isNotEmpty) ...[
-                      MovieProductionCompanies(
-                        productionCompanies: productionCompanies,
-                        isLoading: isHeavyLoading,
-                      ),
                     ],
 
                     // Trailers Section
@@ -622,6 +625,22 @@ class _TmdbMovieDetailsScreenState
                         overview: data.overview,
                         releaseDateFull: data.releaseDateFull,
                         imdbId: data.imdbId,
+                      ),
+                    ],
+
+                    // More Like This — TMDB recommendations; the widget
+                    // hides itself when there are none.
+                    MovieMoreLikeThis(
+                      movieId: widget.movieId,
+                      mediaType: widget.mediaType,
+                      source: widget.source,
+                    ),
+
+                    // Production Section
+                    if (isHeavyLoading || productionCompanies.isNotEmpty) ...[
+                      MovieProductionCompanies(
+                        productionCompanies: productionCompanies,
+                        isLoading: isHeavyLoading,
                       ),
                     ],
 

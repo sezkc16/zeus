@@ -33,7 +33,11 @@ class _HomeSectionState extends ConsumerState<HomeSection> {
 
     final isLarge = context.isTabletOrLarger;
 
-    final double totalHeight = isLarge ? 350.0 : 230.0;
+    // Phones: the SkyStream-like 130x~150 poster card (build 110) —
+    // image 150 + title block 40. Widescreen keeps its 2:3 cards.
+    final double totalHeight = isLarge
+        ? 350.0
+        : LayoutConstants.homePosterImageHeight + 40.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

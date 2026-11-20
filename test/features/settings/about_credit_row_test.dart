@@ -61,7 +61,10 @@ void main() {
     if (dir.existsSync()) dir.deleteSync(recursive: true);
   });
 
-  Future<void> pumpAbout(WidgetTester tester, {String version = '1.0.1 +74'}) async {
+  Future<void> pumpAbout(
+    WidgetTester tester, {
+    String version = '1.0.1 +74',
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -151,10 +154,10 @@ void main() {
     expect(aboutVersionLabel('1.2.3 +1.2.3'), '1.2.3');
   });
 
-  test('the app is 2.0.1 build 109', () {
+  test('the app is 2.1.0 build 110', () {
     expect(
       File('pubspec.yaml').readAsStringSync(),
-      contains('\nversion: 2.0.1+109\n'),
+      contains('\nversion: 2.1.0+110\n'),
     );
   });
 }
