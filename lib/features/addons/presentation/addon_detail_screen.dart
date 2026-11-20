@@ -22,9 +22,11 @@ import '../../../shared/widgets/thumbnail_error_placeholder.dart';
 import '../../../core/models/tmdb_details.dart';
 import '../../../core/storage/episode_watch_repository.dart';
 import '../../../core/storage/history_repository.dart';
+import '../../details/data/addon_tmdb_id_provider.dart';
 import '../../details/data/tmdb_details_provider.dart';
 import '../../details/presentation/widgets/hero_details_widgets.dart';
 import '../../details/presentation/widgets/movie_cast_list.dart';
+import '../../details/presentation/widgets/movie_more_like_this.dart';
 import '../../details/presentation/widgets/movie_production_companies.dart';
 import '../../details/presentation/widgets/movie_trailers_carousel.dart';
 import '../../library/presentation/history_provider.dart';
@@ -305,10 +307,30 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
     final textColor = theme.colorScheme.onSurface;
     final textSecondary = theme.colorScheme.onSurface.withValues(alpha: 0.7);
 
-    final tmdbAsync = meta.moviedbId != null
+    // The TMDB id Cast and "More Like This" need (build 111): the
+    // add-on's own when it has one, else resolved by title + year —
+    // plugin titles like MoviesMod's Bull Run carry no moviedbId.
+    // While it resolves, or when TMDB has no match, the id is null
+    // and both rows hide.
+    final tmdbId =
+        meta.moviedbId ??
+        ref
+            .watch(
+              addonTmdbIdProvider(
+                AddonTmdbIdParams(
+                  moviedbId: meta.moviedbId,
+                  title: meta.name,
+                  year: meta.year,
+                  isShow: meta.isShow,
+                ),
+              ),
+            )
+            .asData
+            ?.value;
+    final tmdbAsync = tmdbId != null
         ? ref.watch(
             tmdbDetailsProvider(
-              MovieDetailsParams(meta.moviedbId!, meta.isShow ? 'tv' : 'movie'),
+              MovieDetailsParams(tmdbId, meta.isShow ? 'tv' : 'movie'),
             ),
           )
         : null;
@@ -549,6 +571,14 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
                     ),
                     const SizedBox(height: 32),
                   ],
+                  // "More Like This" (build 111): TMDB recommendations
+                  // for the resolved id; the widget hides itself when
+                  // there is no id or no recommendations.
+                  if (tmdbId != null)
+                    MovieMoreLikeThis(
+                      movieId: tmdbId,
+                      mediaType: meta.isShow ? 'tv' : 'movie',
+                    ),
                   if (productionCompanies.isNotEmpty) ...[
                     MovieProductionCompanies(
                       productionCompanies: productionCompanies,
@@ -583,10 +613,30 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
     final seasons = meta.seasons;
     final l10n = AppLocalizations.of(context)!;
 
-    final tmdbAsync = meta.moviedbId != null
+    // The TMDB id Cast and "More Like This" need (build 111): the
+    // add-on's own when it has one, else resolved by title + year —
+    // plugin titles like MoviesMod's Bull Run carry no moviedbId.
+    // While it resolves, or when TMDB has no match, the id is null
+    // and both rows hide.
+    final tmdbId =
+        meta.moviedbId ??
+        ref
+            .watch(
+              addonTmdbIdProvider(
+                AddonTmdbIdParams(
+                  moviedbId: meta.moviedbId,
+                  title: meta.name,
+                  year: meta.year,
+                  isShow: meta.isShow,
+                ),
+              ),
+            )
+            .asData
+            ?.value;
+    final tmdbAsync = tmdbId != null
         ? ref.watch(
             tmdbDetailsProvider(
-              MovieDetailsParams(meta.moviedbId!, meta.isShow ? 'tv' : 'movie'),
+              MovieDetailsParams(tmdbId, meta.isShow ? 'tv' : 'movie'),
             ),
           )
         : null;
@@ -762,6 +812,17 @@ class _AddonDetailScreenState extends ConsumerState<AddonDetailScreen> {
                     padded(MovieTrailersCarousel(trailers: trailers)),
                     const SizedBox(height: 24),
                   ],
+
+                  // "More Like This" (build 111): TMDB recommendations
+                  // for the resolved id; the widget hides itself when
+                  // there is no id or no recommendations.
+                  if (tmdbId != null)
+                    padded(
+                      MovieMoreLikeThis(
+                        movieId: tmdbId,
+                        mediaType: meta.isShow ? 'tv' : 'movie',
+                      ),
+                    ),
 
                   padded(_buildDetailsTable(context, meta, tmdb: tmdb)),
                   const SizedBox(height: 100),

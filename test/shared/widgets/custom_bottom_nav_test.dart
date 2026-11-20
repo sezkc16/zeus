@@ -159,12 +159,12 @@ void main() {
     );
     await tester.pumpAndSettle();
     // The package's root Positioned: left/right are the side margins
-    // (insets = 8) and bottom is the pill's gap from the screen edge.
-    // The neutral rim is a second Positioned with the same margins but a
-    // fixed height, so it is filtered out here.
+    // (insets = 16, build 111) and bottom is the pill's gap from the
+    // screen edge. The neutral rim is a second Positioned with the same
+    // margins but a fixed height, so it is filtered out here.
     final positioned = tester
         .widgetList<Positioned>(find.byType(Positioned))
-        .where((p) => p.left == 8.0 && p.right == 8.0 && p.height == null)
+        .where((p) => p.left == 16.0 && p.right == 16.0 && p.height == null)
         .toList();
     expect(positioned, hasLength(1));
     expect(positioned.single.bottom, CustomBottomNavBar.targetBottomGap);
@@ -201,11 +201,12 @@ void main() {
         ),
       ),
     );
-    // Build 109: the padding is exactly gap − insets (12) — it lowers
-    // the pill on iOS (real 34) and raises it on Android (real 0), so
-    // the pill lands 20 pt up on both.
-    expect(seen34, 12.0);
-    expect(seen0, 12.0);
+    // Build 109: the padding is exactly gap − insets (4 since build
+    // 111, when insets went 8 → 16) — it lowers the pill on iOS (real
+    // 34) and raises it on Android (real 0), so the pill lands 20 pt
+    // up on both.
+    expect(seen34, 4.0);
+    expect(seen0, 4.0);
   });
 
   test('content clearance covers the pill top plus buffer', () {
@@ -220,19 +221,20 @@ void main() {
     expect(tester.getRect(find.byType(LiquidGlassNavBar)).height, 63.0);
   });
 
-  testWidgets('the pill is a 20 pt rounded rectangle, not a stadium', (
+  testWidgets('the pill is a 24 pt rounded rectangle, not a stadium', (
     tester,
   ) async {
     await pump(tester, Brightness.dark);
     await tester.pumpAndSettle();
-    // Build 110 (user 2026-11-21 01:49–01:50): SkyStream-like corners,
-    // measured ~20 pt with pixel detection. The package paints the
-    // selected bubble with this same radius, so the two stay consistent.
+    // Build 111 (user 2026-11-21 04:03: "thoda round corner pe"):
+    // slightly round, the curve clearly visible at both ends, still
+    // not a stadium. The package paints the selected bubble with this
+    // same radius, so the two stay consistent.
     expect(
       tester
           .widget<LiquidGlassNavBar>(find.byType(LiquidGlassNavBar))
           .borderRadius,
-      20.0,
+      24.0,
     );
   });
 

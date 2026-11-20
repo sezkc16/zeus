@@ -1150,28 +1150,19 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Gold "NOW FEATURED" label with a hairline to its right.
-        Row(
-          children: [
-            const Text(
-              'NOW FEATURED',
-              maxLines: 1,
-              softWrap: false,
-              style: TextStyle(
-                color: kOlympusGold,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 2.0,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Container(
-                height: 1,
-                color: kOlympusGold.withValues(alpha: 0.4),
-              ),
-            ),
-          ],
+        // Gold "NOW FEATURED" label alone (build 111, user 2026-11-21
+        // 04:03: the hairline next to it stretched across the whole
+        // hero and read as a stray line cutting the poster — removed).
+        const Text(
+          'NOW FEATURED',
+          maxLines: 1,
+          softWrap: false,
+          style: TextStyle(
+            color: kOlympusGold,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 2.0,
+          ),
         ),
         const SizedBox(height: 10),
         // The title: its own logo when the item has one, else its name

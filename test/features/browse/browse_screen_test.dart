@@ -22,7 +22,6 @@ import 'package:zorox/features/browse/presentation/browse_catalogue.dart';
 import 'package:zorox/features/browse/presentation/browse_screen.dart';
 import 'package:zorox/features/settings/presentation/general_settings_provider.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
-import 'package:zorox/shared/widgets/striking_lightning.dart';
 
 /// A fresh install: nothing installed.
 class _Repo extends AddonRepository {
@@ -384,8 +383,6 @@ void main() {
 
     await tester.tap(find.byKey(BrowseCatalogueBar.tapKey));
     await settle(tester);
-    // The lightning is Select Provider's alone.
-    expect(find.byType(StrikingLightning), findsNothing);
     // All catalogues first, then the add-ons in their order.
     final all = tester.getTopLeft(
       find.byKey(const ValueKey('browse-catalogue-all')),

@@ -19,11 +19,12 @@ import 'package:zorox/l10n/generated/app_localizations.dart';
 /// Build 110 (user 2026-11-21 01:44, 01:49–01:50): the selected tab is
 /// a DARK bubble with the theme ACCENT icon and label — build 104's
 /// nav-follows-accent, back on the new nav — and the pill is a rounded
-/// rectangle (20 pt corners, SkyStream-like), not a full stadium. The
-/// pill wears a thin NEUTRAL rim, no gold rim, no gold glow. The icons,
-/// labels, routes and the liquid-glass material itself are exactly as
-/// they were — the rim is a Positioned sibling around the package bar
-/// inside [_NavPillRim], never inside the package.
+/// rectangle (24 pt corners, slightly round, not a full stadium — build
+/// 111, user 2026-11-21 04:03 "thoda round corner pe"). The pill wears
+/// a thin NEUTRAL rim, no gold rim, no gold glow. The icons, labels,
+/// routes and the liquid-glass material itself are exactly as they
+/// were — the rim is a Positioned sibling around the package bar inside
+/// [_NavPillRim], never inside the package.
 /// A Stack is the one wrapper that does not break the +15..+19 rule: the
 /// package's root Positioned needs a Stack ancestor, and this Stack is
 /// one (a Transform/Padding parent would throw "Incorrect use of
@@ -57,23 +58,27 @@ class CustomBottomNavBar extends StatelessWidget {
     this.impellerSupported = true,
   });
 
-  /// The pill's bottom offset above the system bottom inset. The package
-  /// default is 16; 8 is the side margin too (see [_kBottomMargin]) —
-  /// the bottom gap itself comes from [targetBottomGap] via
-  /// [navPaddingBottom], not from this value.
-  static const double _kBottomMargin = 8.0;
+  /// The package insets: the side margin AND the bottom offset the
+  /// package adds under the pill. Build 111 (user 2026-11-21 04:07:
+  /// "corner k side pe screen dikhe"): 16, the package default, so
+  /// the screen shows beside both corners — 8 was nearly
+  /// edge-to-edge. The bottom gap itself still comes from
+  /// [targetBottomGap] via [navPaddingBottom], not from this value:
+  /// the shell feeds padding.bottom = gap − insets, so the pill
+  /// still lands 20 pt up.
+  static const double _kBottomMargin = 16.0;
 
   /// The pill's height (package: fixed 63 since build 109).
   static const double _kPillHeight = 63.0;
 
-  /// The pill's corner radius (build 110, user 2026-11-21 01:49–01:50):
-  /// SkyStream-like rounded rectangle, not a full stadium. Measured
-  /// from the user's SkyStream shot with pixel detection: ~20 pt.
-  /// The package paints the selected bubble with this same radius, so
-  /// the bubble follows it (the ~16 pt bubble asked for is the same
-  /// value rounded down by the package — one radius keeps pill and
-  /// bubble consistent).
-  static const double _kPillRadius = 20.0;
+  /// The pill's corner radius (build 111, user 2026-11-21 04:03:
+  /// "thoda round corner pe"): 24 pt — slightly round, the curve
+  /// clearly visible at both ends, still a rounded rectangle and
+  /// not a full stadium (31.5). Build 110's 20 pt read too flat on
+  /// the phone. The package paints the selected bubble with this
+  /// same radius, so the bubble follows it — one radius keeps pill
+  /// and bubble consistent.
+  static const double _kPillRadius = 24.0;
 
   /// How far the pill's bottom edge sits above the physical screen bottom
   /// — the reference app's spot (build 109: 20 pt, was 8). The package
@@ -95,7 +100,7 @@ class CustomBottomNavBar extends StatelessWidget {
   /// The `padding.bottom` the package should see so the pill lands at
   /// [targetBottomGap] above the physical screen bottom. The package
   /// positions the pill at `MediaQuery.padding.bottom + insets`, so the
-  /// padding must be [targetBottomGap] − [_kBottomMargin] (12): on iOS
+  /// padding must be [targetBottomGap] − [_kBottomMargin] (4): on iOS
   /// (real safe-area padding ~34) that LOWERS it, on Android (real ~0)
   /// it RAISES it — either way the pill lands 20 pt up. Build 109
   /// changed this from lower-only (the old 8 pt gap needed 0, which the
@@ -197,10 +202,11 @@ class CustomBottomNavBar extends StatelessWidget {
       selectedIndex: currentIndex,
       onTap: onTap,
       impellerSupported: impellerSupported,
-      // A little lower than the package default (see [_kBottomMargin]).
+      // The package insets (build 111: 16 — the side margin, so the
+      // screen shows beside the corners).
       insets: _kBottomMargin,
-      // A rounded rectangle at the 63 pt pill (build 110: 20 pt,
-      // SkyStream-like — the full stadium is gone).
+      // A rounded rectangle at the 63 pt pill (build 111: 24 pt —
+      // slightly round, clearly visible curve, not a stadium).
       borderRadius: _kPillRadius,
       // Build 110 (user 2026-11-21 01:44): the selected tab wears the
       // theme ACCENT again — build 104's nav-follows-accent, back on
