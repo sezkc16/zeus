@@ -22,8 +22,10 @@ import 'core/theme/accent_color.dart';
 import 'core/theme/theme_variant.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/storage/app_temp_directory.dart';
 import 'core/storage/storage_service.dart';
 import 'core/services/stream_cache/stream_cache_service.dart';
+import 'features/player/domain/temp_download.dart';
 import 'core/network/doh_service.dart';
 
 import 'package:dynamic_color/dynamic_color.dart';
@@ -130,6 +132,11 @@ void main() async {
   // file while it plays and deletes it on close; a crash or a kill
   // can leave one behind. Nothing can be playing yet, so clear them.
   unawaited(StreamCacheService.sweepLeftovers());
+
+  // Build 107: the same for the temp download (a film fetched while
+  // watching a no-range host): a crash or a kill can leave its file
+  // behind, and nothing can be playing yet, so clear them too.
+  unawaited(appTempDirectory().then(TempDownload.sweepStale));
 
   // Repaint rainbow for the flicker hunt - see player_debug_flags.dart. A
   // compile-time constant, so a normal build carries no trace of it.

@@ -390,6 +390,12 @@ class MpvVlcController implements VlcPlayerController {
   Player _player;
   final List<SubtitleFile> Function() _externalSubtitles;
 
+  /// Build 107: the player screen answers a seek first when a temp
+  /// download holds the target — it reopens the local temp file at the
+  /// target instead. True means the seek was handled; false (or no
+  /// hook) falls through to the normal engine seek below.
+  Future<bool> Function(Duration)? onSeekRequested;
+
   /// Build 72: the engine was replaced (the on-demand PiP renderer
   /// moves between the hardware and the software renderer by creating
   /// a new [Player]). The adapter — and every listener the chrome has
@@ -912,6 +918,8 @@ class MpvVlcController implements VlcPlayerController {
   Future<void> seekTo(Duration position) async {
     // Build 72: no engine to command while a renderer move is in flight.
     if (timelineHeld) return;
+    // Build 107: a temp download may already hold the target.
+    if (await onSeekRequested?.call(position) ?? false) return;
     _seekRequests++;
     final target = position < Duration.zero ? Duration.zero : position;
     _pendingSeekTarget.value = target;
@@ -933,6 +941,8 @@ class MpvVlcController implements VlcPlayerController {
   Future<void> seekToKeyframe(Duration position) async {
     // Build 72: no engine to command while a renderer move is in flight.
     if (timelineHeld) return;
+    // Build 107: a temp download may already hold the target.
+    if (await onSeekRequested?.call(position) ?? false) return;
     _seekRequests++;
     final target = position < Duration.zero ? Duration.zero : position;
     _pendingSeekTarget.value = target;

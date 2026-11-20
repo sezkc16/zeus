@@ -68,6 +68,40 @@ String? streamProxyBypassReason({
   return null;
 }
 
+/// Whether a source may earn a temp download (build 107): a plain film
+/// file over HTTP(S) — the same shape the proxy takes, minus the
+/// platform and local-host checks, because the download fetches from
+/// the host itself on any platform. HLS, DASH, segments, live, DRM and
+/// torrents never do: their bytes do not come from one sequential file.
+bool isTempDownloadEligible({
+  required StreamResult stream,
+  required MultimediaItem item,
+}) {
+  final url = stream.url.trim();
+  if (isTorrentSource(stream)) return false;
+  final Uri uri;
+  try {
+    uri = Uri.parse(url);
+  } catch (_) {
+    return false;
+  }
+  final scheme = uri.scheme.toLowerCase();
+  if (scheme != 'http' && scheme != 'https') return false;
+  if (uri.host.isEmpty) return false;
+  if (isLiveSource(item, url)) return false;
+  if (looksLikeHls(uri)) return false;
+  final path = uri.path.toLowerCase();
+  final query = uri.query.toLowerCase();
+  if (path.endsWith('.mpd') || query.contains('.mpd')) return false;
+  if (path.endsWith('.ts') || path.endsWith('.m4s')) return false;
+  if ((stream.drmKey ?? '').isNotEmpty ||
+      (stream.drmKid ?? '').isNotEmpty ||
+      (stream.licenseUrl ?? '').isNotEmpty) {
+    return false;
+  }
+  return true;
+}
+
 String _megabytes(int bytes) => (bytes / (1024 * 1024)).toStringAsFixed(0);
 
 String _rate(int bytesPerSecond) =>
@@ -130,7 +164,9 @@ String switchSourceNote({
   if (during.isEmpty) return ' src -';
   final host = during.where((r) => !r.local).length;
   if (host == 0) return ' src local';
-  return during.length == host ? ' src host' : ' src host $host/${during.length}';
+  return during.length == host
+      ? ' src host'
+      : ' src host $host/${during.length}';
 }
 
 /// Build 78: notices a film that keeps stopping to buffer while it

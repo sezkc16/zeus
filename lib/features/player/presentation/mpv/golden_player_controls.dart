@@ -100,11 +100,7 @@ double subtitleRaiseAfterSlide(double startRaise, double travel) {
 /// moves a little and a long swipe moves a lot, on a film of any
 /// length. Right seeks forward, left seeks back. Held to [0,
 /// duration]. Pure, so it is unit-tested.
-Duration swipeSeekTarget(
-  Duration start,
-  Duration duration,
-  double dxShare,
-) {
+Duration swipeSeekTarget(Duration start, Duration duration, double dxShare) {
   if (duration <= Duration.zero) return start;
   final targetMs = start.inMilliseconds + (dxShare * 90000).round();
   if (targetMs <= 0) return Duration.zero;
@@ -167,6 +163,7 @@ class GoldenPlayerControls extends ConsumerStatefulWidget {
     required this.onPickEpisode,
     required this.onPickSource,
     this.bufferedFraction,
+    this.downloadedFraction,
     this.episodeLine,
     this.subtitle,
     this.onNextEpisode,
@@ -212,6 +209,12 @@ class GoldenPlayerControls extends ConsumerStatefulWidget {
 
   /// Fraction of the media fetched ahead of the playhead.
   final ValueListenable<double>? bufferedFraction;
+
+  /// Build 107: fraction of the film the temp download holds (0..1),
+  /// or null when no temp download is running. Drawn as a gold band
+  /// under the buffered band: everything under it seeks instantly from
+  /// the local temp file.
+  final ValueListenable<double>? downloadedFraction;
 
   /// Owns the auto-hide clock; the screen lends it here.
   final ChromeVisibilityController chrome;
@@ -296,8 +299,7 @@ class GoldenPlayerControls extends ConsumerStatefulWidget {
       _GoldenPlayerControlsState();
 }
 
-class _GoldenPlayerControlsState
-    extends ConsumerState<GoldenPlayerControls>
+class _GoldenPlayerControlsState extends ConsumerState<GoldenPlayerControls>
     with WidgetsBindingObserver {
   _GoldenDrawerKind _drawer = _GoldenDrawerKind.none;
 
@@ -415,8 +417,7 @@ class _GoldenPlayerControlsState
   /// the screen back to the system's level (see [dispose]).
   double _brightness = 0.5;
   bool _brightnessOverridden = false;
-  late final PlayerBrightness _brightnessControl =
-      PlatformPlayerBrightness();
+  late final PlayerBrightness _brightnessControl = PlatformPlayerBrightness();
 
   /// The volume / brightness rail. Written on every drag update, same rule
   /// as the stock chrome: the rail owns its own hide timer, so the drag
@@ -907,9 +908,7 @@ class _GoldenPlayerControlsState
   /// while the chrome is up, and the centre pill (see [build]) shows
   /// it while the chrome is not.
   void _beginSwipeSeek() {
-    if (!_isTouch ||
-        widget.isLive ||
-        !widget.settings.value.swipeSeekEnabled) {
+    if (!_isTouch || widget.isLive || !widget.settings.value.swipeSeekEnabled) {
       return;
     }
     final value = widget.controller.value;
@@ -935,11 +934,7 @@ class _GoldenPlayerControlsState
     if (width <= 0) return;
     final duration = widget.controller.value.duration;
     if (duration <= Duration.zero) return;
-    final preview = swipeSeekTarget(
-      _swipeSeekStart,
-      duration,
-      totalDx / width,
-    );
+    final preview = swipeSeekTarget(_swipeSeekStart, duration, totalDx / width);
     if (preview != _seekPreview) {
       setState(() => _seekPreview = preview);
     }
@@ -1130,9 +1125,7 @@ class _GoldenPlayerControlsState
         _dragStart = target;
         // Build 86: a rail drag is an absolute seek — it cancels a
         // pending debounced step seek and becomes the chain's base.
-        _rebaseSeekChain(
-          Duration(milliseconds: (target * 1000).round()),
-        );
+        _rebaseSeekChain(Duration(milliseconds: (target * 1000).round()));
         unawaited(
           widget.controller.seekTo(
             Duration(milliseconds: (target * 1000).round()),
@@ -1255,13 +1248,9 @@ class _GoldenPlayerControlsState
     }
     // Build 86: a skip is an absolute seek — it cancels a pending
     // debounced step seek and becomes the chain's base.
-    final skipTarget = Duration(
-      milliseconds: (segment.endTime * 1000).round(),
-    );
+    final skipTarget = Duration(milliseconds: (segment.endTime * 1000).round());
     _rebaseSeekChain(skipTarget);
-    unawaited(
-      widget.controller.seekTo(skipTarget),
-    );
+    unawaited(widget.controller.seekTo(skipTarget));
     widget.chrome.poke();
   }
 
@@ -1380,10 +1369,7 @@ class _GoldenPlayerControlsState
         if (_swipeSeeking)
           Center(
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 10,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.65),
                 borderRadius: BorderRadius.circular(20),
@@ -1407,10 +1393,7 @@ class _GoldenPlayerControlsState
         if (_stepSeekLabel != null)
           Center(
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 10,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.65),
                 borderRadius: BorderRadius.circular(20),
@@ -1497,14 +1480,12 @@ class _GoldenPlayerControlsState
                           onBack: widget.onBack,
                           hasSubtitles: widget.hasSubtitles,
                           isSeries: _isSeries,
-                          onOpenSubtitleStyle: () => _openDrawer(
-                            _GoldenDrawerKind.subtitleStyle,
-                          ),
+                          onOpenSubtitleStyle: () =>
+                              _openDrawer(_GoldenDrawerKind.subtitleStyle),
                           onOpenEpisodes: () =>
                               _openDrawer(_GoldenDrawerKind.episodes),
-                          onOpenAudioSources: () => _openDrawer(
-                            _GoldenDrawerKind.audio,
-                          ),
+                          onOpenAudioSources: () =>
+                              _openDrawer(_GoldenDrawerKind.audio),
                           onOpenSources: () =>
                               _openDrawer(_GoldenDrawerKind.sources),
                           onPickSpeed: _pickSpeed,
@@ -1538,7 +1519,8 @@ class _GoldenPlayerControlsState
                               // a playing film (the spinner says it is
                               // waiting) — it must not show the play
                               // icon as if the viewer had paused it.
-                              isPlaying: value.isPlaying ||
+                              isPlaying:
+                                  value.isPlaying ||
                                   value.state == VlcPlaybackState.buffering,
                               onTogglePlay: _togglePlay,
                               onRewind: () => _seekBy(-_kGoldenSeekStep),
@@ -1565,8 +1547,8 @@ class _GoldenPlayerControlsState
                                 ),
                                 child: _BottomBar(
                                   controller: widget.controller,
-                                  bufferedFraction:
-                                      widget.bufferedFraction,
+                                  bufferedFraction: widget.bufferedFraction,
+                                  downloadedFraction: widget.downloadedFraction,
                                   isLive: widget.isLive,
                                   seeking: _seeking,
                                   seekPreview: _seekPreview,
@@ -1589,16 +1571,14 @@ class _GoldenPlayerControlsState
                                     }
                                     widget.chrome.release();
                                   },
-                                  onPreviousEpisode:
-                                      widget.onPreviousEpisode,
+                                  onPreviousEpisode: widget.onPreviousEpisode,
                                   onNextEpisode: widget.onNextEpisode,
                                   hasSubtitles: widget.hasSubtitles,
                                   onOpenSubtitleStyle: () => _openDrawer(
                                     _GoldenDrawerKind.subtitleStyle,
                                   ),
-                                  onOpenAudioSources: () => _openDrawer(
-                                    _GoldenDrawerKind.audio,
-                                  ),
+                                  onOpenAudioSources: () =>
+                                      _openDrawer(_GoldenDrawerKind.audio),
                                   onOpenSources: () =>
                                       _openDrawer(_GoldenDrawerKind.sources),
                                   // Video output presets (+57): the
@@ -1609,9 +1589,8 @@ class _GoldenPlayerControlsState
                                   onOpenVideo:
                                       widget.onVideoPresetChanged != null ||
                                           widget.sleepTimer != null
-                                      ? () => _openDrawer(
-                                          _GoldenDrawerKind.video,
-                                        )
+                                      ? () =>
+                                            _openDrawer(_GoldenDrawerKind.video)
                                       : null,
                                   onPickVolume: _pickVolume,
                                   // While a 2x hold is down, the chip shows
@@ -1656,9 +1635,7 @@ class _GoldenPlayerControlsState
                     );
                     if (segment == null) return const SizedBox.shrink();
                     final isOutro = segment.type == SkipType.outro;
-                    final label = isOutro
-                        ? 'Next Episode'
-                        : 'Skip Intro';
+                    final label = isOutro ? 'Next Episode' : 'Skip Intro';
                     return Positioned(
                       right: 16,
                       bottom: 108,
@@ -1742,11 +1719,10 @@ class _GoldenPlayerControlsState
           switchInCurve: GoldenPlayerMotion.curve,
           switchOutCurve: GoldenPlayerMotion.curve,
           transitionBuilder: (child, animation) {
-            final offset =
-                Tween<Offset>(
-                  begin: const Offset(1, 0),
-                  end: Offset.zero,
-                ).animate(animation);
+            final offset = Tween<Offset>(
+              begin: const Offset(1, 0),
+              end: Offset.zero,
+            ).animate(animation);
             return SlideTransition(position: offset, child: child);
           },
           child: _drawer == _GoldenDrawerKind.none
@@ -1820,9 +1796,7 @@ class _GoldenPlayerControlsState
           isHdr: widget.videoIsHdr,
           onPictureChanged: widget.onPictureChanged,
           onPresetPicked: (preset) {
-            unawaited(
-              widget.settingsNotifier.setVideoOutputPreset(preset),
-            );
+            unawaited(widget.settingsNotifier.setVideoOutputPreset(preset));
             widget.onVideoPresetChanged?.call(preset);
           },
           onClose: _closeDrawer,
@@ -1937,20 +1911,14 @@ class _GoldenRail extends StatelessWidget {
                       right: 0,
                       bottom: 0,
                       height: _trackHeight * filled,
-                      child: const ColoredBox(
-                        color: GoldenPlayerColors.gold,
-                      ),
+                      child: const ColoredBox(color: GoldenPlayerColors.gold),
                     ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 10),
-            Icon(
-              data.icon,
-              color: GoldenPlayerColors.goldHighlight,
-              size: 20,
-            ),
+            Icon(data.icon, color: GoldenPlayerColors.goldHighlight, size: 20),
           ],
         ),
       ),
@@ -2088,10 +2056,7 @@ class _CentreTransport extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        _CentreSeekButton(
-          icon: Icons.replay_10_rounded,
-          onPressed: onRewind,
-        ),
+        _CentreSeekButton(icon: Icons.replay_10_rounded, onPressed: onRewind),
         const SizedBox(width: 28),
         // The play/pause button, the same dark translucent circle as the
         // ±10 s seek buttons — no gold fill, so it reads as one row.
@@ -2114,10 +2079,7 @@ class _CentreTransport extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 28),
-        _CentreSeekButton(
-          icon: Icons.forward_10_rounded,
-          onPressed: onForward,
-        ),
+        _CentreSeekButton(icon: Icons.forward_10_rounded, onPressed: onForward),
       ],
     );
   }
@@ -2140,11 +2102,7 @@ class _CentreSeekButton extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onPressed,
-          child: Icon(
-            icon,
-            size: 28,
-            color: GoldenPlayerColors.textPrimary,
-          ),
+          child: Icon(icon, size: 28, color: GoldenPlayerColors.textPrimary),
         ),
       ),
     );
@@ -2156,6 +2114,7 @@ class _BottomBar extends StatelessWidget {
   const _BottomBar({
     required this.controller,
     required this.bufferedFraction,
+    this.downloadedFraction,
     required this.isLive,
     required this.seeking,
     required this.seekPreview,
@@ -2186,6 +2145,10 @@ class _BottomBar extends StatelessWidget {
 
   final VlcPlayerController controller;
   final ValueListenable<double>? bufferedFraction;
+
+  /// Build 107: fraction of the film the temp download holds. Null
+  /// when no temp download is running.
+  final ValueListenable<double>? downloadedFraction;
   final bool isLive;
   final bool seeking;
   final Duration seekPreview;
@@ -2217,8 +2180,7 @@ class _BottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final value = controller.value;
     final duration = value.duration;
-    final canSeek =
-        !isLive && value.isSeekable && duration > Duration.zero;
+    final canSeek = !isLive && value.isSeekable && duration > Duration.zero;
     final position = seeking ? seekPreview : value.position;
 
     return Column(
@@ -2245,6 +2207,7 @@ class _BottomBar extends StatelessWidget {
                   ? _GoldenSeekBar(
                       controller: controller,
                       bufferedFraction: bufferedFraction,
+                      downloadedFraction: downloadedFraction,
                       position: position,
                       duration: duration,
                       onSeekStart: onSeekStart,
@@ -2342,9 +2305,7 @@ class _BottomBar extends StatelessWidget {
             const SizedBox(width: 6),
             if (lockAvailable)
               GoldenIconButton(
-                icon: locked
-                    ? Icons.lock_rounded
-                    : Icons.lock_open_rounded,
+                icon: locked ? Icons.lock_rounded : Icons.lock_open_rounded,
                 onPressed: onToggleLock,
                 active: locked,
                 tooltip: locked ? 'Unlock' : 'Lock',
@@ -2459,6 +2420,7 @@ class _GoldenSeekBar extends StatelessWidget {
   const _GoldenSeekBar({
     required this.controller,
     required this.bufferedFraction,
+    this.downloadedFraction,
     required this.position,
     required this.duration,
     required this.onSeekStart,
@@ -2468,6 +2430,10 @@ class _GoldenSeekBar extends StatelessWidget {
 
   final VlcPlayerController controller;
   final ValueListenable<double>? bufferedFraction;
+
+  /// Build 107: fraction of the film the temp download holds. Null
+  /// when no temp download is running.
+  final ValueListenable<double>? downloadedFraction;
   final Duration position;
   final Duration duration;
   final ValueChanged<double> onSeekStart;
@@ -2481,11 +2447,52 @@ class _GoldenSeekBar extends StatelessWidget {
         .clamp(0, duration.inMilliseconds)
         .toDouble();
     final buffered = bufferedFraction;
+    final downloaded = downloadedFraction;
     return SizedBox(
       height: 28,
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[
+          // Build 107: downloaded band, under the buffered band. Gold:
+          // everything under it seeks instantly from the local temp
+          // file. Drawn the same way as the buffered band (inside the
+          // track's inset, same width rule), so the two agree about
+          // where the film is.
+          if (downloaded != null)
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: kSeekBandTrackInset,
+                ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return ValueListenableBuilder<double>(
+                      valueListenable: downloaded,
+                      builder: (context, fraction, _) {
+                        final width = seekBandWidth(
+                          trackWidth: constraints.maxWidth,
+                          bandFraction: fraction,
+                          positionFraction: totalMs > 0 ? valueMs / totalMs : 0,
+                        );
+                        return Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            width: width,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: GoldenPlayerColors.gold.withValues(
+                                alpha: 0.45,
+                              ),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ),
           // Buffered band, under the slider's track. Build 72: drawn
           // inside the track's own inset (it used to span the full box,
           // so it ended up to 14 px short and a small buffer hid under
@@ -2506,9 +2513,7 @@ class _GoldenSeekBar extends StatelessWidget {
                         final width = seekBandWidth(
                           trackWidth: constraints.maxWidth,
                           bandFraction: fraction,
-                          positionFraction: totalMs > 0
-                              ? valueMs / totalMs
-                              : 0,
+                          positionFraction: totalMs > 0 ? valueMs / totalMs : 0,
                         );
                         return Align(
                           alignment: Alignment.centerLeft,
@@ -2533,26 +2538,17 @@ class _GoldenSeekBar extends StatelessWidget {
               activeTrackColor: GoldenPlayerColors.gold,
               inactiveTrackColor: Colors.white.withValues(alpha: 0.18),
               thumbColor: GoldenPlayerColors.goldHighlight,
-              thumbShape: const RoundSliderThumbShape(
-                enabledThumbRadius: 7,
-              ),
-              overlayColor: GoldenPlayerColors.gold.withValues(
-                alpha: 0.2,
-              ),
-              overlayShape: const RoundSliderOverlayShape(
-                overlayRadius: 14,
-              ),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+              overlayColor: GoldenPlayerColors.gold.withValues(alpha: 0.2),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
             ),
             child: Slider(
               value: totalMs > 0 ? valueMs : 0,
               min: 0,
               max: totalMs > 0 ? totalMs : 1,
               onChangeStart: onSeekStart,
-              onChanged: (v) => onSeekUpdate(
-                Duration(milliseconds: v.round()),
-              ),
-              onChangeEnd: (v) =>
-                  onSeekEnd(Duration(milliseconds: v.round())),
+              onChanged: (v) => onSeekUpdate(Duration(milliseconds: v.round())),
+              onChangeEnd: (v) => onSeekEnd(Duration(milliseconds: v.round())),
             ),
           ),
         ],
@@ -2688,9 +2684,7 @@ class _VolumeSheetState extends State<_VolumeSheet> {
                   activeTrackColor: GoldenPlayerColors.gold,
                   inactiveTrackColor: Colors.white.withValues(alpha: 0.18),
                   thumbColor: GoldenPlayerColors.goldHighlight,
-                  overlayColor: GoldenPlayerColors.gold.withValues(
-                    alpha: 0.2,
-                  ),
+                  overlayColor: GoldenPlayerColors.gold.withValues(alpha: 0.2),
                 ),
                 child: Slider(
                   value: _volume,
@@ -2698,8 +2692,7 @@ class _VolumeSheetState extends State<_VolumeSheet> {
                   max: 100,
                   divisions: 20,
                   onChanged: (v) => setState(() => _volume = v),
-                  onChangeEnd: (v) =>
-                      Navigator.of(context).pop(v.round()),
+                  onChangeEnd: (v) => Navigator.of(context).pop(v.round()),
                 ),
               ),
               const SizedBox(height: 4),

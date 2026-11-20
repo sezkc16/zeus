@@ -61,8 +61,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:background_downloader/background_downloader.dart';
-import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -77,11 +75,11 @@ import 'package:zorox_mpv_pip/zorox_mpv_pip.dart';
 import '../../../../core/domain/entity/multimedia_item.dart';
 import '../../../../core/providers/device_info_provider.dart';
 import '../../../../core/providers/thermal_state.dart';
-import '../../../../core/services/download_service.dart';
 import '../../../../core/services/local_proxy_service.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../../core/services/stream_cache/stream_cache_proxy.dart';
 import '../../../../core/services/stream_cache/stream_cache_service.dart';
+import '../../../../core/storage/app_temp_directory.dart';
 import '../../../../core/storage/episode_watch_repository.dart';
 import '../../../../core/storage/history_repository.dart';
 import '../../../../core/storage/settings_repository.dart';
@@ -103,6 +101,7 @@ import '../../domain/skip_segments.dart';
 import '../../domain/sleep_timer.dart';
 import '../../domain/source_row_status.dart';
 import '../../domain/stream_resolver.dart';
+import '../../domain/temp_download.dart';
 import '../../domain/subtitle_search_target.dart';
 import '../../domain/track_memory.dart';
 import '../player_platform_service.dart';
@@ -113,6 +112,7 @@ import '../vlc/panel/player_panel_data.dart';
 import '../vlc/panel/player_panel_labels.dart';
 import '../vlc/player_startup_view.dart';
 import 'golden_player_controls.dart';
+import 'golden_player_theme.dart';
 import 'mpv_android_options.dart';
 import 'golden_video_drawer.dart' show PictureValues;
 import 'mpv_ios_options.dart';
@@ -369,6 +369,43 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// replayed forever. Reset when a different source opens.
   int _falseEndRecoveries = 0;
 
+  // Build 107: progressive "download while watching" for a host that
+  // does not serve ranges (see `temp_download.dart`). The stream plays
+  // from the start while the film is fetched into the app's temp
+  // directory; a seek to a downloaded position reopens the local temp
+  // file at it, where seeking is instant.
+  /// The temp download for the film on screen, if one is running.
+  TempDownload? _tempDownload;
+
+  /// The download's progress subscription.
+  StreamSubscription<TempDownloadProgress>? _tempDownloadSub;
+
+  /// Fraction of the film the temp download holds (0..1): the gold
+  /// band on the seek bar.
+  final ValueNotifier<double> _downloadedFraction = ValueNotifier<double>(0);
+
+  /// A seek past the downloaded frontier, waiting for its bytes to
+  /// arrive. The player keeps playing the stream meanwhile.
+  Duration? _pendingTempSeek;
+
+  /// The engine is currently playing the local temp file, not the
+  /// stream.
+  bool _playingLocalTemp = false;
+
+  /// The local file address the engine has open, when [_playingLocalTemp].
+  String? _tempLocalUrl;
+
+  /// False ends while playing the local temp file with the download
+  /// still running: each one reopens the local file where playback
+  /// stopped (it has grown since). Capped — a third one falls through
+  /// to the ordinary false-end path.
+  int _localFalseEndCount = 0;
+
+  /// The current source has already had its temp-download probe: one
+  /// probe per source, so a failed probe does not hammer the host on
+  /// every reopen.
+  bool _tempDownloadTried = false;
+
   /// Orders overlapping opens: only the newest goes on after the
   /// proxy has answered.
   int _proxyOpenToken = 0;
@@ -376,17 +413,6 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// A straight-from-the-host retry is being decided: further failure
   /// reports for the same open wait for it.
   bool _proxyRetrying = false;
-
-  /// Build 101: sources the viewer has already answered the no-range
-  /// "Download & Play" question for in this screen, so a stall re-open,
-  /// a failover or a renderer move never asks twice.
-  final Set<int> _noRangePrompted = <int>{};
-
-  /// Build 101: the "Download & Play" progress dialog, while it is up.
-  /// The screen is never left while it is up (it is non-dismissible and
-  /// the only way out is finishing or Cancel), but dispose still pops
-  /// it rather than orphaning a route.
-  BuildContext? _downloadPlayDialogContext;
 
   /// What the reachability check found per source, while resolving: the
   /// original ZoroX's rows read "Checking…" (spinner) while a source is
@@ -953,16 +979,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   @override
   void dispose() {
     _disposed = true;
-    // Build 101: a "Download & Play" progress dialog still up is popped
-    // rather than orphaned (it is non-dismissible, so this only fires if
-    // the screen is torn down from outside).
-    final downloadPlayDialogContext = _downloadPlayDialogContext;
-    _downloadPlayDialogContext = null;
-    if (downloadPlayDialogContext != null) {
-      try {
-        Navigator.of(downloadPlayDialogContext).pop();
-      } catch (_) {}
-    }
+    // Build 107: the temp download ends with the player — its file is
+    // deleted here (see [TempDownload.cancel]), so nothing downloaded
+    // for seeking ever outlives the film.
+    unawaited(_tempDownload?.cancel());
+    _tempDownload = null;
+    unawaited(_tempDownloadSub?.cancel());
+    _tempDownloadSub = null;
     _sleepTimer.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _watchdogTimer?.cancel();
@@ -1018,6 +1041,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _chrome.dispose();
     _videoScale.dispose();
     _bufferedFraction.dispose();
+    _downloadedFraction.dispose();
     _hasSubtitles.dispose();
     _locked.dispose();
     _videoIsHdr.dispose();
@@ -1557,7 +1581,14 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     if (_duration > Duration.zero && target > _duration) {
       target = _duration;
     }
-    unawaited(_player.seek(target));
+    // Build 107: the +10 s / -10 s buttons go through the same seek
+    // handler as the bar — a downloaded target reopens the local temp
+    // file, a target past the frontier waits with progress.
+    unawaited(
+      _handleTempSeekRequest(target).then((handled) {
+        if (!handled && !_disposed) unawaited(_player.seek(target));
+      }),
+    );
   }
 
   /// Enters the Android PiP window.
@@ -2162,6 +2193,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         externalSubtitles: () => _selected?.subtitles ?? const [],
         mediaTitle: () => widget.item.title,
       );
+      // Build 107: every seek asks the temp download first — a
+      // downloaded target reopens the local temp file, a target past
+      // the frontier waits with progress.
+      _adapter.onSeekRequested = _handleTempSeekRequest;
       _adapterCreated = true;
     }
     _engineReady = true;
@@ -3059,6 +3094,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
           }
           _watchdogTimer?.cancel();
           if (firstPlay) {
+            // Build 107: the film is playing — a no-range source earns
+            // its temp download from here (or from the duration event,
+            // whichever lands first; the trigger runs once per source).
+            unawaited(_maybeStartTempDownload());
             // First frame of playback: the video itself has started, so
             // now — and only now — rotate to landscape on a portrait
             // handset. The source list shown before this stays portrait.
@@ -3182,6 +3221,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
           return;
         }
         _duration = duration;
+        // Build 107: the duration just became known — the temp
+        // download's seek maths needs it, so a no-range source earns
+        // its download from here (or from first play, whichever lands
+        // first — the trigger is guarded to run once per source).
+        unawaited(_maybeStartTempDownload());
         // The episode length just became known: for anime, that is
         // what the AniSkip lookup was waiting on (see [_maybeLoadAniSkip]).
         _maybeLoadAniSkip();
@@ -3212,6 +3256,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _subs.add(
       _player.stream.buffering.listen((buffering) {
         if (_disposed) return;
+        // Build 107: the temp download must never starve playback —
+        // while mpv is buffering it trickles at 64 KiB/s, while it
+        // plays it may take up to 1 MiB/s.
+        _tempDownload?.setRateCap(buffering ? 64 * 1024 : 1024 * 1024);
         if (_proxyWatching &&
             _proxySlowWatch.onBuffering(
               buffering: buffering,
@@ -3369,11 +3417,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       // A row tapped during the hold already opened its source; do not
       // overrule the viewer's pick with the auto-pick.
       if (_streamIndex != resolved.index) return;
-      await _openStream(
-        _streamIndex,
-        start: _resumePosition,
-        allowNoRangePrompt: true,
-      );
+      await _openStream(_streamIndex, start: _resumePosition);
     } on StreamResolutionException catch (e) {
       if (_disposed) return;
       setState(() {
@@ -3397,11 +3441,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     bool autoPlay = true,
     bool keepSession = false,
     bool skipPrebuffer = false,
-    // Build 101: only a viewer-facing open (the initial auto-pick, a row
-    // tapped on the startup list, a source picked in the Sources tab)
-    // may ask the no-range "Download & Play" question. Stall re-opens,
-    // failovers, renderer moves and PiP returns never ask.
-    bool allowNoRangePrompt = false,
+    // Build 107: reopen on the local temp file at [start] instead of
+    // the stream. The proxy is skipped entirely and the film plays
+    // from the phone, where seeking is instant.
+    String? localFileUrl,
   }) async {
     if (_disposed || _streams.isEmpty) return;
     // A genuinely different source (failover / source pick) ends the old
@@ -3433,6 +3476,14 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _audioAutoSelectSetFor = -1;
     _adapter.clearError();
     final stream = _streams[index];
+    // Build 107: a different film's temp download is cancelled and its
+    // file deleted when a new film opens — one temp file at a time.
+    // A reopen on the local temp file keeps the same origin URL, so it
+    // never cancels its own download.
+    if (_tempDownload != null && _tempDownload!.url != stream.url) {
+      unawaited(_cancelTempDownload());
+      _tempDownloadTried = false;
+    }
     // A high-bitrate (4K) open waits for a bigger cushion (see the
     // pre-buffer consts); an ordinary open keeps the 5s target.
     final highBitrate = isHighBitrateStream(stream);
@@ -3492,66 +3543,48 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       final previousProxy = _proxyHandle;
       var mediaUrl = stream.url;
       StreamCacheHandle? proxied;
-      final bypass = streamProxyBypassReason(
-        isIos: StreamCacheService.supported,
-        stream: stream,
-        item: widget.item,
-        blocked: _proxyBlocked.contains(index),
-        slow: _proxySlow.contains(index),
-      );
-      if (bypass == null) {
-        final openToken = ++_proxyOpenToken;
-        proxied = await StreamCacheService.instance.open(stream.url);
-        if (_disposed || openToken != _proxyOpenToken) {
-          // Left, or a newer open overtook this one while waiting.
-          if (proxied != null) StreamCacheService.instance.close(proxied.token);
-          return;
-        }
-        if (proxied != null) mediaUrl = proxied.url;
-      } else {
-        _proxyOpenToken++;
-      }
-      _proxyHandle = proxied;
-      _proxyIndex = proxied != null ? index : -1;
-      if (proxied != null) {
-        _proxySlowWatch.arm(DateTime.now().millisecondsSinceEpoch);
-      } else {
+      // Build 107: a reopen on the local temp file skips the proxy
+      // entirely — the film plays from the phone, where seeking is
+      // instant. The previous proxy entry closes after the open (see
+      // the finally below), so the host stops being read twice.
+      String? bypass;
+      if (localFileUrl != null) {
+        mediaUrl = localFileUrl;
+        _proxyHandle = null;
+        _proxyIndex = -1;
         _proxySlowWatch.disarm();
-      }
-      _proxyOff = proxied != null
-          ? null
-          : (bypass ?? StreamCacheService.instance.lastFailure ?? 'start');
-      // Build 101: this host answers every Range request with the whole
-      // file from byte 0 ('no range'), so mpv cannot seek in it — a
-      // skip snaps back to where the film was running. Offer to
-      // download the whole file first and play it from the phone,
-      // where seeking always works. Only on a viewer-facing open, and
-      // once per source in this screen.
-      if (proxied == null &&
-          _proxyOff == 'no range' &&
-          allowNoRangePrompt &&
-          !_noRangePrompted.contains(index)) {
-        _noRangePrompted.add(index);
-        final openToken = _proxyOpenToken;
-        String? localUrl;
-        try {
-          localUrl = await _downloadAndPlayLocal(index);
-        } catch (_) {
-          // A Download & Play failure must never fail the source over
-          // to the next one: fall back to playing from the origin.
-          localUrl = null;
+        _proxyOff = 'local';
+      } else {
+        bypass = streamProxyBypassReason(
+          isIos: StreamCacheService.supported,
+          stream: stream,
+          item: widget.item,
+          blocked: _proxyBlocked.contains(index),
+          slow: _proxySlow.contains(index),
+        );
+        if (bypass == null) {
+          final openToken = ++_proxyOpenToken;
+          proxied = await StreamCacheService.instance.open(stream.url);
+          if (_disposed || openToken != _proxyOpenToken) {
+            // Left, or a newer open overtook this one while waiting.
+            if (proxied != null)
+              StreamCacheService.instance.close(proxied.token);
+            return;
+          }
+          if (proxied != null) mediaUrl = proxied.url;
+        } else {
+          _proxyOpenToken++;
         }
-        // Left, picked another source, or a newer open overtook this
-        // one while the file downloaded: open nothing here.
-        if (_disposed ||
-            openToken != _proxyOpenToken ||
-            _streamIndex != index) {
-          return;
+        _proxyHandle = proxied;
+        _proxyIndex = proxied != null ? index : -1;
+        if (proxied != null) {
+          _proxySlowWatch.arm(DateTime.now().millisecondsSinceEpoch);
+        } else {
+          _proxySlowWatch.disarm();
         }
-        if (localUrl != null) {
-          mediaUrl = localUrl;
-          _proxyOff = 'local';
-        }
+        _proxyOff = proxied != null
+            ? null
+            : (bypass ?? StreamCacheService.instance.lastFailure ?? 'start');
       }
       // Build 98: an HLS film opens through the local proxy
       // (LocalProxyService), which rewrites its playlists so ffmpeg's
@@ -3630,306 +3663,6 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       _waitForPrebuffer(autoPlay: autoPlay);
     }
     if (mounted) setState(() {});
-  }
-
-  /// Build 101: the "Download & Play" answer to a host that does not
-  /// serve ranges (`proxy: off(no range)`): offer to download the whole
-  /// file first, then play it from the phone, where seeking always
-  /// works. Returns the local file address, or null to play from the
-  /// origin as before (the viewer said no, the download failed, or it
-  /// was cancelled).
-  ///
-  /// The download goes through the download manager ([DownloadService],
-  /// the same one the details page uses), into `Documents/ZoroX/`
-  /// under the same name the details page would give it, so a film
-  /// downloaded either way lands once. The offer says plainly what it
-  /// costs: the file's size in free space and the minutes to fetch it.
-  Future<String?> _downloadAndPlayLocal(int index) async {
-    if (_disposed || !mounted) return null;
-    final stream = _streams[index];
-    final downloadService = ref.read(downloadServiceProvider);
-    // Already on the phone (downloaded from the details page, or an
-    // earlier Download & Play)? Open it straight away — no download,
-    // no question.
-    final existing = await downloadService.getDownloadedFile(
-      widget.item,
-      episode: _currentEpisode,
-    );
-    if (existing != null) {
-      return AppUtils.normalizeUrl(existing.path);
-    }
-    // How big is it? A HEAD; "Unknown size" when the host will not say.
-    final metadata = await downloadService
-        .getMetadata(stream.url, headers: stream.headers)
-        .timeout(const Duration(seconds: 8), onTimeout: () => null);
-    if (_disposed || !mounted) return null;
-    final sizeText = metadata?.sizeString ?? 'Unknown size';
-    final download = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => AlertDialog(
-        title: const Text('This source can\'t seek'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'This server doesn\'t support seeking, so skipping jumps '
-              'back to where you were. Download the whole file first and '
-              'play it from your phone — then you can seek anywhere, '
-              'instantly.',
-            ),
-            const SizedBox(height: 12),
-            Text('Size: $sizeText'),
-            const Text(
-              'It needs that much free space, and a few minutes to '
-              'download on Wi-Fi.',
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Play without seeking'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Download & Play'),
-          ),
-        ],
-      ),
-    );
-    if (download != true) return null;
-    if (_disposed || !mounted) return null;
-    // The tracking URL keys the download manager's progress map, so the
-    // progress dialog below reads it — and so a second tap finds the
-    // running task instead of starting a second download.
-    final trackingUrl = _currentVideoUrl;
-    bool started = false;
-    try {
-      started = await _startDownloadAndPlayFile(
-        stream,
-        metadata: metadata,
-        trackingUrl: trackingUrl,
-      );
-    } catch (_) {
-      started = false;
-    }
-    if (!started) {
-      if (mounted) {
-        ref
-            .read(notificationServiceProvider)
-            .showInfo(
-              'Couldn\'t start the download. Check storage and try again.',
-              title: 'Download & Play',
-            );
-      }
-      return null;
-    }
-    return _waitForDownloadAndPlay(trackingUrl);
-  }
-
-  /// Hands one verified source to the download manager: works out the
-  /// folder and the file name, then enqueues. The folder and name mirror
-  /// DownloadLauncher.queueDirect (details page), so a film downloaded
-  /// from the details page and one downloaded here land in the same
-  /// place under the same name. Returns whether the manager took it.
-  Future<bool> _startDownloadAndPlayFile(
-    StreamResult stream, {
-    required DownloadMetadata? metadata,
-    required String trackingUrl,
-  }) async {
-    final downloadService = ref.read(downloadServiceProvider);
-    final episodeData =
-        _currentEpisode ??
-        widget.item.episodes?.firstWhereOrNull(
-          (e) => e.url == _currentVideoUrl,
-        );
-    final saveDir = await downloadService.getDownloadPath(
-      widget.item,
-      episode: episodeData,
-    );
-    final extension = _downloadPlayExtension(stream.url, metadata?.mimeType);
-    String filename;
-    if (episodeData != null &&
-        widget.item.contentType != MultimediaContentType.movie) {
-      final sanitizedEpName = episodeData.name
-          .replaceAll(RegExp(r'[^\w\s-]'), '')
-          .trim();
-      filename =
-          'S${episodeData.season}-E${episodeData.episode} $sanitizedEpName$extension';
-    } else {
-      final sanitizedTitle = widget.item.title
-          .replaceAll(RegExp(r'[^\w\s-]'), '')
-          .trim();
-      filename = '$sanitizedTitle$extension';
-    }
-    return downloadService.startDownload(
-      url: stream.url,
-      filename: filename,
-      directory: saveDir,
-      item: widget.item,
-      episode: episodeData,
-      trackingUrl: trackingUrl,
-      headers: stream.headers,
-    );
-  }
-
-  /// The file extension for a download: the MIME type first, the URL
-  /// second, `.mp4` when neither says (same rule as
-  /// DownloadLauncher's file-extension helper).
-  String _downloadPlayExtension(String url, String? mimeType) {
-    if (mimeType != null) {
-      if (mimeType.contains('video/mp4')) return '.mp4';
-      if (mimeType.contains('video/x-matroska')) return '.mkv';
-      if (mimeType.contains('video/webm')) return '.webm';
-    }
-    final uri = Uri.tryParse(url);
-    if (uri != null) {
-      final path = uri.path.toLowerCase();
-      if (path.endsWith('.mp4')) return '.mp4';
-      if (path.endsWith('.mkv')) return '.mkv';
-      if (path.endsWith('.webm')) return '.webm';
-      if (path.endsWith('.avi')) return '.avi';
-    }
-    return '.mp4';
-  }
-
-  /// Waits for the download keyed by [trackingUrl] to finish, showing
-  /// its progress, and returns the local file address — or null when it
-  /// fails, is cancelled, or this screen stops being the one playing.
-  /// The progress dialog is non-dismissible: the only ways out are the
-  /// download finishing, failing, or the Cancel button — so the pop
-  /// below never closes the player by mistake.
-  Future<String?> _waitForDownloadAndPlay(String trackingUrl) async {
-    final downloadService = ref.read(downloadServiceProvider);
-    final done = Completer<bool>();
-    var taskId = await _downloadTaskId(trackingUrl);
-    final sub = downloadService.updates.listen((update) {
-      final tracking = update.task.metaData.isNotEmpty
-          ? update.task.metaData
-          : update.task.url;
-      if (tracking != trackingUrl) return;
-      taskId ??= update.task.taskId;
-      if (update is TaskStatusUpdate) {
-        if (update.status == TaskStatus.complete) {
-          if (!done.isCompleted) done.complete(true);
-        } else if (update.status == TaskStatus.failed ||
-            update.status == TaskStatus.canceled) {
-          if (!done.isCompleted) done.complete(false);
-        }
-      }
-    });
-    _subs.add(sub);
-    // The download may already have finished between the start and this
-    // listen (a fast file, or a resumed one): the progress map says so.
-    final already = ref.read(downloadProgressProvider)[trackingUrl];
-    if (already != null && already.status == TaskStatus.complete) {
-      if (!done.isCompleted) done.complete(true);
-    }
-    if (_disposed || !mounted) {
-      await sub.cancel();
-      _subs.remove(sub);
-      return null;
-    }
-    var cancelled = false;
-    var progressOpen = false;
-    progressOpen = true;
-    unawaited(
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) {
-          _downloadPlayDialogContext = ctx;
-          return PopScope(
-            canPop: false,
-            child: Consumer(
-              builder: (ctx, ref, _) {
-                final data = ref.watch(downloadProgressProvider)[trackingUrl];
-                final progress = data?.progress ?? 0;
-                final downloaded = data?.downloadedSizeString ?? '0 MB';
-                final total = data?.totalSizeString ?? 'Unknown size';
-                final speed = data?.speedString ?? 'Calculating...';
-                final remaining = data?.timeRemainingString ?? '';
-                return AlertDialog(
-                  title: const Text('Downloading for offline play'),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      LinearProgressIndicator(
-                        value: progress > 0 ? progress : null,
-                      ),
-                      const SizedBox(height: 12),
-                      Text('$downloaded of $total'),
-                      Text(
-                        '$speed${remaining.isNotEmpty ? ' • $remaining' : ''}',
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'The film plays from your phone when this '
-                        'finishes, and you can seek anywhere in it.',
-                      ),
-                    ],
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () async {
-                        cancelled = true;
-                        final id = taskId ?? await _downloadTaskId(trackingUrl);
-                        if (id != null) {
-                          await downloadService.cancelDownload(id, trackingUrl);
-                        }
-                        if (ctx.mounted && progressOpen) {
-                          Navigator.of(ctx).pop();
-                        }
-                      },
-                      child: const Text('Cancel download'),
-                    ),
-                  ],
-                );
-              },
-            ),
-          );
-        },
-      ).then((_) {
-        progressOpen = false;
-        _downloadPlayDialogContext = null;
-      }),
-    );
-    final ok = await done.future;
-    await sub.cancel();
-    _subs.remove(sub);
-    if (progressOpen && mounted) {
-      Navigator.of(context, rootNavigator: true).pop();
-      progressOpen = false;
-    }
-    if (!ok || cancelled) return null;
-    if (_disposed) return null;
-    final file = await downloadService.getDownloadedFile(
-      widget.item,
-      episode: _currentEpisode,
-    );
-    if (file == null) return null;
-    return AppUtils.normalizeUrl(file.path);
-  }
-
-  /// The download manager's task id for [trackingUrl], if one is
-  /// enqueued, running or paused — the same lookup `startDownload`
-  /// does for its dedupe, so Cancel finds the task even before its
-  /// first progress update.
-  Future<String?> _downloadTaskId(String trackingUrl) async {
-    try {
-      final records = await FileDownloader().database.allRecords();
-      final record = records.firstWhereOrNull(
-        (r) =>
-            (r.task.metaData.isNotEmpty ? r.task.metaData : r.task.url) ==
-            trackingUrl,
-      );
-      return record?.task.taskId;
-    } catch (_) {
-      return null;
-    }
   }
 
   /// Build 98: an HLS address through the local proxy, mirroring VLC's
@@ -4923,6 +4656,12 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
           duration: _duration,
         ),
       );
+      // Build 107: the temp download's line — how much of the film
+      // is on the phone, and that it goes away when the player does.
+      final temp = _tempDownload;
+      if (temp != null) {
+        buffer.writeln(tempDownloadOverlayLine(temp.snapshot, _duration));
+      }
     }
     final text = buffer.toString().trimRight();
     if (_mpvStatsText.value != text) _mpvStatsText.value = text;
@@ -5060,7 +4799,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         start = Duration.zero;
       }
     }
-    unawaited(_openStream(index, start: start, allowNoRangePrompt: true));
+    unawaited(_openStream(index, start: start));
   }
 
   /// A source picked in the panel's Sources tab: open it from where the
@@ -5068,7 +4807,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   Future<void> _pickSource(int index) async {
     if (_disposed || index < 0 || index >= _streams.length) return;
     if (index == _streamIndex) return;
-    await _openStream(index, start: _position, allowNoRangePrompt: true);
+    await _openStream(index, start: _position);
   }
 
   /// Re-applies the audio/subtitle picks the viewer made in the panel, when
@@ -5561,13 +5300,39 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// on the same eleven seconds forever.
   void _onFalseEnd() {
     if (_disposed || !mounted) return;
+    // Build 107: a false end while playing the local temp file with
+    // the download still running is just the demuxer reaching the end
+    // of the file as it stands — the file has grown since. Reopen the
+    // local file where playback stopped (capped: a third one falls
+    // through to the ordinary false-end path, which reopens the stream
+    // from the start).
+    if (_playingLocalTemp && _tempLocalUrl != null) {
+      final temp = _tempDownload;
+      if (temp != null &&
+          temp.status != TempDownloadStatus.complete &&
+          _localFalseEndCount < 2) {
+        _localFalseEndCount++;
+        unawaited(
+          _openStream(
+            _streamIndex,
+            start: _position,
+            keepSession: true,
+            skipPrebuffer: true,
+            localFileUrl: _tempLocalUrl,
+          ),
+        );
+        return;
+      }
+    }
     _falseEndRecoveries++;
     switch (falseEndRecovery(recoveries: _falseEndRecoveries)) {
       case FalseEndRecovery.reopenFromStart:
         _proxyBlocked.remove(_streamIndex);
         _proxySlow.remove(_streamIndex);
         try {
-          ref.read(notificationServiceProvider).showInfo(
+          ref
+              .read(notificationServiceProvider)
+              .showInfo(
                 'Stream ended early — reopening from the start',
                 title: 'Stream interrupted',
               );
@@ -5588,6 +5353,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// failover); here the film or episode really finished.
   void _onEnded() {
     if (_disposed || !mounted) return;
+    // Build 107: the episode ended — the temp file is deleted with it
+    // (see [TempDownload.cancel]); the viewer never keeps a film they
+    // only watched through.
+    unawaited(_cancelTempDownload());
     // Sleep timer (v7): "End of episode", or a timed sleep that already
     // fired, stops here — the next episode is neither offered nor
     // auto-played. The ended card keeps its Next button when an episode
@@ -5631,6 +5400,166 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       case EndOfEpisodeAction.ended:
         _showEnded(EndedKind.finished);
     }
+  }
+
+  // Build 107: progressive "download while watching" for a host that
+  // does not serve ranges (see `temp_download.dart`). The stream plays
+  // from the start while the film is fetched into the app's temp
+  // directory; a seek to a downloaded position reopens the local temp
+  // file at it, where seeking is instant, and a seek past the frontier
+  // waits with honest progress. The file is deleted when the player
+  // closes, when the episode ends, or when a new film opens — it never
+  // reaches Documents, and never outlives the film.
+  //
+  // The trigger is the proxy's own verdict: only a source that opened
+  // with `proxy: off(no range)` earns a download, and only once per
+  // source. 206 sources, HLS, DASH and local files never start one.
+
+  /// Starts the temp download for the film on screen, when it earns
+  /// one. Called from first play and from the duration event —
+  /// whichever lands first — and guarded to run once per source.
+  Future<void> _maybeStartTempDownload() async {
+    if (_disposed || _tempDownloadTried || _tempDownload != null) return;
+    if (_duration <= Duration.zero) return;
+    if (_streamIndex < 0 || _streamIndex >= _streams.length) return;
+    final stream = _streams[_streamIndex];
+    if (_proxyOff != 'no range') return;
+    if (!isTempDownloadEligible(stream: stream, item: widget.item)) return;
+    _tempDownloadTried = true;
+    _localFalseEndCount = 0;
+    try {
+      final dir = await appTempDirectory();
+      final temp = TempDownload(
+        url: stream.url,
+        headers: stream.headers,
+        directory: dir,
+        duration: _duration,
+      );
+      if (_disposed) {
+        await temp.dispose();
+        return;
+      }
+      // A different film opened while the directory resolved: it
+      // reset [_tempDownloadTried], so this download belongs to the
+      // old one — drop it.
+      if (_tempDownload != null || !_tempDownloadTried) {
+        await temp.dispose();
+        return;
+      }
+      _tempDownload = temp;
+      _tempDownloadSub = temp.progress.listen(_onTempDownloadProgress);
+      final started = await temp.start();
+      if (_disposed) return;
+      if (!started) {
+        // The probe said this host does serve ranges, or failed:
+        // stream-only, exactly as before.
+        _tempDownload = null;
+        unawaited(_tempDownloadSub?.cancel());
+        _tempDownloadSub = null;
+        await temp.dispose();
+      }
+    } catch (_) {
+      // A temp download that cannot start must never break playback.
+      _tempDownload = null;
+    }
+  }
+
+  /// A progress tick from the temp download: the gold band on the seek
+  /// bar, and — when a seek is waiting for its bytes — the reopen the
+  /// moment they arrive.
+  void _onTempDownloadProgress(TempDownloadProgress progress) {
+    if (_disposed) return;
+    _downloadedFraction.value = progress.fraction(_duration);
+    final pending = _pendingTempSeek;
+    final temp = _tempDownload;
+    if (pending != null && temp != null) {
+      if (temp.isDownloaded(pending)) {
+        _pendingTempSeek = null;
+        unawaited(_openLocalTempFile(pending));
+      } else if (temp.status == TempDownloadStatus.failed) {
+        // The bytes are never coming: give the seek back to the
+        // engine (the stream), rather than opening a local file
+        // that does not hold the target.
+        _pendingTempSeek = null;
+        if (!_disposed) unawaited(_player.seek(pending));
+      }
+    }
+    if (mounted) setState(() {});
+  }
+
+  /// The seek handler the adapter asks first (see
+  /// [MpvVlcController.onSeekRequested]). True means the screen handled
+  /// the seek and the engine is not told to seek.
+  Future<bool> _handleTempSeekRequest(Duration target) async {
+    final temp = _tempDownload;
+    if (temp == null || _disposed) return false;
+    if (_playingLocalTemp) {
+      // Already on the local file: a seek inside what is downloaded
+      // is instant (the engine seeks in a local file natively); a seek
+      // past the frontier waits for its bytes.
+      if (temp.isDownloaded(target)) return false;
+      _setPendingTempSeek(target);
+      return true;
+    }
+    switch (tempSeekAction(
+      download: temp,
+      target: target,
+      duration: _duration,
+    )) {
+      case TempSeekAction.normalSeek:
+        return false;
+      case TempSeekAction.openLocalFile:
+        await _openLocalTempFile(target);
+        return true;
+      case TempSeekAction.waitForDownload:
+        _setPendingTempSeek(target);
+        return true;
+    }
+  }
+
+  /// Records a seek past the downloaded frontier: the player keeps
+  /// playing the stream meanwhile, and [_onTempDownloadProgress]
+  /// reopens the local file the moment the bytes arrive.
+  void _setPendingTempSeek(Duration target) {
+    _pendingTempSeek = target;
+    if (mounted) setState(() {});
+  }
+
+  /// Reopens the film on the local temp file at [target]: the
+  /// `keepSession: true` open keeps the tracker and recorder, so
+  /// history and Continue Watching carry on as if nothing happened.
+  Future<void> _openLocalTempFile(Duration target) async {
+    final temp = _tempDownload;
+    if (temp == null || _disposed) return;
+    final localUrl = AppUtils.normalizeUrl(temp.localFilePath);
+    _playingLocalTemp = true;
+    _tempLocalUrl = localUrl;
+    _pendingTempSeek = null;
+    await _openStream(
+      _streamIndex,
+      start: target,
+      keepSession: true,
+      skipPrebuffer: true,
+      localFileUrl: localUrl,
+    );
+    if (mounted) setState(() {});
+  }
+
+  /// Cancels the temp download and deletes its file (the promise that
+  /// makes the download acceptable): player close, episode end, a new
+  /// film, or the viewer tapping the indicator.
+  Future<void> _cancelTempDownload() async {
+    final temp = _tempDownload;
+    _tempDownload = null;
+    _pendingTempSeek = null;
+    _playingLocalTemp = false;
+    _tempLocalUrl = null;
+    _localFalseEndCount = 0;
+    await _tempDownloadSub?.cancel();
+    _tempDownloadSub = null;
+    if (temp != null) await temp.cancel();
+    _downloadedFraction.value = 0;
+    if (!_disposed && mounted) setState(() {});
   }
 
   /// Raises the up-next countdown card for the following episode.
@@ -6140,6 +6069,9 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
                 child: GoldenPlayerControls(
                   controller: _adapter,
                   bufferedFraction: _bufferedFraction,
+                  // Build 107: the gold "downloaded up to" band on
+                  // the seek bar.
+                  downloadedFraction: _downloadedFraction,
                   chrome: _chrome,
                   fit: _fit,
                   videoScale: _videoScale,
@@ -6274,6 +6206,84 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
                       }
                     : null,
                 isTv: isTv,
+              ),
+
+            // Build 107: a seek past the downloaded frontier waits
+            // here, with honest progress — the film keeps playing
+            // where it is meanwhile, and the moment the bytes arrive
+            // the local file reopens at the target. Cancel drops the
+            // whole temp download and goes back to stream-only.
+            if (_pendingTempSeek != null && _tempDownload != null)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 96,
+                child: Center(
+                  child: ValueListenableBuilder<double>(
+                    valueListenable: _downloadedFraction,
+                    builder: (context, fraction, _) {
+                      final temp = _tempDownload;
+                      final target = _pendingTempSeek;
+                      if (temp == null || target == null) {
+                        return const SizedBox.shrink();
+                      }
+                      final eta = temp.etaTo(target);
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.78),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: GoldenPlayerColors.gold.withValues(
+                              alpha: 0.6,
+                            ),
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Text(
+                              'Downloading to ${goldenFormatTime(target)}'
+                              ' · ${(fraction * 100).round()}%'
+                              '${eta != null ? ' · ETA ${goldenFormatTime(eta)}' : ''}',
+                              style: const TextStyle(
+                                color: GoldenPlayerColors.textPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: 220,
+                              child: LinearProgressIndicator(
+                                value: fraction.clamp(0.0, 1.0),
+                                backgroundColor: Colors.white24,
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                  GoldenPlayerColors.gold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            TextButton(
+                              onPressed: () {
+                                unawaited(_cancelTempDownload());
+                              },
+                              child: const Text(
+                                'Cancel download',
+                                style: TextStyle(
+                                  color: GoldenPlayerColors.gold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ),
 
             // The mpv stats overlay (+34): the live measurements over the
