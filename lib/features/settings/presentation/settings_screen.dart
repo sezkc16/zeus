@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/layout_constants.dart';
+import '../../../core/theme/accent_color.dart';
 import '../../../core/theme/olympus.dart';
 import '../../../core/theme/theme_variant.dart';
 import '../../../core/theme/theme_provider.dart';
@@ -74,9 +75,24 @@ class SettingsScreen extends ConsumerWidget {
                   const OlympusSectionHeader(title: 'APP THEME'),
                   OlympusThemeCards(
                     current: themeVariant,
-                    onChanged: (variant) => ref
-                        .read(themeVariantProvider.notifier)
-                        .setVariant(variant),
+                    // Build 104: a card tap applies the theme AND its
+                    // signature accent together, so the tap visibly
+                    // changes the app (before this the three dark
+                    // variants differed only in surface shades and a
+                    // tap looked like nothing happened). A "More
+                    // themes" chip passes a null accent and leaves
+                    // the accent alone; the accent row below still
+                    // overrides it on its own.
+                    onChanged: (variant, accent) async {
+                      await ref
+                          .read(themeVariantProvider.notifier)
+                          .setVariant(variant);
+                      if (accent != null) {
+                        await ref
+                            .read(accentColorProvider.notifier)
+                            .setAccent(accent);
+                      }
+                    },
                   ),
                   const SizedBox(height: LayoutConstants.spacingLg),
                   const AccentColorPicker(),

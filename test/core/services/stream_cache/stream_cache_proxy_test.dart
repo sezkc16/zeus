@@ -50,6 +50,10 @@ void main() {
     int sideMax = 0,
     int memoryKeep = 256 * kib,
     int maxUnwritten = 4 * mib,
+    // Build 104: a short read-forward cap, so a slow-host fallback
+    // can be tested without waiting out the real 30 s.
+    Duration maxReadForwardWait = const Duration(seconds: 30),
+    int maxReadForwardUnknown = 64 * mib,
   }) async {
     final server = StreamCacheProxyServer(
       directory: dir.path,
@@ -61,6 +65,8 @@ void main() {
       sideMax: sideMax,
       memoryKeep: memoryKeep,
       maxUnwritten: maxUnwritten,
+      maxReadForwardWait: maxReadForwardWait,
+      maxReadForwardUnknown: maxReadForwardUnknown,
     );
     await server.start();
     proxy = server;
@@ -634,6 +640,65 @@ void main() {
       expect(answer.body, film(2 * mib, 200 * kib));
       expect(server.stats(session.token)!.dead, isFalse);
       expect(host.requests.last.rangeStart, 2 * mib);
+    });
+  });
+
+  group('a read-forward skip never starves the player (build 104)', () {
+    test('the index probe on a no-range host is sent to the origin, '
+        'and the film still plays from the start', () async {
+      host.length = 64 * mib;
+      final server = await startProxy(
+        capacity: 96 * mib,
+        readAhead: 4 * mib,
+        sideMax: 2 * mib,
+      );
+      host.ignoreRange = true;
+      final session = server.openSession('${host.base}/film.mkv');
+      // mpv's start: the head, the index at the end, back to the start.
+      await playerGet(session.url, from: 0, take: 64 * kib);
+      final tail = await playerGet(session.url, from: host.length - 300 * kib);
+      // The index probe is NOT read-forwarded: the whole film would
+      // have to be skipped to answer it, so the player is sent to the
+      // host itself (b101 behaviour) instead of loading forever.
+      expect(tail.status, 302);
+      expect(tail.headers['location'], '${host.base}/film.mkv');
+      // The host saw the film's one connection and the short one.
+      expect(host.filmRequests, 2);
+      final stats = server.stats(session.token)!;
+      expect(stats.dead, isFalse);
+      expect(stats.misses, 1);
+      // And the film itself still plays from the start, through the
+      // proxy.
+      final back = await playerGet(session.url, from: 4096, take: 2 * mib);
+      expect(back.body, film(4096, 2 * mib));
+      expect(server.stats(session.token)!.dead, isFalse);
+    });
+
+    test('a far seek on a slow no-range host falls back to the origin '
+        'instead of hanging', () async {
+      host.length = 64 * mib;
+      host.ignoreRange = true;
+      // A host with a speed: 50 ms per 32 KiB is about 640 KiB/s, so
+      // the 30 MiB skip is estimated at about 48 s — far over the
+      // short cap this test uses.
+      host.pace = const Duration(milliseconds: 50);
+      final server = await startProxy(
+        capacity: 96 * mib,
+        readAhead: 4 * mib,
+        maxReadForwardWait: const Duration(seconds: 2),
+      );
+      final session = server.openSession('${host.base}/film.mkv');
+      await playerGet(session.url, from: 0, take: 64 * kib);
+      final clock = Stopwatch()..start();
+      final far = await playerGet(session.url, from: 30 * mib, take: 100 * kib);
+      // The skip is not attempted: the player is sent to the host
+      // itself (b101 behaviour) instead of loading forever.
+      expect(far.status, 302);
+      expect(far.headers['location'], '${host.base}/film.mkv');
+      expect(clock.elapsedMilliseconds, lessThan(10000));
+      final stats = server.stats(session.token)!;
+      expect(stats.dead, isTrue);
+      expect(stats.reason, 'no range');
     });
   });
 

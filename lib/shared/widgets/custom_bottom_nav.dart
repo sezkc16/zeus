@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_bottom_nav/liquid_glass_bottom_nav.dart';
 import 'package:reicons/reicons.dart';
-import 'package:zorox/core/theme/olympus.dart';
 import 'package:zorox/core/theme/theme_variant.dart';
 import 'package:zorox/core/utils/boot_trace.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
@@ -19,9 +18,10 @@ import 'package:zorox/l10n/generated/app_localizations.dart';
 /// no per-platform work, no asset files.
 ///
 /// Olympus Noir (build 102) layers the redesign on top without touching
-/// the package: the selected tab wears the fixed Olympus gold
-/// ([kOlympusGold], not the accent), a soft golden glow sits under the
-/// selected item, and a fine metallic rim outlines the pill. The icons,
+/// the package: the selected tab wears the user's accent colour (build
+/// 104 — it used to be the fixed Olympus gold whichever accent was
+/// picked), a soft glow in the same accent sits under the selected
+/// item, and a fine metallic rim outlines the pill. The icons,
 /// labels, routes and the liquid-glass material itself are exactly as
 /// they were — the glow and rim are Positioned siblings around the
 /// package bar inside [_OlympusDockTreatment], never inside the package.
@@ -191,10 +191,10 @@ class CustomBottomNavBar extends StatelessWidget {
       impellerSupported: impellerSupported,
       // A little lower than the package default (see [_kBottomMargin]).
       insets: _kBottomMargin,
-      // Olympus gold for the selected tab (the fixed design gold, not
-      // the accent — the dock matches the approved mockup whichever
-      // accent the user picked); muted grey otherwise.
-      activeColor: kOlympusGold,
+      // Olympus accent for the selected tab (build 104: the user's
+      // accent colour, so the dock follows the accent row in
+      // Settings); muted grey otherwise.
+      activeColor: colorScheme.primary,
       inactiveColor: theme.brightness == Brightness.dark
           ? const Color(0xFF9D9A92)
           : colorScheme.onSurfaceVariant,
@@ -256,6 +256,9 @@ class _OlympusDockTreatment extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final paddingBottom = MediaQuery.paddingOf(context).bottom;
+    // Build 104: the glow and rim wear the user's accent colour (the
+    // dock used to be fixed gold whichever accent was picked).
+    final accent = Theme.of(context).colorScheme.primary;
     // The package's side margin: insets, or half that under 360 px.
     final horizontalMargin = screenWidth < 360
         ? CustomBottomNavBar._kBottomMargin / 2
@@ -270,7 +273,7 @@ class _OlympusDockTreatment extends StatelessWidget {
     return Positioned.fill(
       child: Stack(
         children: [
-          // Soft golden glow under the selected tab, behind the glass.
+          // Soft glow under the selected tab, behind the glass.
           AnimatedPositioned(
             duration: const Duration(milliseconds: 400),
             curve: Curves.elasticOut,
@@ -283,8 +286,8 @@ class _OlympusDockTreatment extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
                     colors: [
-                      kOlympusGold.withValues(alpha: 0.45),
-                      kOlympusGold.withValues(alpha: 0.0),
+                      accent.withValues(alpha: 0.45),
+                      accent.withValues(alpha: 0.0),
                     ],
                   ),
                 ),
@@ -304,7 +307,7 @@ class _OlympusDockTreatment extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(34),
                   border: Border.all(
-                    color: kOlympusGold.withValues(alpha: 0.30),
+                    color: accent.withValues(alpha: 0.30),
                     width: 1,
                   ),
                 ),

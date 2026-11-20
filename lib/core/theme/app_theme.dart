@@ -8,12 +8,13 @@ import 'theme_variant.dart';
 
 /// The surfaces a dark variant paints on.
 ///
-/// Arena Gold is the palette the app has shipped since the rebrand
-/// (obsidian scaffold, #161618 cards). Midnight takes the same structure
-/// to near-black; Liquid Glass keeps the structure with a cooler tint,
-/// its glass-ness carried by [ZoroxThemeExtension] rather than by these
-/// colours. Text and accent colours are identical across all three —
-/// only surfaces move.
+/// Arena Gold is the warm dark theme, Liquid Glass the cool
+/// teal-green one, Obsidian the neutral deep black — the three tints
+/// are far enough apart to read at a glance (build 104: the theme
+/// cards used to look identical because all three dark palettes were
+/// the same near-black). Midnight takes the same structure to
+/// near-black. Text and accent colours are identical across all of
+/// them — only surfaces move.
 class _DarkPalette {
   const _DarkPalette({
     required this.scaffold,
@@ -35,13 +36,17 @@ class _DarkPalette {
 }
 
 const _arenaGoldPalette = _DarkPalette(
-  scaffold: Color(0xFF0A0A0B),
-  surface: Color(0xFF161618),
-  dialog: Color(0xFF17171A),
-  card: Color(0xFF161618),
-  inputFill: Color(0xFF17171A),
-  divider: Color(0xFF1E1E21),
-  appBar: Color(0xFF0A0A0B),
+  // Build 104: Imperial is the warm one — brown-black surfaces so it
+  // reads apart from Obsidian's neutral deep black at a glance (the
+  // three theme cards used to look identical because all three dark
+  // palettes were the same near-black).
+  scaffold: Color(0xFF0D0A07),
+  surface: Color(0xFF1B150E),
+  dialog: Color(0xFF1D1811),
+  card: Color(0xFF1B150E),
+  inputFill: Color(0xFF1D1811),
+  divider: Color(0xFF2B2318),
+  appBar: Color(0xFF0D0A07),
 );
 
 const _midnightPalette = _DarkPalette(
@@ -55,13 +60,17 @@ const _midnightPalette = _DarkPalette(
 );
 
 const _liquidGlassPalette = _DarkPalette(
-  scaffold: Color(0xFF0B0D12),
-  surface: Color(0xFF15181F),
-  dialog: Color(0xFF171B23),
-  card: Color(0xFF15181F),
-  inputFill: Color(0xFF171B23),
-  divider: Color(0xFF1F2430),
-  appBar: Color(0xFF0B0D12),
+  // Build 104: Aurora is the cool one — teal-green-black surfaces so
+  // it reads apart from Obsidian's neutral deep black at a glance
+  // (the three theme cards used to look identical because all three
+  // dark palettes were the same near-black).
+  scaffold: Color(0xFF081210),
+  surface: Color(0xFF122019),
+  dialog: Color(0xFF141F18),
+  card: Color(0xFF122019),
+  inputFill: Color(0xFF141F18),
+  divider: Color(0xFF1F2E26),
+  appBar: Color(0xFF081210),
 );
 
 /// Olympus Noir (build 102) — cinematic gold on obsidian: the deepest

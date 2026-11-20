@@ -77,6 +77,19 @@ const int kStreamCacheMaxUnwritten = 48 * kMiB;
 /// likely a playlist or an error page than a film.
 const int kStreamCacheMinLength = 8 * kMiB;
 
+/// Build 104: the longest a read-forward skip may be estimated to
+/// take, from the host speed observed so far. A skip longer than this
+/// is not attempted — the film is given up to the origin instead,
+/// which plays from the start (b101 behaviour). Without the cap a
+/// far skip holds the player's connection with nothing coming back
+/// for minutes: the film loads forever (b103, Twinkling Watermelon).
+const Duration kStreamCacheMaxReadForwardWait = Duration(seconds: 30);
+
+/// Build 104: the longest skip attempted when the host speed is not
+/// known yet (a fresh session, no bytes in). A fresh far seek cannot
+/// be timed, so it is capped by distance instead.
+const int kStreamCacheMaxReadForwardUnknown = 64 * kMiB;
+
 /// What the proxy knows about one open film, for the player's overlay.
 class StreamCacheStats {
   const StreamCacheStats({
@@ -211,6 +224,8 @@ class StreamCacheProxyServer {
     this.minLength = kStreamCacheMinLength,
     this.connectTimeout = const Duration(seconds: 10),
     this.responseTimeout = const Duration(seconds: 15),
+    this.maxReadForwardWait = kStreamCacheMaxReadForwardWait,
+    this.maxReadForwardUnknown = kStreamCacheMaxReadForwardUnknown,
     HttpClient Function()? clientFactory,
   }) : _clientFactory = clientFactory ?? HttpClient.new;
 
@@ -235,6 +250,17 @@ class StreamCacheProxyServer {
   final int minLength;
   final Duration connectTimeout;
   final Duration responseTimeout;
+
+  /// Build 104: the longest a read-forward skip may be estimated to
+  /// take (see [kStreamCacheMaxReadForwardWait]). A skip estimated
+  /// longer than this is refused in [_openUpstream], and a skip
+  /// running past it is cut off in [_anchorInner] — either way the
+  /// film is given up to the origin instead of loading forever.
+  final Duration maxReadForwardWait;
+
+  /// Build 104: the longest skip attempted when the host speed is
+  /// not known yet (see [kStreamCacheMaxReadForwardUnknown]).
+  final int maxReadForwardUnknown;
   final HttpClient Function() _clientFactory;
 
   HttpServer? _server;
@@ -636,6 +662,13 @@ class StreamCacheProxyServer {
 
   /// Build 78: answers one short request with its own request to the
   /// host, piped straight to the player.
+  ///
+  /// Build 104: a side read is the film's index (or another probe) —
+  /// it never read-forwards. On a host that ignores Range the whole
+  /// film would have to be skipped to answer it, and the player sits
+  /// waiting for the probe with nothing playing (b103: Instant loads
+  /// forever). So the host's 200 is refused here and the player is
+  /// sent to the origin, which plays from the start (b101 behaviour).
   Future<void> _side(
     HttpRequest request,
     _Session session,
@@ -648,7 +681,12 @@ class StreamCacheProxyServer {
     if (endExclusive <= start) endExclusive = total;
     final _Upstream upstream;
     try {
-      upstream = await _openUpstream(session, start, remember: false);
+      upstream = await _openUpstream(
+        session,
+        start,
+        remember: false,
+        allowReadForward: false,
+      );
       if (upstream.total != total) {
         _discard(upstream.response);
         throw const _Unusable('length changed');
@@ -811,10 +849,24 @@ class StreamCacheProxyServer {
       // on a slow host. The deadline is on silence, not on the whole
       // skip: as long as bytes keep arriving (skipped or stored) the
       // wait goes on; only a stall gives the film up.
+      //
+      // Build 104: the silence deadline is not enough — a host that
+      // stays slow but never stalls would extend it forever while
+      // the skip crawls. A read-forward anchor also gets a hard
+      // deadline ([maxReadForwardWait] past the response timeout):
+      // past it the film is given up to the origin (b101 behaviour)
+      // instead of loading forever.
+      final hardDeadline = upstream.readForward
+          ? DateTime.now().add(maxReadForwardWait + responseTimeout)
+          : null;
       var deadline = DateTime.now().add(responseTimeout);
       var lastProgress = offset + session.skipped;
       while (!session.dead && !session.complete && session.end <= offset) {
-        final left = deadline.difference(DateTime.now());
+        var left = deadline.difference(DateTime.now());
+        if (hardDeadline != null) {
+          final hardLeft = hardDeadline.difference(DateTime.now());
+          if (hardLeft < left) left = hardLeft;
+        }
         if (left <= Duration.zero) throw const _Unusable('no data');
         await session.waitForData(left);
         final progress = session.end + session.skipped;
@@ -937,10 +989,15 @@ class StreamCacheProxyServer {
   /// following redirects the way ffmpeg does (same headers to the new
   /// place; later requests start at the last place that worked, and go
   /// back to the first address when that stops answering).
+  ///
+  /// [allowReadForward] is false for a side read (the film's index):
+  /// a host that ignores Range is refused there instead of skipped
+  /// past (build 104 — a skipped index probe loads the film forever).
   Future<_Upstream> _openUpstream(
     _Session session,
     int offset, {
     bool remember = true,
+    bool allowReadForward = true,
   }) async {
     final client = _client;
     if (client == null) throw const _Unusable('stopped');
@@ -1014,12 +1071,21 @@ class StreamCacheProxyServer {
               contentType: contentType,
             );
           }
-          return _Upstream(
-            response: _skipPrefix(response, offset, session),
-            total: length,
-            contentType: contentType,
-            readForward: true,
-          );
+          // Build 104: read-forward only when it is allowed here
+          // and the skip is short enough to be worth the wait (see
+          // [_readForwardWorthIt]). A skip that would hold the
+          // player for minutes falls through to 'no range' instead:
+          // the caller gives the film up to the origin, which plays
+          // from the start (b101 behaviour) rather than loading
+          // forever.
+          if (allowReadForward && _readForwardWorthIt(session, offset)) {
+            return _Upstream(
+              response: _skipPrefix(response, offset, session),
+              total: length,
+              contentType: contentType,
+              readForward: true,
+            );
+          }
         }
       }
       _discard(response);
@@ -1033,6 +1099,20 @@ class StreamCacheProxyServer {
       throw _Unusable(status == HttpStatus.ok ? 'no range' : 'http $status');
     }
     throw const _Unusable('redirect');
+  }
+
+  /// Build 104: whether a read-forward skip of [offset] bytes is
+  /// worth attempting, from the host speed observed so far. A skip
+  /// estimated past [maxReadForwardWait] is refused — the player
+  /// would sit loading for that long with nothing coming back. With
+  /// no speed observed yet (a fresh session) the skip is capped by
+  /// distance instead ([maxReadForwardUnknown]).
+  bool _readForwardWorthIt(_Session session, int offset) {
+    final rate = session.hostRate.perSecond;
+    if (rate > 0) {
+      return offset / rate <= maxReadForwardWait.inSeconds;
+    }
+    return offset <= maxReadForwardUnknown;
   }
 
   /// Build 103: drops the first [skip] bytes of a host answer that

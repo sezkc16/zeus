@@ -70,21 +70,21 @@ void main() {
   });
 
   group('each variant produces a ThemeData', () {
-    test('Arena Gold is the dark theme that shipped before', () {
+    test('Arena Gold is the warm dark theme', () {
       final theme = AppTheme.createDarkTheme(
         null,
         variant: ZoroxThemeVariant.arenaGold,
       );
       expect(theme.brightness, Brightness.dark);
-      expect(theme.scaffoldBackgroundColor, const Color(0xFF0A0A0B));
-      expect(theme.cardTheme.color, const Color(0xFF161618));
-      expect(theme.colorScheme.surface, const Color(0xFF161618));
+      expect(theme.scaffoldBackgroundColor, const Color(0xFF0D0A07));
+      expect(theme.cardTheme.color, const Color(0xFF1B150E));
+      expect(theme.colorScheme.surface, const Color(0xFF1B150E));
       expect(theme.extension<ZoroxThemeExtension>()?.isGlass, isFalse);
     });
 
     test('the default build is Arena Gold', () {
       final theme = AppTheme.createDarkTheme(null);
-      expect(theme.scaffoldBackgroundColor, const Color(0xFF0A0A0B));
+      expect(theme.scaffoldBackgroundColor, const Color(0xFF0D0A07));
       expect(theme.extension<ZoroxThemeExtension>()?.isGlass, isFalse);
     });
 
@@ -116,15 +116,15 @@ void main() {
       expect(theme.colorScheme.primary, arenaGold.colorScheme.primary);
     });
 
-    test('Liquid Glass is dark, cooler, and marked glass', () {
+    test('Liquid Glass is dark, cool teal-green, and marked glass', () {
       final theme = AppTheme.createDarkTheme(
         null,
         variant: ZoroxThemeVariant.liquidGlass,
       );
       expect(theme.brightness, Brightness.dark);
-      expect(theme.scaffoldBackgroundColor, const Color(0xFF0B0D12));
-      expect(theme.cardTheme.color, const Color(0xFF15181F));
-      expect(theme.colorScheme.surface, const Color(0xFF15181F));
+      expect(theme.scaffoldBackgroundColor, const Color(0xFF081210));
+      expect(theme.cardTheme.color, const Color(0xFF122019));
+      expect(theme.colorScheme.surface, const Color(0xFF122019));
       expect(theme.extension<ZoroxThemeExtension>()?.isGlass, isTrue);
       // Gold accent kept: the same seed produces the same primary as
       // Arena Gold — only the surfaces moved.
@@ -141,7 +141,7 @@ void main() {
         variant: ZoroxThemeVariant.frost,
       );
       expect(theme.brightness, Brightness.dark);
-      expect(theme.scaffoldBackgroundColor, const Color(0xFF0A0A0B));
+      expect(theme.scaffoldBackgroundColor, const Color(0xFF0D0A07));
       expect(theme.extension<ZoroxThemeExtension>()?.isGlass, isFalse);
     });
 
@@ -619,8 +619,8 @@ void main() {
           null,
           variant: ZoroxThemeVariant.liquidGlass,
         );
-        expect(darkTheme.scaffoldBackgroundColor, const Color(0xFF0B0D12));
-        expect(darkTheme.colorScheme.surface, const Color(0xFF15181F));
+        expect(darkTheme.scaffoldBackgroundColor, const Color(0xFF081210));
+        expect(darkTheme.colorScheme.surface, const Color(0xFF122019));
 
         final light = AppTheme.createLightTheme(
           null,

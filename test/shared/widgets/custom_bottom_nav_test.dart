@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_bottom_nav/liquid_glass_bottom_nav.dart';
 import 'package:reicons/reicons.dart';
-import 'package:zorox/core/theme/olympus.dart';
 import 'package:zorox/core/theme/theme_variant.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
 import 'package:zorox/shared/widgets/custom_bottom_nav.dart';
@@ -70,20 +69,22 @@ void main() {
     expect(tapped, 3);
   });
 
-  testWidgets('the selected tab wears the gold accent', (tester) async {
+  testWidgets('the selected tab wears the theme accent', (tester) async {
     await pump(tester, Brightness.dark, currentIndex: 2);
     await tester.pumpAndSettle();
-    // Olympus Noir: the dock's selected state is the fixed design gold,
-    // not the theme primary, so it matches the approved mockup whichever
-    // accent the user picked.
+    // Build 104: the dock's selected state follows the user's accent
+    // (colorScheme.primary), not the fixed Olympus gold.
+    final primary = Theme.of(
+      tester.element(find.byType(LiquidGlassNavBar)),
+    ).colorScheme.primary;
     expect(
       tester.widget<Icon>(find.byIcon(ReiconFilledIcons.puzzle)).color,
-      kOlympusGold,
+      primary,
     );
     // ... and an unselected tab does not wear it.
     expect(
       tester.widget<Icon>(find.byIcon(ReiconFilledIcons.home)).color,
-      isNot(kOlympusGold),
+      isNot(primary),
     );
   });
 
@@ -269,10 +270,10 @@ void main() {
         find.byType(LiquidGlassNavBar),
       );
       expect(bar.inactiveColor, theme.colorScheme.onSurfaceVariant);
-      // Olympus Noir: the selected tab is the fixed design gold, not the
-      // theme primary — the dark glass pill keeps gold legible in both
-      // brightnesses.
-      expect(bar.activeColor, kOlympusGold);
+      // Build 104: the selected tab follows the theme accent, not the
+      // fixed Olympus gold — the dark glass pill keeps the accent
+      // legible in both brightnesses.
+      expect(bar.activeColor, theme.colorScheme.primary);
       expect(bar.labelStyle?.shadows, isNotEmpty);
     });
 

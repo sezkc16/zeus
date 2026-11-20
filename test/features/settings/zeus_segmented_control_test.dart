@@ -39,6 +39,7 @@ class _MemorySettings extends SettingsRepository {
   String? variant;
   String? lastDark;
   String? mode;
+  String? accent;
 
   @override
   String? getThemeVariant() => variant;
@@ -52,6 +53,10 @@ class _MemorySettings extends SettingsRepository {
   String? getThemeMode() => mode;
   @override
   Future<void> saveThemeMode(String mode) async => this.mode = mode;
+  @override
+  String? getAccentColor() => accent;
+  @override
+  Future<void> saveAccentColor(String name) async => accent = name;
 
   @override
   bool isWatchHistoryEnabled() => true;
@@ -71,8 +76,6 @@ class _MemorySettings extends SettingsRepository {
   bool getDevLoadAssets() => false;
   @override
   bool getDevQoeLog() => false;
-  @override
-  String? getAccentColor() => null;
 }
 
 class _NoTokens extends SecureTokenStorage {
@@ -309,6 +312,16 @@ void main() {
       await tester.pumpAndSettle();
       expect(settings.variant, 'obsidian');
       expect(settings.lastDark, 'obsidian');
+      expect(settings.mode, 'dark');
+      // Build 104: the card also applies its signature accent, so the
+      // tap visibly changes the app — Obsidian is gold, Aurora is
+      // jade-green. The "More themes" chips above left it alone.
+      expect(settings.accent, 'gold');
+
+      await tester.tap(find.text('Aurora'));
+      await tester.pumpAndSettle();
+      expect(settings.variant, 'liquidGlass');
+      expect(settings.accent, 'green');
       expect(settings.mode, 'dark');
     });
   });
