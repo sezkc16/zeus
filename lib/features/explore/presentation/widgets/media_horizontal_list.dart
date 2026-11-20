@@ -7,6 +7,7 @@ import '../../../../core/router/app_router.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
 
 import '../../../../core/utils/layout_constants.dart';
+import '../../../../core/theme/olympus.dart';
 import '../../../../shared/widgets/cards_wrapper.dart';
 
 import '../../../../core/utils/responsive_breakpoints.dart';
@@ -164,29 +165,31 @@ class _MediaHorizontalListState extends State<MediaHorizontalList> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Title with Blue Underline Accent
+              // Title with a gold vertical bar — Olympus Noir (build
+              // 102); the blue/gold underline bar is gone.
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                child: Row(
                   children: [
-                    Text(
-                      widget.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: isDesktop ? 24 : 20,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
+                    Container(
+                      width: 3,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: kOlympusGold,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Container(
-                      width: isDesktop ? 30 : 20, // Accent width
-                      height: 3,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        borderRadius: BorderRadius.circular(2),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        widget.title.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                       ),
                     ),
                   ],

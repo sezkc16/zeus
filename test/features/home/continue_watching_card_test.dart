@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zorox/core/domain/entity/multimedia_item.dart';
 import 'package:zorox/core/storage/history_repository.dart';
+import 'package:zorox/core/theme/olympus.dart';
 import 'package:zorox/features/home/presentation/widgets/continue_watching_card.dart';
 import 'package:zorox/shared/widgets/cards_wrapper.dart';
 
@@ -223,7 +224,7 @@ void main() {
       expect(
         track.a,
         lessThan(1.0),
-        reason: 'the track must stay clearly darker than the white fill',
+        reason: 'the track must stay clearly darker than the gold fill',
       );
 
       // What is actually on the canvas: a full-width track rect first, then
@@ -241,7 +242,7 @@ void main() {
         find.byType(LinearProgressIndicator),
         paints
           ..rect(rect: const Rect.fromLTRB(0, 0, 360, 4), color: track)
-          ..rect(rect: const Rect.fromLTRB(0, 0, 90, 4), color: Colors.white),
+          ..rect(rect: const Rect.fromLTRB(0, 0, 90, 4), color: kOlympusGold),
       );
     });
 

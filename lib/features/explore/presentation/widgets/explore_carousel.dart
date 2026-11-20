@@ -12,6 +12,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import '../../../../core/theme/olympus.dart';
 import '../../../../core/utils/image_utils.dart';
 import '../../../../core/utils/layout_constants.dart';
 import '../../../../core/utils/title_quality.dart';
@@ -839,6 +840,12 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
     required bool isFirstSlide,
   }) {
     if (_isHomeHero(isDesktop)) {
+      // Olympus Noir (build 102): Home's phone hero is the cinematic
+      // left-aligned layout. Browse (showHomeHero only) keeps design A,
+      // so the redesign stays scoped to Home.
+      if (widget.showPreviewActions) {
+        return _buildOlympusHeroContent(context, movie);
+      }
       return _buildHomeHeroContent(context, movie, theme);
     }
     final l10n = AppLocalizations.of(context)!;
@@ -1054,9 +1061,8 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
       movie,
       language: found?.language,
       statusLabel: found?.status,
-      scoreIsImdb: found != null &&
-          found.scoreIsImdb &&
-          movie.score == found.imdbScore,
+      scoreIsImdb:
+          found != null && found.scoreIsImdb && movie.score == found.imdbScore,
     );
     final hasMeta = heroMetaParts(movie).isNotEmpty;
 
@@ -1096,6 +1102,366 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
           child: Text(l10n.viewDetails, maxLines: 1, softWrap: false),
         ),
       ],
+    );
+  }
+
+  /// Olympus Noir hero (build 102) — the cinematic left-aligned layout
+  /// that replaces design A on Home only: gold "NOW FEATURED" label,
+  /// large title, one meta line, real-data badge row, metallic-gold
+  /// "Explore Film" button + bookmark. Every part is the item's own
+  /// data (plugin + TMDB enrichment, same as design A) — nothing is
+  /// hardcoded, so any featured title renders in this language.
+  Widget _buildOlympusHeroContent(BuildContext context, MultimediaItem plain) {
+    final found = watchHeroEnrichment(ref, plain);
+    final movie = found?.applyTo(plain) ?? plain;
+    final logoUrl = movie.logoUrl;
+    // My List state for the current slide, watched the same way the
+    // details screen watches it (library match on the item URL).
+    final isBookmarked = ref.watch(
+      libraryProvider.select(
+        (state) =>
+            state is LibrarySuccess &&
+            state.items.any((i) => i.url == movie.url),
+      ),
+    );
+    // The score and whether it is IMDb's — the same rule design A used
+    // (an add-on title's score is IMDb's, a plugin's is a plain star):
+    // Olympus drops the certification chip and the language, but the
+    // score keeps its IMDb badge when it is one.
+    final badges = heroBadges(
+      movie,
+      language: found?.language,
+      statusLabel: found?.status,
+      scoreIsImdb:
+          found != null && found.scoreIsImdb && movie.score == found.imdbScore,
+    );
+    final qualityBadges = statedQualityBadges(movie.title, tags: movie.tags);
+
+    return Column(
+      key: const ValueKey('olympus-hero-content'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Gold "NOW FEATURED" label with a hairline to its right.
+        Row(
+          children: [
+            const Text(
+              'NOW FEATURED',
+              maxLines: 1,
+              softWrap: false,
+              style: TextStyle(
+                color: kOlympusGold,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2.0,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Container(
+                height: 1,
+                color: kOlympusGold.withValues(alpha: 0.4),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        // The title: its own logo when the item has one, else its name
+        // in large uppercase text.
+        if (logoUrl != null && logoUrl.isNotEmpty)
+          _buildOlympusLogo(logoUrl, movie.title)
+        else
+          _buildOlympusTitleText(movie.title),
+        if (_olympusMetaParts(movie).isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _buildOlympusMetaLine(movie),
+        ],
+        if (badges.score != null || qualityBadges.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              key: const ValueKey('olympus-hero-badges'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (badges.score != null)
+                  Container(
+                    height: 22,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (badges.scoreIsImdb)
+                          Container(
+                            height: 16,
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF5C518),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: const Text(
+                              'IMDb',
+                              maxLines: 1,
+                              softWrap: false,
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontSize: 10,
+                                height: 1.0,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          )
+                        else
+                          const Icon(
+                            Icons.star_rounded,
+                            size: 14,
+                            color: Color(0xFFF5C518),
+                          ),
+                        const SizedBox(width: 3),
+                        Text(
+                          badges.score!,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                for (final badge in qualityBadges) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    height: 22,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    child: Text(
+                      // "Dolby Vision" reads as "Dolby" on the badge.
+                      badge == 'Dolby Vision' ? 'Dolby' : badge,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            // Explore Film — metallic gold, same destination as tapping
+            // the poster. Flexible with a scale-down label: on a narrow
+            // phone the button shrinks instead of overflowing the row.
+            Flexible(
+              child: FilledButton.icon(
+                key: const ValueKey('olympus-hero-explore-film'),
+                onPressed: () => _openMovie(context, plain),
+                icon: const Icon(Icons.play_arrow_rounded, size: 20),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('EXPLORE FILM', maxLines: 1, softWrap: false),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: kOlympusGold,
+                  foregroundColor: Colors.black,
+                  elevation: 0,
+                  minimumSize: const Size(0, 48),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  tapTargetSize: MaterialTapTargetSize.padded,
+                  textStyle: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Bookmark — filled gold once the item is saved.
+            SizedBox(
+              width: 48,
+              height: 48,
+              child: OutlinedButton(
+                key: const ValueKey('olympus-hero-bookmark'),
+                onPressed: () => _toggleLibrary(movie),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: isBookmarked ? kOlympusGold : Colors.white,
+                  backgroundColor: isBookmarked
+                      ? kOlympusGold.withValues(alpha: 0.20)
+                      : Colors.black.withValues(alpha: 0.25),
+                  elevation: 0,
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  side: BorderSide(
+                    color: isBookmarked
+                        ? kOlympusGold
+                        : Colors.white.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Icon(
+                  isBookmarked
+                      ? Icons.bookmark_added_rounded
+                      : Icons.bookmark_add_outlined,
+                  size: 22,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// The Olympus meta line's parts, in order: year, up to [maxGenres]
+  /// genres (uppercased), runtime. Only what the item has; empty when
+  /// it has none of them.
+  List<String> _olympusMetaParts(MultimediaItem movie, {int maxGenres = 1}) {
+    final year = movie.year;
+    return <String>[
+      if (year != null && year > 1800 && year < 2200) '$year',
+      ...heroGenres(movie).take(maxGenres).map((g) => g.toUpperCase()),
+      ?heroRuntimeLabel(movie.duration),
+    ];
+  }
+
+  /// The Olympus meta line as text ("2026 • Science Fiction • 2h 15m"),
+  /// or null when there is nothing to say.
+  String? _olympusMetaLine(MultimediaItem movie, {int maxGenres = 1}) {
+    final parts = _olympusMetaParts(movie, maxGenres: maxGenres);
+    return parts.isEmpty ? null : parts.join(kHeroDot);
+  }
+
+  /// "2026 • Action, Adventure • 2h 53m" on ONE small line. A second
+  /// genre is shown only when the line still fits; if even one genre is
+  /// too wide the line scales down. It never wraps — the same rule
+  /// design A used, so long genre names stay legible instead of
+  /// shrinking to nothing.
+  Widget _buildOlympusMetaLine(MultimediaItem movie) {
+    const style = TextStyle(
+      color: Colors.white,
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.5,
+      shadows: [Shadow(color: Color(0x99000000), blurRadius: 8)],
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scaler = MediaQuery.textScalerOf(context);
+        var line = _olympusMetaLine(movie)!;
+        final wider = _olympusMetaLine(movie, maxGenres: 2)!;
+        if (wider != line) {
+          final painter = TextPainter(
+            text: TextSpan(text: wider, style: style),
+            textDirection: TextDirection.ltr,
+            textScaler: scaler,
+            maxLines: 1,
+          )..layout();
+          if (painter.width <= constraints.maxWidth) line = wider;
+          painter.dispose();
+        }
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            line,
+            key: const ValueKey('olympus-hero-meta'),
+            maxLines: 1,
+            softWrap: false,
+            style: style,
+          ),
+        );
+      },
+    );
+  }
+
+  /// The Olympus title as text: uppercase, left-aligned, it wraps then
+  /// shrinks to fit the box — it is never cut off with an ellipsis.
+  Widget _buildOlympusTitleText(String title) {
+    return LayoutBuilder(
+      builder: (context, constraints) => ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 100),
+        child: FittedBox(
+          key: const ValueKey('olympus-hero-title'),
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+            child: Text(
+              title.toUpperCase(),
+              textAlign: TextAlign.left,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 38,
+                fontWeight: FontWeight.w900,
+                height: 1.02,
+                letterSpacing: 0.5,
+                shadows: [Shadow(color: Color(0x99000000), blurRadius: 12)],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The Olympus title's logo, left-aligned. While it loads the space is
+  /// kept; if it fails the title's name stands in, so a slide is never
+  /// left without a title.
+  Widget _buildOlympusLogo(String logoUrl, String title) {
+    const height = 72.0;
+    const width = 240.0;
+    if (logoUrl.toLowerCase().endsWith('.svg')) {
+      return SvgPicture.network(
+        logoUrl,
+        height: height,
+        width: width,
+        fit: BoxFit.contain,
+        alignment: Alignment.centerLeft,
+        placeholderBuilder: (context) =>
+            const SizedBox(height: height, width: width),
+        errorBuilder: (context, error, stackTrace) =>
+            _buildOlympusTitleText(title),
+      );
+    }
+    return CachedNetworkImage(
+      imageUrl: logoUrl,
+      height: height,
+      width: width,
+      fit: BoxFit.contain,
+      alignment: Alignment.centerLeft,
+      placeholder: (context, url) =>
+          const SizedBox(height: height, width: width),
+      errorWidget: (context, url, error) => _buildOlympusTitleText(title),
     );
   }
 
@@ -1579,11 +1945,14 @@ class _ProgressDotState extends State<_ProgressDot>
           margin: const EdgeInsets.symmetric(horizontal: 3.0),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
-            color: Colors.white.withValues(
-              alpha: round
-                  ? (widget.isActive ? 0.45 : 0.85)
-                  : (widget.isActive ? 0.3 : 0.2),
-            ),
+            // Olympus Noir (build 102): the home hero's round dots wear
+            // the design gold; the other (rectangular) indicators keep
+            // their white.
+            color: round
+                ? (widget.isActive
+                      ? kOlympusGold.withValues(alpha: 0.30)
+                      : Colors.white.withValues(alpha: 0.35))
+                : Colors.white.withValues(alpha: widget.isActive ? 0.3 : 0.2),
           ),
           child: widget.isActive
               ? ClipRRect(
@@ -1596,9 +1965,9 @@ class _ProgressDotState extends State<_ProgressDot>
                         child: Container(
                           width: activeWidth * widget.fillController.value,
                           height: height,
-                          color: Colors.white.withValues(
-                            alpha: round ? 1.0 : 0.9,
-                          ),
+                          color: round
+                              ? kOlympusGold
+                              : Colors.white.withValues(alpha: 0.9),
                         ),
                       );
                     },

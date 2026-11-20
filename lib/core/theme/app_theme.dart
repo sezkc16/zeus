@@ -64,6 +64,18 @@ const _liquidGlassPalette = _DarkPalette(
   appBar: Color(0xFF0B0D12),
 );
 
+/// Olympus Noir (build 102) — cinematic gold on obsidian: the deepest
+/// of the dark variants, with #090B10 backgrounds and #15171E surfaces.
+const _obsidianPalette = _DarkPalette(
+  scaffold: Color(0xFF090B10),
+  surface: Color(0xFF15171E),
+  dialog: Color(0xFF171A21),
+  card: Color(0xFF15171E),
+  inputFill: Color(0xFF171A21),
+  divider: Color(0xFF20242E),
+  appBar: Color(0xFF090B10),
+);
+
 class AppTheme {
   /// The bundled application type family.
   ///
@@ -219,6 +231,7 @@ class AppTheme {
     final palette = switch (variant) {
       ZoroxThemeVariant.midnight => _midnightPalette,
       ZoroxThemeVariant.liquidGlass => _liquidGlassPalette,
+      ZoroxThemeVariant.obsidian => _obsidianPalette,
       // Arena Gold, and Frost (light-only — see above).
       _ => _arenaGoldPalette,
     };
@@ -252,9 +265,7 @@ class AppTheme {
     final seedSaturation = HSLColor.fromColor(seedColor).saturation;
     if (seedSaturation < 0.15) {
       final isLight = seedColor.computeLuminance() > 0.6;
-      final onAccent = isLight
-          ? const Color(0xFF1A1A1A)
-          : Colors.white;
+      final onAccent = isLight ? const Color(0xFF1A1A1A) : Colors.white;
       final container = isLight
           ? const Color(0xFF2E2E33)
           : const Color(0xFF1C1C1F);
@@ -466,9 +477,7 @@ class AppTheme {
       // off it (the glass nav reads `isGlass`). Every variant carries
       // the extension; only Liquid Glass sets it.
       extensions: <ThemeExtension<dynamic>>[
-        ZoroxThemeExtension(
-          isGlass: variant == ZoroxThemeVariant.liquidGlass,
-        ),
+        ZoroxThemeExtension(isGlass: variant == ZoroxThemeVariant.liquidGlass),
       ],
     );
   }
@@ -766,9 +775,7 @@ class AppTheme {
       // Which variant this theme is — see [createDarkTheme]. The palette
       // here is always Frost; only the glass flag follows the variant.
       extensions: <ThemeExtension<dynamic>>[
-        ZoroxThemeExtension(
-          isGlass: variant == ZoroxThemeVariant.liquidGlass,
-        ),
+        ZoroxThemeExtension(isGlass: variant == ZoroxThemeVariant.liquidGlass),
       ],
     );
   }

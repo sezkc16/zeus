@@ -159,9 +159,9 @@ void main() {
           tester.widget<AnimatedContainer>(finder).decoration! as BoxDecoration;
       expect(decoration.border, isNull);
       expect(decoration.borderRadius, BorderRadius.zero);
-      // Title and button never touch the screen edge (design A on a
-      // phone: the title's name and one View Details button).
-      for (final label in ['Title 0', 'View Details']) {
+      // Title and button never touch the screen edge (Olympus Noir on a
+      // phone: the uppercase title and the Explore Film button).
+      for (final label in ['TITLE 0', 'EXPLORE FILM']) {
         final r = tester.getRect(find.text(label));
         expect(r.left, greaterThanOrEqualTo(24), reason: label);
         expect(r.right, lessThanOrEqualTo(411 - 24), reason: label);

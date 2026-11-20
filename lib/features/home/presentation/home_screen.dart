@@ -243,7 +243,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               height: 28,
             ),
             const SizedBox(width: 8),
-            Text(l10n.appTitle),
+            // Olympus Noir (build 102): the wordmark is letterspaced
+            // caps, like the approved mockup.
+            Text(
+              l10n.appTitle.toUpperCase(),
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2.5,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
           ],
         ),
         actions: [

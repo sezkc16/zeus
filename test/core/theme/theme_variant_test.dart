@@ -30,11 +30,11 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('the variants', () {
-    test('are the four named in the spec, each with a label and a line', () {
-      expect(ZoroxThemeVariant.values.length, 4);
+    test('are the five named in the spec, each with a label and a line', () {
+      expect(ZoroxThemeVariant.values.length, 5);
       expect(
         ZoroxThemeVariant.values.map((v) => v.label).toList(),
-        ['Arena Gold', 'Midnight', 'Frost', 'Liquid Glass'],
+        ['Arena Gold', 'Midnight', 'Frost', 'Liquid Glass', 'Obsidian'],
       );
       for (final variant in ZoroxThemeVariant.values) {
         expect(variant.label, isNotEmpty);
@@ -48,6 +48,7 @@ void main() {
         ZoroxThemeVariant.arenaGold,
         ZoroxThemeVariant.midnight,
         ZoroxThemeVariant.liquidGlass,
+        ZoroxThemeVariant.obsidian,
       ]) {
         expect(variant.isDark, isTrue, reason: variant.name);
       }

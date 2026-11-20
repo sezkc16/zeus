@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_bottom_nav/liquid_glass_bottom_nav.dart';
 import 'package:reicons/reicons.dart';
+import 'package:zorox/core/theme/olympus.dart';
 import 'package:zorox/core/theme/theme_variant.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
 import 'package:zorox/shared/widgets/custom_bottom_nav.dart';
@@ -72,18 +73,17 @@ void main() {
   testWidgets('the selected tab wears the gold accent', (tester) async {
     await pump(tester, Brightness.dark, currentIndex: 2);
     await tester.pumpAndSettle();
-    final element = tester.element(find.byType(CustomBottomNavBar));
-    final primary = Theme.of(element).colorScheme.primary;
-    // The package tints the selected tab's icon with the active colour,
-    // which the bar sets to the theme primary (gold).
+    // Olympus Noir: the dock's selected state is the fixed design gold,
+    // not the theme primary, so it matches the approved mockup whichever
+    // accent the user picked.
     expect(
       tester.widget<Icon>(find.byIcon(ReiconFilledIcons.puzzle)).color,
-      primary,
+      kOlympusGold,
     );
     // ... and an unselected tab does not wear it.
     expect(
       tester.widget<Icon>(find.byIcon(ReiconFilledIcons.home)).color,
-      isNot(primary),
+      isNot(kOlympusGold),
     );
   });
 
@@ -161,9 +161,11 @@ void main() {
     await tester.pumpAndSettle();
     // The package's root Positioned: left/right are the side margins
     // (insets = 8) and bottom is the pill's gap from the screen edge.
+    // The Olympus rim is a second Positioned with the same margins but a
+    // fixed height, so it is filtered out here.
     final positioned = tester
         .widgetList<Positioned>(find.byType(Positioned))
-        .where((p) => p.left == 8.0 && p.right == 8.0)
+        .where((p) => p.left == 8.0 && p.right == 8.0 && p.height == null)
         .toList();
     expect(positioned, hasLength(1));
     expect(positioned.single.bottom, CustomBottomNavBar.targetBottomGap);
@@ -267,7 +269,10 @@ void main() {
         find.byType(LiquidGlassNavBar),
       );
       expect(bar.inactiveColor, theme.colorScheme.onSurfaceVariant);
-      expect(bar.activeColor, theme.colorScheme.primary);
+      // Olympus Noir: the selected tab is the fixed design gold, not the
+      // theme primary — the dark glass pill keeps gold legible in both
+      // brightnesses.
+      expect(bar.activeColor, kOlympusGold);
       expect(bar.labelStyle?.shadows, isNotEmpty);
     });
 

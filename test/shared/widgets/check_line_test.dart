@@ -66,7 +66,7 @@ void main() {
       checks.update('a.com', CheckState.ineffective);
       expect(
         checkLineText(checks, 'js:a', began, l10n),
-        'The check passed, but this site still refuses ZoroX. Trying again '
+        'The check passed, but this site still refuses Zeus. Trying again '
         'in a few minutes.',
       );
       checks.update('a.com', CheckState.keepsAsking);

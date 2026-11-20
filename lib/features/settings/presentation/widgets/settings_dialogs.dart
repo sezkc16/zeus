@@ -1741,8 +1741,8 @@ void showThemeDialog(
 /// Shows a dialog to pick the named theme variant.
 ///
 /// Each choice carries a line of its own, because the name alone does
-/// not say which brightness it is: Frost is the light one, the other
-/// three are dark. Picking one applies it at once — the variant notifier
+/// not say which brightness it is: Frost is the light one, the others
+/// are dark. Picking one applies it at once — the variant notifier
 /// flips the theme mode to match its brightness, so the dialog closes
 /// onto the new look.
 void showThemeVariantDialog(

@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+
 import '../storage/settings_repository.dart';
 import 'theme_provider.dart';
 
 part 'theme_variant.g.dart';
 
-/// The four named theme variants (Settings → General: Midnight / Arena
-/// Gold / Frost / Liquid Glass).
+/// The five named theme variants (Settings → General: Midnight / Arena
+/// Gold / Frost / Liquid Glass / Obsidian).
 ///
 /// The variant is the *look*; [ThemeMode] still decides dark / light /
-/// system. The three dark variants differ only in surfaces — the accent
+/// system. The four dark variants differ only in surfaces — the accent
 /// still drives `primary` in all of them, exactly as it did before this
 /// layer existed:
 ///
@@ -28,27 +29,23 @@ part 'theme_variant.g.dart';
 ///   The fresh-install default: the approved design preview wears the
 ///   glass pill nav, so a first launch must look like the preview, not
 ///   the fork's Arena Gold.
+/// * [obsidian] — Olympus Noir (build 102): cinematic gold on obsidian
+///   (#090B10 background, #15171E surfaces, #E7BE63 gold). Dark-only,
+///   like Arena Gold but deeper and flatter.
 enum ZoroxThemeVariant {
-  arenaGold(
-    'Arena Gold',
-    'Dark with the gold accent',
-    isDark: true,
-  ),
+  arenaGold('Arena Gold', 'Dark with the gold accent', isDark: true),
   midnight(
     'Midnight',
     'Purer black dark theme, gold accent kept',
     isDark: true,
   ),
-  frost(
-    'Frost',
-    'The light theme',
-    isDark: false,
-  ),
+  frost('Frost', 'The light theme', isDark: false),
   liquidGlass(
     'Liquid Glass',
     'Glass nav and cooler surfaces, dark or light',
     isDark: true,
-  );
+  ),
+  obsidian('Obsidian', 'Olympus Noir — gold on obsidian', isDark: true);
 
   const ZoroxThemeVariant(this.label, this.detail, {required this.isDark});
 
@@ -89,7 +86,7 @@ enum ZoroxThemeVariant {
 /// this the glass variant", so a widget that wants a frosted background
 /// reads `Theme.of(context).extension<ZoroxThemeExtension>()?.isGlass`
 /// instead of importing the variant enum and comparing names. Every
-/// theme the app builds carries it — `false` for the other three
+/// theme the app builds carries it — `false` for the other four
 /// variants, so a missing extension and a non-glass theme read the same.
 class ZoroxThemeExtension extends ThemeExtension<ZoroxThemeExtension> {
   const ZoroxThemeExtension({required this.isGlass});

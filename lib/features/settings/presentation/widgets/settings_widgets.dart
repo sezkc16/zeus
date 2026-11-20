@@ -83,7 +83,10 @@ class SettingsSectionCard extends StatelessWidget {
 }
 
 class SettingsGroup extends StatelessWidget {
-  final String title;
+  /// The CAPS header above the group. Null renders no header — the
+  /// General group on the Settings page (build 102) has none, because
+  /// its theme and accent sections carry their own Olympus headings.
+  final String? title;
   final List<Widget> children;
 
   /// Whether the rows sit on a card of their own.
@@ -98,7 +101,7 @@ class SettingsGroup extends StatelessWidget {
 
   const SettingsGroup({
     super.key,
-    required this.title,
+    this.title,
     required this.children,
     this.filled = true,
   });
@@ -108,28 +111,29 @@ class SettingsGroup extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          // The design preview's section headers: gold, all caps, 12px,
-          // tracked out — not the fork's title-case bold header. The
-          // header sits on the same left edge as the card (spacingMd),
-          // so the whole group reads as one column.
-          padding: EdgeInsets.fromLTRB(
-            LayoutConstants.spacingMd,
-            // Inside a dialog (filled: false) the header keeps its old gap.
-            filled ? kSettingsGroupHeaderTopGap : 8,
-            LayoutConstants.spacingMd,
-            filled ? kSettingsCardHeaderGap : 8,
-          ),
-          child: Text(
-            title.toUpperCase(),
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-              letterSpacing: 0.8,
+        if (title != null)
+          Padding(
+            // The design preview's section headers: gold, all caps, 12px,
+            // tracked out — not the fork's title-case bold header. The
+            // header sits on the same left edge as the card (spacingMd),
+            // so the whole group reads as one column.
+            padding: EdgeInsets.fromLTRB(
+              LayoutConstants.spacingMd,
+              // Inside a dialog (filled: false) the header keeps its old gap.
+              filled ? kSettingsGroupHeaderTopGap : 8,
+              LayoutConstants.spacingMd,
+              filled ? kSettingsCardHeaderGap : 8,
+            ),
+            child: Text(
+              title!.toUpperCase(),
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+                letterSpacing: 0.8,
+              ),
             ),
           ),
-        ),
         Container(
           // One step of inset, paid here and nowhere else: the host
           // screen's ListView must not add its own horizontal padding,

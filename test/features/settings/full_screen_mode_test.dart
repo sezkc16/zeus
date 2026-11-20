@@ -284,6 +284,10 @@ void main() {
         matching: find.byType(Switch),
       );
 
+      // The row sits below the fold in the test viewport (the theme cards
+      // and accent picker now sit above the General group); scroll it in.
+      await tester.ensureVisible(toggle);
+      await tester.pumpAndSettle();
       await tester.tap(toggle);
       await tester.pumpAndSettle();
 

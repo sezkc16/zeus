@@ -39,6 +39,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:liquid_glass_bottom_nav/liquid_glass_bottom_nav.dart';
 import 'package:zorox/core/providers/device_info_provider.dart';
 import 'package:zorox/core/router/app_router.dart';
 import 'package:zorox/core/utils/motion.dart';
@@ -111,12 +112,17 @@ void main() {
   /// The pill's top / bottom edge on screen. On a tab the pill hugs the
   /// bottom edge; on Settings it is parked below the screen bottom
   /// (build 90) — mounted, but invisible.
+  ///
+  /// Measured on the package bar itself, not on [CustomBottomNavBar]:
+  /// build 102 wraps the bar in a full-screen treatment Stack (gold glow
+  /// + metallic rim), so the wrapper's box is the whole screen and says
+  /// nothing about where the pill sits.
   double pillTop(WidgetTester tester) =>
-      tester.getTopLeft(find.byType(CustomBottomNavBar)).dy;
+      tester.getTopLeft(find.byType(LiquidGlassNavBar)).dy;
 
   double pillBottom(WidgetTester tester) {
-    final topLeft = tester.getTopLeft(find.byType(CustomBottomNavBar));
-    final size = tester.getSize(find.byType(CustomBottomNavBar));
+    final topLeft = tester.getTopLeft(find.byType(LiquidGlassNavBar));
+    final size = tester.getSize(find.byType(LiquidGlassNavBar));
     return topLeft.dy + size.height;
   }
 

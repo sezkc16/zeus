@@ -3,14 +3,14 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:zorox/core/theme/olympus.dart';
 import 'package:zorox/features/library/presentation/history_provider.dart';
 
 import '../../../../core/domain/entity/multimedia_item.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zorox/core/router/app_router.dart';
-import 'package:zorox/core/addons/models/addon_meta.dart'
-    show kAddonItemSource;
+import 'package:zorox/core/addons/models/addon_meta.dart' show kAddonItemSource;
 import 'package:zorox/core/utils/image_fallbacks.dart';
 import 'package:zorox/core/utils/layout_constants.dart';
 
@@ -72,19 +72,11 @@ class _ContinueWatchingCardState extends ConsumerState<ContinueWatchingCard> {
   /// the app's dark surface rather than punching a hole in it.
   static const double _washAttended = 0.05;
 
-  /// Track of the resume gauge, as white alpha over the bottom scrim.
-  ///
-  /// A fully transparent track (what this card shipped with) is not a gauge at
-  /// all — with no unfilled remainder to compare against, 15% watched and 95%
-  /// watched are both "a white sliver at the bottom", and on a bright frame
-  /// the sliver competes with the artwork underneath it. 0.40 is chosen, not
-  /// picked: composited over the black87 foot of the scrim the track lands at
-  /// roughly 40% grey on a dark frame and 48% on a bright one, which is 3.5:1
-  /// and 3.7:1 against the surrounding scrim — i.e. it clears the 3:1 that
-  /// WCAG 1.4.11 asks of a non-text UI component in both extremes — while the
-  /// pure-white fill still reads 4.3:1 against the track itself, so the two
-  /// halves of the gauge can never be confused.
-  static const double _progressTrackOpacity = 0.40;
+  /// Track of the resume gauge. Olympus Noir (build 102): the fill is
+  /// the design gold, so the track is a dark groove, not the white 0.40
+  /// the white fill used — gold on a mid-grey track would be unreadable
+  /// (about 1.3:1), while gold on this dark track clears 10:1.
+  static const double _progressTrackOpacity = 0.45;
 
   /// Height of the resume gauge, unchanged at 4 dp and deliberately so.
   ///
@@ -181,6 +173,20 @@ class _ContinueWatchingCardState extends ConsumerState<ContinueWatchingCard> {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  /// What is left to watch, as the Resume line prints it ("14 min",
+  /// "1h 5m"), or null when nothing is left.
+  String? _formatRemaining(int milliseconds) {
+    if (milliseconds <= 0) return null;
+    final d = Duration(milliseconds: milliseconds);
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    if (h > 0) {
+      if (m > 0) return '${h}h ${m}m';
+      return '${h}h';
+    }
+    return '$m min';
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.historyItem.item;
@@ -190,6 +196,11 @@ class _ContinueWatchingCardState extends ConsumerState<ContinueWatchingCard> {
             1.0,
           )
         : 0.0;
+
+    // What is left to watch ("14 min"), for the Resume line.
+    final remaining = _formatRemaining(
+      widget.historyItem.duration - widget.historyItem.position,
+    );
 
     final isLivestream = item.contentType == MultimediaContentType.livestream;
     final isSeries = item.contentType == MultimediaContentType.series;
@@ -420,56 +431,97 @@ class _ContinueWatchingCardState extends ConsumerState<ContinueWatchingCard> {
                         ),
                       ),
                       padding: const EdgeInsets.fromLTRB(12, 24, 12, 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
+                      // Olympus Noir (build 102): a gold play circle
+                      // beside the text, and a "Resume • 14 min" line
+                      // under the title. The scrim is IgnorePointer, so
+                      // the circle is a visual cue — the tap still lands
+                      // on the card.
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          if (hasEpisodes || isLivestream) ...[
-                            Text(
-                              item.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white60,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: const BoxDecoration(
+                              color: kOlympusGold,
+                              shape: BoxShape.circle,
                             ),
-                            const SizedBox(height: 2),
-                          ],
-                          if (isLivestream)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.red.withValues(alpha: 0.20),
-                                borderRadius: BorderRadius.circular(
-                                  LayoutConstants.radiusSm,
-                                ),
-                              ),
-                              child: const Text(
-                                'LIVE',
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            )
-                          else
-                            Text(
-                              episodeLabel ?? item.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
+                            child: const Icon(
+                              Icons.play_arrow_rounded,
+                              color: Colors.black,
+                              size: 20,
                             ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (hasEpisodes || isLivestream) ...[
+                                  Text(
+                                    item.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white60,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                ],
+                                if (isLivestream)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withValues(alpha: 0.20),
+                                      borderRadius: BorderRadius.circular(
+                                        LayoutConstants.radiusSm,
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'LIVE',
+                                      style: TextStyle(
+                                        color: Colors.red,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  Text(
+                                    episodeLabel ?? item.title,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                if (!isLivestream && remaining != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Resume • $remaining',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.7,
+                                      ),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -509,9 +561,8 @@ class _ContinueWatchingCardState extends ConsumerState<ContinueWatchingCard> {
                     ),
                   ),
 
-                // Resume gauge (bottom edge). Track and fill, see
-                // _progressTrackOpacity — a fill on a transparent track is a
-                // sliver, not a gauge.
+                // Resume gauge (bottom edge). Olympus Noir (build 102):
+                // gold fill on a dark track — see _progressTrackOpacity.
                 Positioned(
                   bottom: 0,
                   left: 0,
@@ -521,11 +572,11 @@ class _ContinueWatchingCardState extends ConsumerState<ContinueWatchingCard> {
                       height: _progressBarHeight,
                       child: LinearProgressIndicator(
                         value: progress,
-                        backgroundColor: Colors.white.withValues(
+                        backgroundColor: Colors.black.withValues(
                           alpha: _progressTrackOpacity,
                         ),
                         valueColor: const AlwaysStoppedAnimation<Color>(
-                          Colors.white,
+                          kOlympusGold,
                         ),
                       ),
                     ),

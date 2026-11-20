@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_bottom_nav/liquid_glass_bottom_nav.dart';
 import 'package:reicons/reicons.dart';
+import 'package:zorox/core/theme/olympus.dart';
 import 'package:zorox/core/theme/theme_variant.dart';
 import 'package:zorox/core/utils/boot_trace.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
@@ -16,6 +17,19 @@ import 'package:zorox/l10n/generated/app_localizations.dart';
 /// is Outline (`ReiconIcons.search`, per M M 2026-11-14) — so the exact
 /// same icons render on iOS and Android — the font is bundled in the app,
 /// no per-platform work, no asset files.
+///
+/// Olympus Noir (build 102) layers the redesign on top without touching
+/// the package: the selected tab wears the fixed Olympus gold
+/// ([kOlympusGold], not the accent), a soft golden glow sits under the
+/// selected item, and a fine metallic rim outlines the pill. The icons,
+/// labels, routes and the liquid-glass material itself are exactly as
+/// they were — the glow and rim are Positioned siblings around the
+/// package bar inside [_OlympusDockTreatment], never inside the package.
+/// A Stack is the one wrapper that does not break the +15..+19 rule: the
+/// package's root Positioned needs a Stack ancestor, and this Stack is
+/// one (a Transform/Padding parent would throw "Incorrect use of
+/// ParentDataWidget"). The legacy (non-Impeller) bar is not a floating
+/// pill, so it keeps its plain return path.
 ///
 /// The package renders its glass only on Impeller — on by default on iOS,
 /// explicitly enabled in AndroidManifest.xml
@@ -177,8 +191,10 @@ class CustomBottomNavBar extends StatelessWidget {
       impellerSupported: impellerSupported,
       // A little lower than the package default (see [_kBottomMargin]).
       insets: _kBottomMargin,
-      // Gold accent for the selected tab; muted grey otherwise.
-      activeColor: colorScheme.primary,
+      // Olympus gold for the selected tab (the fixed design gold, not
+      // the accent — the dock matches the approved mockup whichever
+      // accent the user picked); muted grey otherwise.
+      activeColor: kOlympusGold,
       inactiveColor: theme.brightness == Brightness.dark
           ? const Color(0xFF9D9A92)
           : colorScheme.onSurfaceVariant,
@@ -193,10 +209,110 @@ class CustomBottomNavBar extends StatelessWidget {
             : null,
       ),
     );
-    if (!clearGlass) return bar;
-    return Theme(
-      data: theme.copyWith(brightness: Brightness.dark),
-      child: bar,
+    if (!clearGlass) {
+      return _olympusTreatment(bar);
+    }
+    return _olympusTreatment(
+      Theme(
+        data: theme.copyWith(brightness: Brightness.dark),
+        child: bar,
+      ),
+    );
+  }
+
+  /// Olympus Noir treatment (build 102): gold glow + metallic rim around
+  /// the package bar. The legacy (non-Impeller) bar is not a floating
+  /// pill, so it keeps its plain return path.
+  Widget _olympusTreatment(Widget bar) {
+    if (!impellerSupported) return bar;
+    return _OlympusDockTreatment(currentIndex: currentIndex, bar: bar);
+  }
+}
+
+/// The Olympus Noir glow + rim around the floating dock.
+///
+/// A separate widget (not inline in [CustomBottomNavBar.build]) so its
+/// build reads the tweened [MediaQuery] padding itself: the shell feeds
+/// the pill a padding that glides from [CustomBottomNavBar
+/// .navPaddingBottom] to [CustomBottomNavBar.hiddenNavPaddingBottom]
+/// on the Settings branch, and [CustomBottomNavBar] is passed to the
+/// tween as a cached `child` — its own build does not re-run per frame.
+/// This widget is a MediaQuery dependent, so it rebuilds on every frame
+/// of the glide and the glow and rim sink with the pill instead of
+/// lingering where it was.
+///
+/// Children, in paint order: the glow (behind the glass), the package
+/// bar itself (icons, labels, glass — untouched), the metallic rim
+/// (above the glass so it reads on light themes too; 1 px at the pill's
+/// exact edge, so it never touches the icons or labels inside). Both
+/// are IgnorePointer, so taps still land on the bar.
+class _OlympusDockTreatment extends StatelessWidget {
+  const _OlympusDockTreatment({required this.currentIndex, required this.bar});
+
+  final int currentIndex;
+  final Widget bar;
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final paddingBottom = MediaQuery.paddingOf(context).bottom;
+    // The package's side margin: insets, or half that under 360 px.
+    final horizontalMargin = screenWidth < 360
+        ? CustomBottomNavBar._kBottomMargin / 2
+        : CustomBottomNavBar._kBottomMargin;
+    final itemWidth = (screenWidth - 2 * horizontalMargin) / 5;
+    const glowWidth = 56.0;
+    const glowHeight = 30.0;
+    final glowLeft =
+        horizontalMargin +
+        currentIndex * itemWidth +
+        (itemWidth - glowWidth) / 2;
+    return Positioned.fill(
+      child: Stack(
+        children: [
+          // Soft golden glow under the selected tab, behind the glass.
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.elasticOut,
+            left: glowLeft,
+            bottom: paddingBottom + CustomBottomNavBar._kBottomMargin + 2,
+            width: glowWidth,
+            height: glowHeight,
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    colors: [
+                      kOlympusGold.withValues(alpha: 0.45),
+                      kOlympusGold.withValues(alpha: 0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // The package bar itself — icons, labels, glass unchanged.
+          bar,
+          // Fine metallic rim on the pill's exact outline.
+          Positioned(
+            left: horizontalMargin,
+            right: horizontalMargin,
+            bottom: paddingBottom + CustomBottomNavBar._kBottomMargin,
+            height: CustomBottomNavBar._kPillHeight,
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(34),
+                  border: Border.all(
+                    color: kOlympusGold.withValues(alpha: 0.30),
+                    width: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

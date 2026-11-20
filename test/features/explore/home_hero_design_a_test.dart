@@ -1,6 +1,12 @@
-/// Home's hero on a phone, design A (build 82): centred title, one small
-/// meta line, one small badge row, a white View Details pill, round dots.
-/// Every part shows only when the item carries it; nothing wraps.
+/// Home's hero on a phone, Olympus Noir (build 102): gold "NOW
+/// FEATURED" label, large uppercase title, one small meta line, one
+/// small badge row, a metallic-gold Explore Film button + bookmark,
+/// gold round dots. Every part shows only when the item carries it;
+/// nothing wraps.
+///
+/// The pure meta-line / badge-row rules below still cover the design A
+/// helpers (heroMetaLine, heroBadges) — Browse's hero still uses design
+/// A; only Home's phone hero wears Olympus.
 library;
 
 import 'package:flutter/material.dart';
@@ -9,6 +15,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:zorox/core/addons/models/addon_meta.dart' show kAddonItemSource;
 import 'package:zorox/core/domain/entity/multimedia_item.dart';
+import 'package:zorox/core/storage/library_repository.dart';
+import 'package:zorox/core/storage/storage_service.dart';
+import 'package:zorox/core/theme/olympus.dart';
 import 'package:zorox/features/explore/presentation/widgets/explore_carousel.dart';
 import 'package:zorox/features/explore/presentation/widgets/home_hero_meta.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
@@ -40,7 +49,40 @@ MultimediaItem _rich({
   source: source,
 );
 
+/// In-memory stand-in for the library box: same keying (one entry per URL),
+/// but its futures complete on microtasks, which `tester.pump()` delivers.
+class _FakeLibraryStorage extends StorageService {
+  final _items = <String, MultimediaItem>{};
+
+  @override
+  Future<void> addToLibrary(MultimediaItem item) async {
+    _items[item.url] = item;
+  }
+
+  @override
+  Future<void> removeFromLibrary(String url) async {
+    _items.remove(url);
+  }
+
+  @override
+  bool isInLibrary(String url) => _items.containsKey(url);
+
+  @override
+  List<MultimediaItem> getLibraryItems() => _items.values.toList();
+}
+
 void main() {
+  /// In-memory stand-in for the library box (same pattern as the preview
+  /// hero test): the Olympus hero watches the library for the bookmark
+  /// state, so the tests run the real [Library] notifier against this
+  /// instead of a real Hive box, which never completes its writes inside
+  /// a widget test's fake-async zone.
+  late _FakeLibraryStorage fakeStorage;
+
+  setUp(() {
+    fakeStorage = _FakeLibraryStorage();
+  });
+
   group('meta line rules', () {
     test('type, one genre, runtime, year - in that order', () {
       expect(heroMetaLine(_rich()), 'Movie • Science Fiction • 2h 15m • 2026');
@@ -186,6 +228,11 @@ void main() {
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
         ProviderScope(
+          overrides: [
+            libraryRepositoryProvider.overrideWithValue(
+              LibraryRepository(fakeStorage),
+            ),
+          ],
           child: MaterialApp(
             theme: theme,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -206,8 +253,8 @@ void main() {
       addTearDown(() => tester.pumpWidget(const SizedBox()));
     }
 
-    testWidgets('title, meta, badges, one View Details; no Play / My List / '
-        'Info, no badge pill, no synopsis', (tester) async {
+    testWidgets('title, meta, badges, one Explore Film; no View Details, '
+        'no Play / My List / Info, no cert chip', (tester) async {
       MultimediaItem? opened;
       var played = 0;
       await pump(
@@ -216,42 +263,59 @@ void main() {
         onTap: (m) => opened = m,
         onPlay: (_) => played++,
       );
-      expect(find.text('Godzilla Minus Zero'), findsOneWidget);
+      // Olympus Noir (build 102): the title is uppercase and
+      // left-aligned, the meta is year-first with uppercased genres.
+      // The test font is one pixel per point per letter, so at 411 px
+      // the two-genre line does not fit and the second genre drops —
+      // the 430 px test below covers the two-genre line.
+      expect(find.text('GODZILLA MINUS ZERO'), findsOneWidget);
       expect(
-        tester.widget<Text>(find.byKey(const ValueKey('home-hero-meta'))).data,
-        'Movie • Science Fiction • 2h 15m • 2026',
+        tester
+            .widget<Text>(find.byKey(const ValueKey('olympus-hero-meta')))
+            .data,
+        '2026 • SCIENCE FICTION • 2h 15m',
       );
-      expect(find.text('R | ENDED'), findsOneWidget);
       expect(find.text('7.9'), findsOneWidget);
       // A plugin's score: a plain star, never an IMDb badge.
       expect(find.text('IMDb'), findsNothing);
       expect(find.byIcon(Icons.star_rounded), findsOneWidget);
-      expect(find.byKey(const ValueKey('home-hero-language')), findsNothing);
+      // Olympus drops design A's certification chip.
+      expect(find.text('R | ENDED'), findsNothing);
+      expect(find.text('NOW FEATURED'), findsOneWidget);
 
-      expect(find.text('View Details'), findsOneWidget);
+      expect(find.text('EXPLORE FILM'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('olympus-hero-explore-film')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('olympus-hero-bookmark')),
+        findsOneWidget,
+      );
+      expect(find.text('View Details'), findsNothing);
       expect(find.text('Play'), findsNothing);
       expect(find.text('My List'), findsNothing);
       expect(find.text('Info'), findsNothing);
       expect(find.text('#1 TRENDING TODAY'), findsNothing);
       expect(find.text('MOVIE'), findsNothing);
 
-      // Everything is centred on the screen.
-      for (final key in ['home-hero-meta', 'home-hero-badges']) {
+      // Everything is left-aligned on the 24 px inset.
+      for (final key in ['olympus-hero-meta', 'olympus-hero-badges']) {
         final rect = tester.getRect(find.byKey(ValueKey(key)));
-        expect(rect.center.dx, closeTo(411 / 2, 1.0), reason: key);
+        expect(rect.left, closeTo(24, 1.0), reason: key);
       }
       final button = tester.getRect(
-        find.byKey(const ValueKey('home-hero-view-details')),
+        find.byKey(const ValueKey('olympus-hero-explore-film')),
       );
-      expect(button.center.dx, closeTo(411 / 2, 1.0));
+      expect(button.left, closeTo(24, 1.0));
       final style = tester
-          .widget<ElevatedButton>(
-            find.byKey(const ValueKey('home-hero-view-details')),
+          .widget<FilledButton>(
+            find.byKey(const ValueKey('olympus-hero-explore-film')),
           )
           .style!;
-      expect(style.backgroundColor!.resolve({}), Colors.white);
+      expect(style.backgroundColor!.resolve({}), kOlympusGold);
 
-      await tester.tap(find.text('View Details'));
+      await tester.tap(find.text('EXPLORE FILM'));
       await tester.pump();
       expect(opened?.title, 'Godzilla Minus Zero');
       expect(played, 0);
@@ -268,14 +332,13 @@ void main() {
       tester,
     ) async {
       await pump(tester, movies: [_bare(0)]);
-      expect(find.text('Title 0'), findsOneWidget);
-      expect(find.byKey(const ValueKey('home-hero-meta')), findsNothing);
-      expect(find.byKey(const ValueKey('home-hero-badges')), findsNothing);
-      expect(find.byKey(const ValueKey('home-hero-chip')), findsNothing);
-      expect(find.text('View Details'), findsOneWidget);
-      final title = tester.getRect(find.text('Title 0'));
+      expect(find.text('TITLE 0'), findsOneWidget);
+      expect(find.byKey(const ValueKey('olympus-hero-meta')), findsNothing);
+      expect(find.byKey(const ValueKey('olympus-hero-badges')), findsNothing);
+      expect(find.text('EXPLORE FILM'), findsOneWidget);
+      final title = tester.getRect(find.text('TITLE 0'));
       final button = tester.getRect(
-        find.byKey(const ValueKey('home-hero-view-details')),
+        find.byKey(const ValueKey('olympus-hero-explore-film')),
       );
       // No gap left where the two rows would have been.
       expect(button.top - title.bottom, lessThan(24));
@@ -283,7 +346,9 @@ void main() {
 
     for (final width in const [320.0, 360.0, 430.0]) {
       testWidgets('at $width px: meta and badges are small, on one line, '
-          'inside the screen; the chip does not break', (tester) async {
+          'inside the screen; the title shrinks instead of wrapping', (
+        tester,
+      ) async {
         await pump(
           tester,
           width: width,
@@ -303,7 +368,7 @@ void main() {
         );
         expect(tester.takeException(), isNull);
 
-        final meta = find.byKey(const ValueKey('home-hero-meta'));
+        final meta = find.byKey(const ValueKey('olympus-hero-meta'));
         final metaText = tester.widget<Text>(meta);
         expect(metaText.maxLines, 1);
         expect(metaText.softWrap, isFalse);
@@ -318,9 +383,9 @@ void main() {
         expect(metaRect.left, greaterThanOrEqualTo(24 - 0.5));
         expect(metaRect.right, lessThanOrEqualTo(width - 24 + 0.5));
         // The first genre is always there.
-        expect(metaText.data, contains('Science Fiction & Fantasy'));
+        expect(metaText.data, contains('SCIENCE FICTION & FANTASY'));
 
-        final badges = find.byKey(const ValueKey('home-hero-badges'));
+        final badges = find.byKey(const ValueKey('olympus-hero-badges'));
         final badgesRect = tester.getRect(
           find.ancestor(of: badges, matching: find.byType(FittedBox)).first,
         );
@@ -328,22 +393,15 @@ void main() {
         expect(badgesRect.left, greaterThanOrEqualTo(24 - 0.5));
         expect(badgesRect.right, lessThanOrEqualTo(width - 24 + 0.5));
 
-        final chip = find.byKey(const ValueKey('home-hero-chip'));
-        expect(tester.getSize(chip).height, lessThanOrEqualTo(20));
-        final chipText = tester.widget<Text>(find.text('R | ENDED'));
-        expect(chipText.maxLines, 1);
-        expect(chipText.softWrap, isFalse);
-        expect(chipText.style!.fontSize, 11.5);
-
         // The long title shrank inside its box instead of being cut.
         final title = tester.widget<Text>(
-          find.textContaining('A Very Long Title'),
+          find.textContaining('A VERY LONG TITLE'),
         );
         expect(title.overflow, isNull);
         final titleBox = tester.getRect(
-          find.byKey(const ValueKey('home-hero-title')),
+          find.byKey(const ValueKey('olympus-hero-title')),
         );
-        expect(titleBox.height, lessThanOrEqualTo(84 + 0.5));
+        expect(titleBox.height, lessThanOrEqualTo(100 + 0.5));
         expect(titleBox.left, greaterThanOrEqualTo(24 - 0.5));
         expect(titleBox.right, lessThanOrEqualTo(width - 24 + 0.5));
       });
@@ -361,8 +419,10 @@ void main() {
         ],
       );
       expect(
-        tester.widget<Text>(find.byKey(const ValueKey('home-hero-meta'))).data,
-        'Movie • A • B • 2h 15m • 2026',
+        tester
+            .widget<Text>(find.byKey(const ValueKey('olympus-hero-meta')))
+            .data,
+        '2026 • A • B • 2h 15m',
       );
     });
 
@@ -379,8 +439,10 @@ void main() {
         ],
       );
       expect(
-        tester.widget<Text>(find.byKey(const ValueKey('home-hero-meta'))).data,
-        'Movie • Science Fiction & Fantasy • 2h 15m • 2026',
+        tester
+            .widget<Text>(find.byKey(const ValueKey('olympus-hero-meta')))
+            .data,
+        '2026 • SCIENCE FICTION & FANTASY • 2h 15m',
       );
     });
 
@@ -389,7 +451,7 @@ void main() {
       await pump(tester, movies: [_rich(), _bare(1), _bare(2)]);
       final card = tester.getRect(find.byKey(const ValueKey('hero-card')));
       final button = tester.getRect(
-        find.byKey(const ValueKey('home-hero-view-details')),
+        find.byKey(const ValueKey('olympus-hero-explore-film')),
       );
       final active = tester.getRect(find.byKey(const ValueKey('hcd_0')));
       final other = tester.getRect(find.byKey(const ValueKey('hcd_1')));
@@ -419,13 +481,13 @@ void main() {
       );
       expect(
         tester
-            .widget<Text>(find.byKey(const ValueKey('home-hero-meta')))
+            .widget<Text>(find.byKey(const ValueKey('olympus-hero-meta')))
             .style!
             .color,
         Colors.white,
       );
       expect(
-        tester.widget<Text>(find.text('Godzilla Minus Zero')).style!.color,
+        tester.widget<Text>(find.text('GODZILLA MINUS ZERO')).style!.color,
         Colors.white,
       );
     });

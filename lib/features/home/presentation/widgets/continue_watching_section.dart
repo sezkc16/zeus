@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:zorox/core/theme/olympus.dart';
 import 'package:zorox/core/utils/responsive_breakpoints.dart';
 import 'package:zorox/core/utils/layout_constants.dart';
 
@@ -62,26 +63,32 @@ class _ContinueWatchingSectionState
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
+              // Olympus Noir (build 102): gold vertical bar beside the
+              // letterspaced uppercase title; the gold underline bar is
+              // gone.
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                child: Row(
                   children: [
-                    Text(
-                      widget.title,
-                      style: TextStyle(
-                        fontSize: isLarge ? 24 : 20,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
+                    Container(
+                      width: 3,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: kOlympusGold,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Container(
-                      width: isLarge ? 30 : 20,
-                      height: 3,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        borderRadius: BorderRadius.circular(2),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        widget.title.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                       ),
                     ),
                   ],

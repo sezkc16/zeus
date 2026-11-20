@@ -1,7 +1,12 @@
-/// The iOS-style sliding segmented control (1.0.1) on App Theme, Player
-/// Engine and Picture-in-Picture: a rounded track with an accent pill, no
-/// checkmark, every label on one line, and the same options and
-/// persistence as the outlined control it replaced.
+/// The iOS-style sliding segmented control (1.0.1) on Player Engine and
+/// Picture-in-Picture: a rounded track with an accent pill, no checkmark,
+/// every label on one line, and the same options and persistence as the
+/// outlined control it replaced.
+///
+/// App Theme used this control too until build 102, when the Olympus Noir
+/// redesign replaced it with the theme cards (Obsidian / Aurora /
+/// Imperial + "More themes" chips) — the App Theme group below covers
+/// those cards instead.
 library;
 
 import 'package:flutter/material.dart';
@@ -22,6 +27,7 @@ import 'package:zorox/features/settings/presentation/general_settings_provider.d
 import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
 import 'package:zorox/features/settings/presentation/player_settings_screen.dart';
 import 'package:zorox/features/settings/presentation/settings_screen.dart';
+import 'package:zorox/features/settings/presentation/widgets/olympus_theme_cards.dart';
 import 'package:zorox/features/settings/presentation/widgets/zeus_segmented_control.dart';
 import 'package:zorox/features/tracking/presentation/tracking_auth_provider.dart';
 import 'package:zorox/l10n/generated/app_localizations.dart';
@@ -242,30 +248,31 @@ Finder get _pill => find.descendant(
 void main() {
   group('App Theme', () {
     for (final width in [393.0, 320.0]) {
-      testWidgets('four names, one line each, no checkmark at $width pt', (
-        tester,
-      ) async {
+      testWidgets('five themes, cards for three and chips for two, one '
+          'checkmark on the current card at $width pt', (tester) async {
         await _pumpSettings(tester, _MemorySettings(), width: width);
 
-        final control = find.byType(ZeusSegmentedControl<ZoroxThemeVariant>);
-        expect(control, findsOneWidget);
-        expect(find.byType(SegmentedButton<ZoroxThemeVariant>), findsNothing);
+        final cards = find.byType(OlympusThemeCards);
+        expect(cards, findsOneWidget);
+        // The three mockup cards, each on one line, and the two remaining
+        // themes as "More themes" chips — nothing was removed.
+        for (final label in [
+          'Obsidian',
+          'Aurora',
+          'Imperial',
+          'Midnight',
+          'Frost',
+        ]) {
+          expect(find.text(label), findsOneWidget);
+        }
+        // The fresh-install default is Liquid Glass, so its card —
+        // Aurora — wears the one checkmark in the theme section.
         expect(
-          tester
-              .widget<ZeusSegmentedControl<ZoroxThemeVariant>>(control)
-              .segments
-              .map((s) => s.label)
-              .toList(),
-          ['Arena Gold', 'Midnight', 'Frost', 'Liquid Glass'],
-        );
-        _expectSingleLine(tester, control);
-        expect(
-          find.descendant(of: control, matching: find.byType(Icon)),
-          findsNothing,
-        );
-        expect(
-          find.descendant(of: control, matching: find.byIcon(Icons.check)),
-          findsNothing,
+          find.descendant(
+            of: cards,
+            matching: find.byIcon(Icons.check_rounded),
+          ),
+          findsOneWidget,
         );
       });
     }
@@ -273,37 +280,36 @@ void main() {
     testWidgets('a tap selects the variant and saves it', (tester) async {
       final settings = _MemorySettings();
       await _pumpSettings(tester, settings);
-      final control = find.byType(ZeusSegmentedControl<ZoroxThemeVariant>);
+      final cards = find.byType(OlympusThemeCards);
       expect(
-        tester
-            .widget<ZeusSegmentedControl<ZoroxThemeVariant>>(control)
-            .selected,
+        tester.widget<OlympusThemeCards>(cards).current,
         ZoroxThemeVariant.liquidGlass,
       );
 
-      await tester.tap(
-        find.descendant(of: control, matching: find.text('Midnight')),
-      );
+      await tester.tap(find.text('Midnight'));
       await tester.pumpAndSettle();
 
       expect(
-        tester
-            .widget<ZeusSegmentedControl<ZoroxThemeVariant>>(control)
-            .selected,
+        tester.widget<OlympusThemeCards>(cards).current,
         ZoroxThemeVariant.midnight,
       );
       expect(settings.variant, 'midnight');
       expect(settings.lastDark, 'midnight');
       expect(settings.mode, 'dark');
 
-      await tester.tap(
-        find.descendant(of: control, matching: find.text('Frost')),
-      );
+      await tester.tap(find.text('Frost'));
       await tester.pumpAndSettle();
       expect(settings.variant, 'frost');
       expect(settings.mode, 'light');
       // The Dark Mode toggle still knows where to go back to.
       expect(settings.lastDark, 'midnight');
+
+      // The new variant saves the same way.
+      await tester.tap(find.text('Obsidian'));
+      await tester.pumpAndSettle();
+      expect(settings.variant, 'obsidian');
+      expect(settings.lastDark, 'obsidian');
+      expect(settings.mode, 'dark');
     });
   });
 
@@ -482,8 +488,7 @@ void main() {
         // Readable: the selected label is clearly lighter or darker than
         // the pill under it.
         expect(
-          (selectedLabel.computeLuminance() -
-                  scheme.primary.computeLuminance())
+          (selectedLabel.computeLuminance() - scheme.primary.computeLuminance())
               .abs(),
           greaterThan(0.3),
           reason: 'label on pill, ${theme.brightness} ${scheme.primary}',
