@@ -263,10 +263,19 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       );
       // Cold start (v9): the session is known now — sync once, quietly.
       unawaited(autoSync());
-      // Profiles (Build 1): fetch the list so the gate knows whether to
-      // show the picker or the first-profile setup. Never throws: a
-      // failure leaves the cached list (offline).
-      unawaited(refreshZeusProfiles());
+      // Profiles: fetch the list so the gate knows whether to show the
+      // picker or the first-profile setup. Never throws: a failure
+      // leaves the cached list (offline). Logged out (Build 2), the
+      // device's local-only profiles load instead.
+      if (state.loggedIn) {
+        unawaited(refreshZeusProfiles());
+      } else {
+        unawaited(
+          ref
+              .read(zeusProfilesProvider.notifier)
+              .refreshLocalZeusProfiles(),
+        );
+      }
     } catch (e) {
       talker.warning('[ZoroX Account] restoring the session failed: $e');
     }
@@ -421,10 +430,12 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
       final tokens = ref.read(secureTokenStorageProvider);
       await tokens.delete(_kTokenKey);
       await tokens.delete(_kEmailKey);
-      // Profiles (Build 1): the cached list, the active profile and the
-      // PIN counters go; the pair goes back to the legacy boxes. The
-      // server list is untouched — the next login re-fetches it.
-      await ref.read(zeusProfilesProvider.notifier).clearLocalState();
+    // Profiles (Build 2): back onto the device's local-only profiles.
+    // The server cache is deleted (a next login must not flash the old
+    // account's list) and the local list loads; the local profiles and
+    // their data survive. The server list is untouched — the next login
+    // re-fetches it.
+    await ref.read(zeusProfilesProvider.notifier).switchToLocalProfiles();
       if (ref.mounted) {
         state = state.copyWith(
           email: null,
@@ -523,6 +534,53 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
     return profile;
   }
 
+  /// Migration §9 case 3 (Build 2): merges the device's legacy history /
+  /// My List into [profileId] (newest wins, the same rule as a backup
+  /// restore), uploads that profile's backup so the cloud gets the
+  /// merged data, then clears the legacy boxes and marks the migration
+  /// done. The target must be the active profile — only its backup can
+  /// be uploaded. Returns false (with [state.error]) when the upload
+  /// fails; the legacy boxes stay, so the prompt asks again. Nothing is
+  /// lost either way: a re-run merges idempotently.
+  Future<bool> moveLegacyDataIntoZeusProfile(String profileId) async {
+    if (!state.loggedIn) return false;
+    final activeId = ref.read(zeusProfilesProvider).activeProfileId;
+    if (activeId != profileId) {
+      if (ref.mounted) {
+        state = state.copyWith(
+          error: 'Open that profile first, then move the data into it.',
+        );
+      }
+      return false;
+    }
+    final storage = ref.read(storageServiceProvider);
+    await storage.mergeLegacyHistoryAndLibraryIntoZeusProfile(profileId);
+    final uploaded = await _uploadBackup(silent: true);
+    if (!uploaded) {
+      if (ref.mounted) {
+        state = state.copyWith(
+          error: 'Could not upload the merged backup. Try again.',
+        );
+      }
+      return false;
+    }
+    await storage.clearLegacyHistoryAndLibrary();
+    final profilesNotifier = ref.read(zeusProfilesProvider.notifier);
+    await profilesNotifier.markMigrated();
+    profilesNotifier.clearLegacyMovePending();
+    return true;
+  }
+
+  /// §9 case 3's other way out (Build 2): discards the device's legacy
+  /// data and marks the migration done, so the prompt never asks again.
+  Future<void> deleteLegacyData() async {
+    final storage = ref.read(storageServiceProvider);
+    await storage.clearLegacyHistoryAndLibrary();
+    final profilesNotifier = ref.read(zeusProfilesProvider.notifier);
+    await profilesNotifier.markMigrated();
+    profilesNotifier.clearLegacyMovePending();
+  }
+
   // --- sync server URL --------------------------------------------------------
 
   /// Saves the user's own sync server (empty clears it and goes back to
@@ -569,7 +627,15 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
         );
       }
       final backup = await collectBackup();
-      await _client.upload(baseUrl, token, backup.toJson());
+      // Profiles (Build 2): regular uploads write the ACTIVE profile's
+      // backup key, not the legacy key. No active profile (picker
+      // pending, or no profiles yet) keeps the legacy upload, as before.
+      await _client.upload(
+        baseUrl,
+        token,
+        backup.toJson(),
+        profileId: ref.read(zeusProfilesProvider).activeProfileId,
+      );
       await _markSynced();
       return true;
     } on ZoroxSyncException catch (e) {
@@ -624,6 +690,32 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
     return uploadBackup();
   }
 
+  /// One silent sync round for the active profile (Build 2): run after
+  /// a profile switch, so the new profile's cloud backup lands in its
+  /// boxes before the user notices. No-op when logged out or when no
+  /// profile is active — logged-out data stays local. The round is
+  /// guarded by the same running flag as [autoSync], so a switch during
+  /// a cold-start round does not run twice.
+  Future<bool> syncActiveZeusProfile() async {
+    if (!state.loggedIn) return false;
+    if (_autoSyncRunning) return false;
+    if (ref.read(zeusProfilesProvider).activeProfileId == null) {
+      return false;
+    }
+    _autoSyncRunning = true;
+    try {
+      final outcome = await _downloadAndRestore(silent: true);
+      if (outcome == _DownloadOutcome.failed) return true;
+      await _uploadBackup(silent: true);
+      return true;
+    } catch (e) {
+      talker.warning('[ZoroX Account] profile switch sync failed: $e');
+      return true;
+    } finally {
+      _autoSyncRunning = false;
+    }
+  }
+
   /// The download + restore step shared by login, Sync now and the
   /// automatic sync.
   ///
@@ -650,7 +742,13 @@ class ZoroxAccountNotifier extends Notifier<ZoroxAccountState> {
           statusCode: 401,
         );
       }
-      final remote = await _client.download(baseUrl, token);
+      final remote = await _client.download(
+        baseUrl,
+        token,
+        // Profiles (Build 2): download the ACTIVE profile's backup, not
+        // the legacy key. No active profile keeps the legacy download.
+        profileId: ref.read(zeusProfilesProvider).activeProfileId,
+      );
       if (remote == null) return _DownloadOutcome.nothingStored;
       final report = await restoreBackup(
         ZoroxBackup.fromJson(remote),

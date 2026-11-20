@@ -16,11 +16,22 @@ class ZeusProfilePickerScreen extends ConsumerWidget {
   const ZeusProfilePickerScreen({
     required this.onSelect,
     required this.onCreate,
+    this.highlightProfileId,
+    this.onManage,
     super.key,
   });
 
   final ValueChanged<ZeusProfile> onSelect;
   final VoidCallback onCreate;
+
+  /// The profile to mark as active (a check badge): the switcher shows
+  /// it, the cold-start gate has no active profile and leaves it null.
+  final String? highlightProfileId;
+
+  /// Shows a "Manage profiles" footer link when set (the switcher). The
+  /// cold-start gate leaves it null — there is nothing to manage before
+  /// a profile is open.
+  final VoidCallback? onManage;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -74,6 +85,7 @@ class ZeusProfilePickerScreen extends ConsumerWidget {
                       _PickerTile(
                         key: ValueKey('profile-tile-${profile.id}'),
                         profile: profile,
+                        highlighted: profile.id == highlightProfileId,
                         onTap: () => onSelect(profile),
                       ),
                     if (canAddMore)
@@ -84,6 +96,14 @@ class ZeusProfilePickerScreen extends ConsumerWidget {
                   ],
                 ),
               ),
+              if (onManage != null) ...[
+                const SizedBox(height: 8),
+                TextButton(
+                  key: const ValueKey('profile-manage-link'),
+                  onPressed: onManage,
+                  child: const Text('Manage profiles'),
+                ),
+              ],
               Text(
                 'Max $kZeusProfileMaxCount profiles — each with its own 4-digit PIN.',
                 textAlign: TextAlign.center,
@@ -100,10 +120,16 @@ class ZeusProfilePickerScreen extends ConsumerWidget {
 }
 
 class _PickerTile extends StatelessWidget {
-  const _PickerTile({required this.profile, required this.onTap, super.key});
+  const _PickerTile({
+    required this.profile,
+    required this.onTap,
+    this.highlighted = false,
+    super.key,
+  });
 
   final ZeusProfile profile;
   final VoidCallback onTap;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +140,34 @@ class _PickerTile extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ZeusProfileAvatar(profile: profile),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ZeusProfileAvatar(profile: profile),
+              if (highlighted)
+                Positioned(
+                  right: -4,
+                  top: -4,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: theme.scaffoldBackgroundColor,
+                        width: 2,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.check_rounded,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           const SizedBox(height: 8),
           Text(
             profile.name,

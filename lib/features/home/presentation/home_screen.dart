@@ -10,6 +10,9 @@ import 'provider_pins.dart';
 import '../../../core/utils/motion.dart';
 import 'home_row_prefs.dart';
 import 'home_row_prefs_provider.dart';
+import '../../profiles/data/zeus_profiles_notifier.dart';
+import '../../profiles/presentation/profile_switcher_screen.dart';
+import '../../profiles/presentation/zeus_profile_avatar.dart';
 import 'home_state.dart';
 import 'widgets/home_check_card.dart';
 
@@ -282,7 +285,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           // buttons moved under the logo in v6 (the AppBar's `bottom`), as a
           // plain text line.
           Padding(
-            padding: const EdgeInsets.only(right: LayoutConstants.spacingMd),
+            padding: const EdgeInsets.only(right: LayoutConstants.spacingSm),
             child: CardsWrapper(
               onTap: () => const SettingsRoute().go(context),
               borderRadius: BorderRadius.circular(50),
@@ -298,6 +301,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ),
           ),
+
+          // 3. Active profile's avatar (Build 2) — Netflix-style: tap to
+          // switch profiles. Only when a profile is open (logged in or
+          // local-only); the gate owns the picker before that.
+          if (ref.watch(zeusProfilesProvider).activeProfile case final activeProfile?)
+            Padding(
+              padding: const EdgeInsets.only(right: LayoutConstants.spacingMd),
+              child: CardsWrapper(
+                onTap: () => showZeusProfileSwitcher(context),
+                borderRadius: BorderRadius.circular(50),
+                child: ZeusProfileAvatar(
+                  profile: activeProfile,
+                  size: 36,
+                ),
+              ),
+            ),
         ],
       ),
       body: _buildBody(

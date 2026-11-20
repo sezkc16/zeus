@@ -5,6 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/notification_service.dart';
+import '../../profiles/data/zeus_profiles_notifier.dart';
+import '../../profiles/presentation/legacy_move_dialog.dart';
+import '../../profiles/presentation/manage_profiles_screen.dart';
+import '../../profiles/presentation/profile_switcher_screen.dart';
 import '../../settings/presentation/widgets/settings_widgets.dart';
 import '../data/zorox_account_notifier.dart';
 import '../data/zorox_backup.dart';
@@ -21,6 +25,8 @@ class ZoroxAccountSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final account = ref.watch(zoroxAccountProvider);
+    final zeusProfiles = ref.watch(zeusProfilesProvider);
+    final activeZeusProfile = zeusProfiles.activeProfile;
     // The design preview's Accounts screen opens with a BACKUP card
     // (Import backup). The account itself — log in, cloud sync, sync
     // server — is ZoroX's own feature, not in the preview; it keeps its
@@ -47,6 +53,60 @@ class ZoroxAccountSection extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 16),
+        // Profiles (Build 2): the Netflix-style switcher and management.
+        // Shown whenever profiles exist — the account's list when logged
+        // in, the device's local-only list when logged out.
+        if (zeusProfiles.profiles.isNotEmpty)
+          SettingsGroup(
+            title: 'Profiles',
+            children: [
+              SettingsTile(
+                reicon: Reicon.arrowSwapHorizontal,
+                title: 'Switch profile',
+                subtitle: activeZeusProfile != null
+                    ? 'Current: ${activeZeusProfile.name}'
+                    : 'Choose who’s watching',
+                onTap: () => showZeusProfileSwitcher(context),
+              ),
+              SettingsTile(
+                reicon: Reicon.userCircle,
+                title: 'Manage profiles',
+                subtitle:
+                    '${zeusProfiles.profiles.length} profile${zeusProfiles.profiles.length == 1 ? '' : 's'} · rename, change PIN, delete',
+                isLast: !zeusProfiles.legacyDataPendingMove,
+                onTap: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) => const ZeusManageProfilesScreen(),
+                  ),
+                ),
+              ),
+              // §9 case 3: the account has profiles and this device still
+              // has legacy (pre-profile) data to move or delete.
+              if (zeusProfiles.legacyDataPendingMove &&
+                  activeZeusProfile != null)
+                SettingsTile(
+                  reicon: Reicon.import,
+                  title: 'Move this device’s data…',
+                  subtitle:
+                      'Move old history and My List into ${activeZeusProfile.name}',
+                  onTap: () => showZeusLegacyMoveDialog(
+                    context,
+                    ref,
+                    targetProfile: activeZeusProfile,
+                  ),
+                ),
+              if (zeusProfiles.legacyDataPendingMove)
+                SettingsTile(
+                  icon: Icons.delete_rounded,
+                  title: 'Delete this device’s data',
+                  subtitle: 'Discard the old history and My List',
+                  danger: true,
+                  isLast: true,
+                  onTap: () => _deleteLegacyData(context, ref),
+                ),
+            ],
+          ),
+        if (zeusProfiles.profiles.isNotEmpty) const SizedBox(height: 16),
         SettingsGroup(
           title: 'Zeus Account',
           children: [
@@ -107,6 +167,42 @@ class ZoroxAccountSection extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  /// §9 case 3's other way out: discard the device's legacy
+  /// (pre-profile) data instead of moving it. Confirmed first — the
+  /// data cannot be recovered afterwards.
+  Future<void> _deleteLegacyData(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete this device’s data?'),
+        content: const Text(
+          'This discards the old watch history and My List on this '
+          'device. It cannot be recovered.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await ref.read(zoroxAccountProvider.notifier).deleteLegacyData();
+    if (!context.mounted) return;
+    ref
+        .read(notificationServiceProvider)
+        .showSuccess(
+          'Old data deleted.',
+          title: 'Profiles',
+          icon: Icons.check_circle_rounded,
+        );
   }
 
   Future<void> _syncNow(BuildContext context, WidgetRef ref) async {

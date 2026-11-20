@@ -1,9 +1,10 @@
 // Profiles Build 1: the profiles notifier — fetch + migration flags,
 // PIN verify + lockout, switching, PIN change, logout clear.
 //
-// NOTE: written but NOT run yet — the b107 agent is running flutter on
-// this VM and two flutter processes OOM it. Run after b107 lands:
-// `flutter test test/features/profiles/`.
+// Build 2: local-only profiles (logged out), update + delete, and the
+// local migration.
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +23,8 @@ class _FakeStorage extends StorageService {
   bool legacyNonEmpty = false;
   int copyCalls = 0;
   int clearLegacyCalls = 0;
+  int mergeCalls = 0;
+  int deleteBoxesCalls = 0;
 
   @override
   String? getString(String key) => values[key];
@@ -53,6 +56,18 @@ class _FakeStorage extends StorageService {
   @override
   Future<void> clearLegacyHistoryAndLibrary() async {
     clearLegacyCalls++;
+  }
+
+  @override
+  Future<void> mergeLegacyHistoryAndLibraryIntoZeusProfile(
+    String profileId,
+  ) async {
+    mergeCalls++;
+  }
+
+  @override
+  Future<void> deleteZeusProfileBoxes(String profileId) async {
+    deleteBoxesCalls++;
   }
 }
 
@@ -335,6 +350,178 @@ void main() {
         storage.values.containsKey('profiles_pin_attempts_p_one'),
         isFalse,
       );
+    });
+  });
+
+  group('local-only profiles (Build 2)', () {
+    void seedLocal(List<ZeusProfile> profiles, {String? activeId}) {
+      storage.values[ZeusProfileCacheKeys.localList] = jsonEncode({
+        'profiles': [for (final p in profiles) p.toJson()],
+        'updatedAt': 1,
+      });
+      if (activeId != null) {
+        storage.values[ZeusProfileCacheKeys.localActiveId] = activeId;
+      }
+    }
+
+    test('empty local cache means the first profile still needs its PIN', () async {
+      await notifier().refreshLocalZeusProfiles();
+      final state = container.read(zeusProfilesProvider);
+      expect(state.fetched, isTrue);
+      expect(state.localMode, isTrue);
+      expect(state.profiles, isEmpty);
+      expect(state.needsDefaultPin, isTrue);
+      expect(state.legacyDataPendingMove, isFalse);
+    });
+
+    test('local create stores in the local cache, never on the server', () async {
+      await notifier().refreshLocalZeusProfiles();
+      final created = await notifier().createZeusProfile(
+        name: 'Aarav',
+        color: 'teal',
+        pin: '5678',
+      );
+      expect(created, isNotNull);
+      expect(created!.id.startsWith('p_'), isTrue);
+      expect(created.pinRecord.startsWith('v1\$100000\$'), isTrue);
+      expect(AppLockPasscodeHash.verify('5678', created.pinRecord), isTrue);
+      expect(container.read(zeusProfilesProvider).profiles, hasLength(1));
+      expect(
+        storage.values.containsKey(ZeusProfileCacheKeys.localList),
+        isTrue,
+      );
+      // The server never saw it.
+      expect(client.serverProfiles, isEmpty);
+      expect(
+        storage.values.containsKey(ZeusProfileCacheKeys.list),
+        isFalse,
+      );
+    });
+
+    test('local create enforces max 5', () async {
+      seedLocal([
+        for (var i = 0; i < 5; i++)
+          client.profile('p_local$i', '1234', name: 'P$i'),
+      ]);
+      await notifier().refreshLocalZeusProfiles();
+      final created = await notifier().createZeusProfile(
+        name: 'Sixth',
+        color: 'gold',
+        pin: '1234',
+      );
+      expect(created, isNull);
+      expect(
+        container.read(zeusProfilesProvider).error,
+        contains('5'),
+      );
+      expect(container.read(zeusProfilesProvider).profiles, hasLength(5));
+    });
+
+    test('local update renames and recolours', () async {
+      seedLocal([client.profile('p_one', '1234')]);
+      await notifier().refreshLocalZeusProfiles();
+      final ok = await notifier().updateZeusProfile(
+        profileId: 'p_one',
+        name: 'Aarav',
+        color: 'teal',
+      );
+      expect(ok, isTrue);
+      final profile = container
+          .read(zeusProfilesProvider)
+          .profiles
+          .single;
+      expect(profile.name, 'Aarav');
+      expect(profile.color, 'teal');
+      expect(
+        storage.values[ZeusProfileCacheKeys.localList],
+        contains('Aarav'),
+      );
+    });
+
+    test('local PIN change needs no account password', () async {
+      seedLocal([client.profile('p_one', '1234')]);
+      await notifier().refreshLocalZeusProfiles();
+      final ok = await notifier().updateZeusProfilePin(
+        profileId: 'p_one',
+        newPin: '9999',
+      );
+      expect(ok, isTrue);
+      expect(
+        await notifier().checkZeusProfilePin('p_one', '9999'),
+        AppLockPasscodeCheck.ok,
+      );
+      expect(
+        await notifier().checkZeusProfilePin('p_one', '1234'),
+        AppLockPasscodeCheck.wrong,
+      );
+    });
+
+    test('local delete removes the profile and its boxes, switches active', () async {
+      seedLocal([
+        client.profile('p_one', '1234', name: 'One'),
+        client.profile('p_two', '1234', name: 'Two'),
+      ], activeId: 'p_one');
+      await notifier().refreshLocalZeusProfiles();
+      expect(
+        container.read(zeusProfilesProvider).activeProfileId,
+        'p_one',
+      );
+      final ok = await notifier().deleteZeusProfile(profileId: 'p_one');
+      expect(ok, isTrue);
+      expect(storage.deleteBoxesCalls, 1);
+      final state = container.read(zeusProfilesProvider);
+      expect(state.profiles, hasLength(1));
+      expect(state.profiles.single.id, 'p_two');
+      expect(state.activeProfileId, 'p_two');
+      expect(
+        storage.values[ZeusProfileCacheKeys.localList],
+        isNot(contains('p_one')),
+      );
+    });
+
+    test('delete refuses the last profile', () async {
+      seedLocal([client.profile('p_one', '1234')]);
+      await notifier().refreshLocalZeusProfiles();
+      final ok = await notifier().deleteZeusProfile(profileId: 'p_one');
+      expect(ok, isFalse);
+      expect(storage.deleteBoxesCalls, 0);
+      expect(container.read(zeusProfilesProvider).profiles, hasLength(1));
+    });
+
+    test('switchToLocalProfiles drops the server cache, loads the local list', () async {
+      await seed();
+      seedLocal(
+        [client.profile('p_local', '1234', name: 'Local')],
+        activeId: 'p_local',
+      );
+      await notifier().switchToLocalProfiles();
+      expect(
+        storage.values.containsKey(ZeusProfileCacheKeys.list),
+        isFalse,
+      );
+      final state = container.read(zeusProfilesProvider);
+      expect(state.localMode, isTrue);
+      expect(state.profiles, hasLength(1));
+      expect(state.profiles.single.name, 'Local');
+      expect(state.activeProfileId, 'p_local');
+      expect(storage.activeProfileId, 'p_local');
+    });
+
+    test('local migration copies legacy data and marks migrated', () async {
+      await notifier().refreshLocalZeusProfiles();
+      final profile = await notifier().completeLocalProfileMigration(
+        name: 'Suresh',
+        color: 'gold',
+        pin: '1234',
+      );
+      expect(profile, isNotNull);
+      expect(storage.copyCalls, 1);
+      expect(storage.clearLegacyCalls, 1);
+      expect(storage.activeProfileId, profile!.id);
+      final state = container.read(zeusProfilesProvider);
+      expect(state.profiles, hasLength(1));
+      expect(state.migrated, isTrue);
+      expect(state.needsDefaultPin, isFalse);
     });
   });
 }

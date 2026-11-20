@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 /// One Zeus profile: a Netflix-style identity on the Zeus account, with
@@ -81,6 +82,15 @@ class ZeusProfile {
   bool get hasPinRecord => id.isNotEmpty && pinRecord.isNotEmpty;
 }
 
+/// A device-generated profile id, same shape as the server's (`p_` + 16
+/// hex chars): local-only profiles (Build 2, logged-out users) get theirs
+/// on this device, never from the server.
+String newZeusProfileId() {
+  final random = math.Random.secure();
+  final bytes = List<int>.generate(8, (_) => random.nextInt(256));
+  return 'p_${bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join()}';
+}
+
 /// PBKDF2 rounds for a profile PIN record: the account-password count,
 /// stronger than the app lock's 10,000, because this record leaves the
 /// device (it is stored on the server). See `AppLockPasscodeHash.create`.
@@ -146,4 +156,13 @@ class ZeusProfileCacheKeys {
   /// Per-profile "no PIN accepted until" (unix ms); 0 for none.
   static String blockedUntil(String profileId) =>
       'profiles_pin_blocked_$profileId';
+
+  /// Local-only profiles (Build 2, logged out): the list that lives on
+  /// this device only, never on the server. Same JSON shape as [list].
+  /// Kept apart from the server cache so logging in never overwrites
+  /// local profiles and logging out never loses them.
+  static const String localList = 'profiles_local_cache_json';
+
+  /// The active local-only profile on this device.
+  static const String localActiveId = 'profiles_local_active_id';
 }

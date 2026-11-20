@@ -60,17 +60,18 @@ const _midnightPalette = _DarkPalette(
 );
 
 const _liquidGlassPalette = _DarkPalette(
-  // Build 104: Aurora is the cool one — teal-green-black surfaces so
-  // it reads apart from Obsidian's neutral deep black at a glance
-  // (the three theme cards used to look identical because all three
-  // dark palettes were the same near-black).
-  scaffold: Color(0xFF081210),
-  surface: Color(0xFF122019),
-  dialog: Color(0xFF141F18),
-  card: Color(0xFF122019),
-  inputFill: Color(0xFF141F18),
-  divider: Color(0xFF1F2E26),
-  appBar: Color(0xFF081210),
+  // Build 104: Aurora is the cool one — blue-black surfaces so it
+  // reads apart from Obsidian's neutral deep black at a glance (the
+  // three theme cards used to look identical because all three dark
+  // palettes were the same near-black). Build 109: teal-green → blue,
+  // same darkness.
+  scaffold: Color(0xFF080F14),
+  surface: Color(0xFF0F1B26),
+  dialog: Color(0xFF111D29),
+  card: Color(0xFF0F1B26),
+  inputFill: Color(0xFF111D29),
+  divider: Color(0xFF1D2B3A),
+  appBar: Color(0xFF080F14),
 );
 
 /// Olympus Noir (build 102) — cinematic gold on obsidian: the deepest

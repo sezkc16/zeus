@@ -8,9 +8,10 @@
 /// Flutter, not glyph icons), and each card carries its signature
 /// accent, so tapping one visibly changes the app: the theme AND
 /// its accent apply together (Obsidian and Imperial are gold,
-/// Aurora is jade-green). Before this the three cards mapped onto
-/// three dark variants that differed only in surface shades while
-/// the accent stayed put, so a tap looked like nothing happened.
+/// Aurora is sky-blue — build 109 turned it from jade-green).
+/// Before this the three cards mapped onto three dark variants that
+/// differed only in surface shades while the accent stayed put, so a
+/// tap looked like nothing happened.
 /// The accent row below still overrides the accent on its own.
 ///
 /// The three cards map onto the existing theme system, so no saved
@@ -18,8 +19,8 @@
 ///
 /// * Obsidian → [ZoroxThemeVariant.obsidian] (the new Olympus Noir
 ///   palette, #090B10 / #E7BE63).
-/// * Aurora → [ZoroxThemeVariant.liquidGlass] (the cool teal-green
-///   dark theme, closest in spirit to the mockup's aurora card).
+/// * Aurora → [ZoroxThemeVariant.liquidGlass] (the cool blue dark
+///   theme, closest in spirit to the mockup's aurora card).
 /// * Imperial → [ZoroxThemeVariant.arenaGold] (the warm gold dark
 ///   theme, closest to the mockup's imperial card).
 ///
@@ -333,7 +334,7 @@ class _ThemePreview extends StatelessWidget {
         ];
       case _PreviewKind.aurora:
         return [
-          // Soft jade glow, top left.
+          // Soft blue glow, top left.
           Positioned(
             top: -14,
             left: -10,
@@ -344,7 +345,9 @@ class _ThemePreview extends StatelessWidget {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: kOlympusJade.withValues(alpha: 0.5),
+                    // Build 109: Aurora went blue — the glow follows the
+                    // bands, not the (unchanged) kOlympusJade accent.
+                    color: const Color(0xFF2E7DD6).withValues(alpha: 0.5),
                     blurRadius: 24,
                     spreadRadius: 6,
                   ),
@@ -364,9 +367,9 @@ class _ThemePreview extends StatelessWidget {
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      Color(0x0080EAC7),
-                      Color(0xCC80EAC7),
-                      Color(0x0042D6A0),
+                      Color(0x006EA8FF),
+                      Color(0xCC6EA8FF),
+                      Color(0x002E7DD6),
                     ],
                   ),
                 ),
@@ -384,9 +387,9 @@ class _ThemePreview extends StatelessWidget {
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      Color(0x0042D6A0),
-                      Color(0x9942D6A0),
-                      Color(0x0080EAC7),
+                      Color(0x002E7DD6),
+                      Color(0x992E7DD6),
+                      Color(0x006EA8FF),
                     ],
                   ),
                 ),

@@ -53,6 +53,7 @@ class ZeusProfilePinScreen extends ConsumerStatefulWidget {
     required this.profile,
     required this.onUnlocked,
     this.onBack,
+    this.switchOnUnlock = true,
     super.key,
   });
 
@@ -64,6 +65,12 @@ class ZeusProfilePinScreen extends ConsumerStatefulWidget {
   /// Shows a back button when set (the picker); the gate omits it when
   /// there is nowhere to go back to.
   final VoidCallback? onBack;
+
+  /// Whether a right PIN also makes this the active profile (the picker
+  /// flow). False when the screen only confirms the PIN — profile
+  /// management (Build 2) proves the current PIN before a change or a
+  /// delete, without switching away from the profile being managed.
+  final bool switchOnUnlock;
 
   @override
   ConsumerState<ZeusProfilePinScreen> createState() =>
@@ -178,9 +185,16 @@ class _ZeusProfilePinScreenState
                   notifier.checkZeusProfilePin(_profile.id, pin),
               profilePinBlockedFor: () =>
                   notifier.blockedForZeusProfile(_profile.id),
-              onForgotProfilePin: () => _askForgotPassword(context),
+              // Local-only profiles (Build 2) have no account password
+              // behind them, so a forgotten PIN has no recovery — the
+              // link is hidden for them rather than leading nowhere.
+              onForgotProfilePin: profiles.localMode
+                  ? null
+                  : () => _askForgotPassword(context),
               onDone: () async {
-                await notifier.switchZeusProfile(_profile.id);
+                if (widget.switchOnUnlock) {
+                  await notifier.switchZeusProfile(_profile.id);
+                }
                 if (mounted) widget.onUnlocked();
               },
             ),
@@ -264,7 +278,9 @@ class _ZeusProfilePinScreenState
       return;
     }
     // The account password proved ownership: open the profile.
-    await notifier.switchZeusProfile(_profile.id);
+    if (widget.switchOnUnlock) {
+      await notifier.switchZeusProfile(_profile.id);
+    }
     if (mounted) widget.onUnlocked();
   }
 }

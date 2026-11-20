@@ -178,6 +178,62 @@ void main() {
     expect(storage.getWatchHistory(), hasLength(1));
   });
 
+  test('merge keeps the newest history entry and adds missing library items', () async {
+    final filmA = _item('Film A');
+    final filmB = _item('Film B');
+    final filmC = _item('Film C');
+    // Legacy data first (older timestamps).
+    await storage.saveProgress(filmA, 1000, 60000);
+    await storage.saveProgress(filmB, 2000, 60000);
+    await storage.addToLibrary(filmA);
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+
+    // The profile already has a NEWER entry for Film A and its own Film C.
+    await storage.setActiveZeusProfile('p_aaaa000000000001');
+    await storage.saveProgress(filmA, 5000, 60000);
+    await storage.addToLibrary(filmC);
+
+    await storage.mergeLegacyHistoryAndLibraryIntoZeusProfile(
+      'p_aaaa000000000001',
+    );
+
+    // Newest wins: the profile's 5000 for Film A survives; Film B arrives.
+    expect(storage.getPosition(filmA.url), 5000);
+    expect(storage.getPosition(filmB.url), 2000);
+    expect(
+      storage.getWatchHistory().map((e) => e['title']).toSet(),
+      {'Film A', 'Film B'},
+    );
+    // Library: missing items are added, existing ones kept.
+    expect(
+      storage.getLibraryItems().map((e) => e.title).toSet(),
+      {'Film A', 'Film C'},
+    );
+
+    // The legacy boxes are left alone until the upload succeeds.
+    await storage.setActiveZeusProfile(null);
+    expect(storage.getWatchHistory(), hasLength(2));
+  });
+
+  test('deleteZeusProfileBoxes removes the profile data, others survive', () async {
+    await storage.setActiveZeusProfile('p_aaaa000000000001');
+    await storage.saveProgress(_item('Profile Film'), 5000, 60000);
+    await storage.addToLibrary(_item('Profile Film'));
+    await storage.setActiveZeusProfile('p_bbbb000000000002');
+    await storage.saveProgress(_item('Other Film'), 3000, 60000);
+
+    await storage.deleteZeusProfileBoxes('p_aaaa000000000001');
+
+    // The deleted profile's boxes come back empty.
+    await storage.setActiveZeusProfile('p_aaaa000000000001');
+    expect(storage.getWatchHistory(), isEmpty);
+    expect(storage.getLibraryItems(), isEmpty);
+
+    // The other profile is untouched.
+    await storage.setActiveZeusProfile('p_bbbb000000000002');
+    expect(storage.getWatchHistory(), hasLength(1));
+  });
+
   test('getAllHistoryEntries / restoreHistoryEntries follow the active pair', () async {
     await storage.saveProgress(_item('Legacy Film'), 1000, 60000);
     final legacyEntries = storage.getAllHistoryEntries();

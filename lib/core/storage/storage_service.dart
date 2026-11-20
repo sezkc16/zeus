@@ -706,6 +706,90 @@ class StorageService {
     _historyCacheDirty = true;
   }
 
+  /// Merges the legacy history/library boxes into [profileId]'s boxes
+  /// (migration §9 case 3, Build 2): history is newest-timestamp-wins
+  /// per key, the same rule as a backup restore — a newer entry already
+  /// in the profile is never overwritten by an older legacy one. Library
+  /// entries are added when missing. The legacy boxes are left alone;
+  /// the caller clears them once the merged data is safely backed up.
+  Future<void> mergeLegacyHistoryAndLibraryIntoZeusProfile(
+    String profileId,
+  ) async {
+    final legacyHistory = _legacyHistoryBox;
+    final legacyLibrary = _legacyLibraryBox;
+    if (legacyHistory == null || legacyLibrary == null) return;
+    final historyBox = await _zeusProfileHistoryBox(profileId);
+    final libraryBox = await _zeusProfileLibraryBox(profileId);
+    for (var i = 0; i < legacyHistory.length; i++) {
+      final key = legacyHistory.keyAt(i);
+      final raw = legacyHistory.get(key);
+      if (key is! String || raw is! Map) continue;
+      final legacyTimestamp = (raw['timestamp'] as int?) ?? 0;
+      final existing = historyBox.get(key);
+      final existingTimestamp = existing is Map
+          ? (existing['timestamp'] as int?) ?? 0
+          : 0;
+      if (!historyBox.containsKey(key) ||
+          legacyTimestamp > existingTimestamp) {
+        await historyBox.put(key, Map<String, dynamic>.from(raw));
+      }
+    }
+    for (var i = 0; i < legacyLibrary.length; i++) {
+      final key = legacyLibrary.keyAt(i);
+      if (key is! String) continue;
+      if (!libraryBox.containsKey(key)) {
+        await libraryBox.put(key, legacyLibrary.get(key));
+      }
+    }
+    _historyCacheDirty = true;
+  }
+
+  /// Deletes [profileId]'s history + library boxes from disk (profile
+  /// deletion, Build 2). Mirrors "Reset Data": a cached box is closed
+  /// first, then the files are unlinked by name — a box that never
+  /// opened on this device still has its files deleted.
+  Future<void> deleteZeusProfileBoxes(String profileId) async {
+    final historyBox = _zeusProfileHistoryBoxes.remove(profileId);
+    try {
+      if (historyBox != null && historyBox.isOpen) {
+        await historyBox.close();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint("Could not close profile history box '$profileId': $e");
+      }
+    }
+    final libraryBox = _zeusProfileLibraryBoxes.remove(profileId);
+    try {
+      if (libraryBox != null && libraryBox.isOpen) {
+        await libraryBox.close();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint("Could not close profile library box '$profileId': $e");
+      }
+    }
+    // The active pair must never point at a deleted box.
+    if (_activeZeusProfileId == profileId) {
+      _activeZeusProfileId = null;
+      final legacyHistory = _legacyHistoryBox;
+      final legacyLibrary = _legacyLibraryBox;
+      if (legacyHistory != null) _historyBox = legacyHistory;
+      if (legacyLibrary != null) _libraryBox = legacyLibrary;
+      _historyCacheDirty = true;
+    }
+    try {
+      await Hive.deleteBoxFromDisk(zeusProfileHistoryBoxName(profileId));
+    } catch (e) {
+      if (kDebugMode) debugPrint("Error deleting profile box: $e");
+    }
+    try {
+      await Hive.deleteBoxFromDisk(zeusProfileLibraryBoxName(profileId));
+    } catch (e) {
+      if (kDebugMode) debugPrint("Error deleting profile box: $e");
+    }
+  }
+
   /// Clears the legacy boxes after a successful migration upload, so the
   /// same data does not live in two places. The server backup is the
   /// safety net: callers clear only once the profile backup (and the
