@@ -1,6 +1,11 @@
-/// Settings has no Extensions group since 1.0.1. The owner asked for all
-/// four rows to go: .cs3 repos, Nuvio plugins and Stremio add-ons are
-/// managed on the Plugins tab, and "Search in plugins" went with them.
+/// Settings has an Extensions group again since b121. The owner asked
+/// for it back (2026-11-22 ~04:01): four SEPARATE sub-sections, one per
+/// source — SkyStream, CloudStream, Nuvio, Stremio — each managing only
+/// its own plugins and repos. The 1.0.1 removal ("hum toh plugin section
+/// se sab manage karsakte") no longer holds: the Home plugin section is
+/// troublesome ("bohot dikkat horha"). The four sections live inside the
+/// Extensions screen, so Settings carries ONE "Extensions" row — the old
+/// four top-level rows are still gone.
 library;
 
 import 'package:flutter/material.dart';
@@ -79,7 +84,7 @@ class _SignedOutTrackers extends TrackingAuth {
 }
 
 void main() {
-  testWidgets('Settings has no Extensions group', (tester) async {
+  testWidgets('Settings has one Extensions group (b121)', (tester) async {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -110,12 +115,21 @@ void main() {
     );
     await tester.pump();
 
+    // One Extensions group, with the single row that opens the four
+    // separate per-source sections.
     expect(
       find.byWidgetPredicate(
         (w) => w is SettingsGroup && w.title == 'Extensions',
       ),
-      findsNothing,
+      findsOneWidget,
     );
+    expect(find.text('Extensions'), findsWidgets);
+    expect(
+      find.text('SkyStream, CloudStream, Nuvio & Stremio'),
+      findsOneWidget,
+    );
+    // The old four top-level rows are still gone: they live inside the
+    // Extensions screen now, not in Settings.
     for (final title in [
       'CloudStream Repos (.cs3)',
       'Nuvio Plugins',
@@ -129,7 +143,7 @@ void main() {
         .widgetList<SettingsGroup>(find.byType(SettingsGroup))
         .map((g) => g.title)
         .toList();
-    expect(titles, isNot(contains('Extensions')));
+    expect(titles, contains('Extensions'));
     expect(titles.length, greaterThanOrEqualTo(3));
     expect(find.text('BETA'), findsNothing);
   });

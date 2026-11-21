@@ -126,6 +126,16 @@ void main() {
 
   testWidgets('tapping it opens the project page', (tester) async {
     await pumpAbout(tester);
+    // The list is one group taller since b121 (the Extensions group sits
+    // above About), so the scroll that lands the Version row can leave
+    // this row just above the viewport: bring the row itself into view
+    // before tapping it.
+    await tester.scrollUntilVisible(
+      find.text('Based on SkyStream'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pump();
     await tester.tap(find.text('Based on SkyStream'));
     await tester.pump();
     expect(kBasedOnProjectUrl, 'https://github.com/akashdh11/skystream');
@@ -135,6 +145,14 @@ void main() {
   testWidgets('Telegram opens the SkyStream community chat', (tester) async {
     await pumpAbout(tester);
     expect(find.text('SkyStream community chat'), findsOneWidget);
+    // Same scroll as the credit test above (b121): the row can sit just
+    // above the viewport after the Version-row scroll.
+    await tester.scrollUntilVisible(
+      find.text('Telegram'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pump();
     await tester.tap(find.text('Telegram'));
     await tester.pump();
     expect(kTelegramChatUrl, 'https://t.me/skystream7chat');
@@ -154,10 +172,10 @@ void main() {
     expect(aboutVersionLabel('1.2.3 +1.2.3'), '1.2.3');
   });
 
-  test('the app is 2.1.10 build 120', () {
+  test('the app is 2.1.11 build 121', () {
     expect(
       File('pubspec.yaml').readAsStringSync(),
-      contains('\nversion: 2.1.10+120\n'),
+      contains('\nversion: 2.1.11+121\n'),
     );
   });
 }

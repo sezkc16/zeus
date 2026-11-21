@@ -18,6 +18,7 @@ import 'package:zorox/features/player/presentation/vlc/vlc_player_screen.dart';
 import 'package:zorox/features/player/presentation/mpv/mpv_player_screen.dart';
 import 'package:zorox/features/settings/presentation/player_settings_provider.dart';
 import '../../features/extensions/screens/extensions_screen.dart';
+import '../../features/extensions/screens/settings_extensions_screen.dart';
 import '../../shared/widgets/branch_cross_fade.dart';
 import '../../shared/widgets/edge_swipe_back.dart';
 import '../../features/nuvio/presentation/nuvio_plugins_screen.dart';
@@ -76,6 +77,7 @@ part 'app_router.g.dart';
           routes: [
             TypedGoRoute<PlayerSettingsRoute>(path: 'player'),
             TypedGoRoute<AccountSettingsRoute>(path: 'accounts'),
+            TypedGoRoute<SettingsExtensionsRoute>(path: 'extensions'),
             TypedGoRoute<NuvioPluginsRoute>(path: 'nuvio'),
             TypedGoRoute<CloudStreamRoute>(path: 'cloudstream'),
             TypedGoRoute<AddonsRoute>(path: 'stremio'),
@@ -217,6 +219,20 @@ class ExtensionsRoute extends GoRouteData with $ExtensionsRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const ExtensionsScreen();
+}
+
+class SettingsExtensionsRoute extends GoRouteData
+    with $SettingsExtensionsRoute {
+  const SettingsExtensionsRoute();
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const SettingsExtensionsScreen();
+
+  // Same smooth slide + fade as every other pushed page (see
+  // route_transitions.dart).
+  @override
+  Page<void> buildPage(BuildContext context, GoRouterState state) =>
+      smoothPage(key: state.pageKey, child: build(context, state));
 }
 
 class NuvioPluginsRoute extends GoRouteData with $NuvioPluginsRoute {

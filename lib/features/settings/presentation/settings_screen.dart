@@ -103,13 +103,30 @@ class SettingsScreen extends ConsumerWidget {
                     l10n,
                     generalSettings,
                   ),
-                  // 1.0.1: no Extensions group here any more. The owner asked
-                  // for all four rows to go ("hum toh plugin section se sab
-                  // manage karsakte") — .cs3 repos, Nuvio plugins and Stremio
-                  // add-ons are added and removed on the Plugins tab. "Search
-                  // in plugins" went with them and has no other entry point,
-                  // so Search asks every installed source again (see
-                  // effectiveSearchDisabledSources).
+                  // b121: the Extensions section is back in Settings at the
+                  // owner's request (2026-11-22 ~04:01, going to sleep):
+                  // four SEPARATE sub-sections, one per source — SkyStream,
+                  // CloudStream, Nuvio, Stremio — each with its own plugin
+                  // management (add/remove/refresh repos, install/uninstall).
+                  // The 1.0.1 removal ("hum toh plugin section se sab manage
+                  // karsakte") no longer holds: the Home plugin section is
+                  // troublesome ("bohot dikkat horha"), so Settings carries
+                  // the one place per source. The four sections live inside
+                  // the Extensions screen, not as top-level Settings rows.
+                  const SizedBox(height: LayoutConstants.spacingLg),
+                  SettingsGroup(
+                    title: 'Extensions',
+                    children: [
+                      SettingsTile(
+                        reicon: Reicon.plug,
+                        title: 'Extensions',
+                        subtitle: 'SkyStream, CloudStream, Nuvio & Stremio',
+                        isLast: true,
+                        onTap: () =>
+                            const SettingsExtensionsRoute().go(context),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: LayoutConstants.spacingLg),
                   _buildAppDataSettingsGroup(context, ref, l10n),
                   const SizedBox(height: LayoutConstants.spacingLg),
