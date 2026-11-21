@@ -77,14 +77,29 @@ class MetadataResolutionService {
       return enriched;
     }
 
-    // Use TMDB multiSearch
-    // We can append year to the query so the regex in multiSearch picks it up
-    String query = item.title;
-    if (item.year != null) {
-      query += ' ${item.year}';
-    }
+    // Search with the cleaned title words. A scraper title carries
+    // release junk — "Bull Run (2025) Hindi Dubbed 720p WEB-DL" — and
+    // TMDB's /search/multi answers ZERO results for the junky query, so
+    // the exact-title branch never runs and Cast + More Like This stay
+    // hidden on every plugin page (build 113, user 2026-11-21: "kisi pr
+    // vi nhi dikhrha"). Cleaning first is what makes the search find
+    // the film at all — reproduced live against /search/multi: the
+    // junky query returns 0 results, the cleaned query returns the film
+    // at score 1.00.
+    //
+    // The year is kept for SCORING only (matchScore's drift adjustment).
+    // It must never reach the query: multiSearch re-derives a strict
+    // year filter from any year in the query, and a language word in it
+    // ("Hindi") becomes a strict original_language filter — both drop
+    // the true result before scoring ever runs. multiSearch itself is
+    // untouched: its filters are correct when a USER types a year or a
+    // language ("Mark 2025", "Kannada").
+    final cleanWords = titleTokens(item.title);
+    final searchTitle = cleanWords.isNotEmpty
+        ? cleanWords.join(' ')
+        : item.title;
 
-    final results = await _tmdbService.multiSearch(query: query);
+    final results = await _tmdbService.multiSearch(query: searchTitle);
 
     if (kDebugMode) {
       debugPrint(
@@ -93,21 +108,18 @@ class MetadataResolutionService {
     }
 
     var bestMatch = results.isNotEmpty ? _findBestMatch(item, results) : null;
-    if (bestMatch == null && item.year != null) {
-      // A wrong scraper year must not veto an exact title: multiSearch's
-      // strict year filter drops the true result before scoring ever runs,
-      // and a >3-year drift sinks even a perfect title below the threshold.
-      // Retry title-only and score without the year. (copyWith cannot clear
-      // a year — `year ?? this.year` — so the retry source is built fresh.)
-      final titleOnlySource = MultimediaItem(
-        title: item.title,
-        url: item.url,
-        posterUrl: item.posterUrl,
-      );
-      final titleOnlyResults = await _tmdbService.multiSearch(
-        query: item.title,
-      );
-      bestMatch = _findBestMatch(titleOnlySource, titleOnlyResults);
+    if (bestMatch == null &&
+        searchTitle.toLowerCase() != item.title.toLowerCase()) {
+      // Fallback: the raw title, for titles cleaning erased or mangled
+      // ("Cam", "Dual", "Proper" are entirely release vocabulary).
+      // Only when the cleaned query differs, so a search is never
+      // repeated. The old title-only retry is gone: it re-sent the raw
+      // title, so multiSearch re-derived the same year/language filters
+      // and answered nothing again.
+      final rawResults = await _tmdbService.multiSearch(query: item.title);
+      bestMatch = rawResults.isNotEmpty
+          ? _findBestMatch(item, rawResults)
+          : null;
     }
 
     if (bestMatch != null) {
@@ -158,7 +170,7 @@ class MetadataResolutionService {
     if (kDebugMode) {
       debugPrint(
         results.isEmpty
-            ? 'MetadataResolutionService: No results found for query: $query'
+            ? 'MetadataResolutionService: No results found for query: $searchTitle'
             : 'MetadataResolutionService: Could not find a best match among the results.',
       );
     }
