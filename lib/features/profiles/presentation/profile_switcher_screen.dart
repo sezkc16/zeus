@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../account/data/zorox_account_notifier.dart';
+import '../../../core/router/app_router.dart';
 import '../data/zeus_profile.dart';
 import '../data/zeus_profiles_notifier.dart';
 import 'manage_profiles_screen.dart';
@@ -117,6 +118,10 @@ class _ZeusProfileSwitcherScreenState
           if (mounted) setState(() => _creating = true);
         },
         onManage: _openManage,
+        // Build 115: the Home header gear is gone — Settings lives here,
+        // as the bottom row of the sheet. go_router replaces the stack,
+        // so the switcher is gone and back from Settings lands on Home.
+        onSettings: () => const SettingsRoute().go(context),
       );
     }
 

@@ -18,6 +18,7 @@ class ZeusProfilePickerScreen extends ConsumerWidget {
     required this.onCreate,
     this.highlightProfileId,
     this.onManage,
+    this.onSettings,
     super.key,
   });
 
@@ -32,6 +33,12 @@ class ZeusProfilePickerScreen extends ConsumerWidget {
   /// cold-start gate leaves it null — there is nothing to manage before
   /// a profile is open.
   final VoidCallback? onManage;
+
+  /// Shows a "Settings" footer row when set (the switcher, build 115:
+  /// the Home header gear is gone, so Settings lives here, below the
+  /// profile list and the Add/Manage rows). The cold-start gate leaves
+  /// it null — Settings is for a signed-in profile, not the gate.
+  final VoidCallback? onSettings;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -111,6 +118,40 @@ class ZeusProfilePickerScreen extends ConsumerWidget {
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+              // Build 115: Settings row — the Home header gear is gone, so
+              // the switcher sheet ends with Add account (the "+" tile
+              // above), Manage accounts (the link above) and Settings here,
+              // matching the user's reference sheet.
+              if (onSettings != null) ...[
+                const SizedBox(height: 20),
+                InkWell(
+                  key: const ValueKey('profile-settings-row'),
+                  onTap: onSettings,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 4,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.settings_outlined,
+                          size: 22,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Settings',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

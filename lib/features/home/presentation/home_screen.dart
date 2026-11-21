@@ -279,29 +279,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ),
 
-          // 2. Settings gear — Settings is not a bottom-nav tab, so this is
-          // the way in. The provider chip that sat between these two
-          // buttons moved under the logo in v6 (the AppBar's `bottom`), as a
-          // plain text line.
-          Padding(
-            padding: const EdgeInsets.only(right: LayoutConstants.spacingSm),
-            child: CardsWrapper(
-              onTap: () => const SettingsRoute().go(context),
-              borderRadius: BorderRadius.circular(50),
-              child: CircleAvatar(
-                backgroundColor: Theme.of(context).colorScheme.onSurface
-                    .withValues(alpha: 0.1),
-                radius: 18,
-                child: Icon(
-                  Icons.settings_outlined,
-                  color: Theme.of(context).colorScheme.onSurface,
-                  size: 18,
-                ),
-              ),
-            ),
-          ),
-
-          // 3. Active profile's avatar (Build 2) — Netflix-style: tap to
+          // 2. Active profile's avatar (Build 2) — Netflix-style: tap to
           // switch profiles. Only when a profile is open (logged in or
           // local-only); the gate owns the picker before that.
           // Build 110 (user 2026-11-21 01:55–01:56): exactly the
@@ -311,6 +289,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           // filled rounded square reads larger than a circle of the
           // same box, so the top-bar tile is circular like the buttons;
           // the rounded square stays everywhere else.
+          // Build 115: the Settings gear that sat here is gone — Settings
+          // lives in the profile switcher sheet now (bottom row).
           if (ref.watch(zeusProfilesProvider).activeProfile
               case final activeProfile?)
             Padding(
