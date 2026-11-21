@@ -406,6 +406,14 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// every reopen.
   bool _tempDownloadTried = false;
 
+  /// Build 120: the temp-file key the fast path already opened this
+  /// screen on. A retry after a failed fast-path open must NOT take
+  /// the fast path again for the same file (it would loop on a file
+  /// the engine cannot open) — it resolves normally instead. A new
+  /// screen (a new open) starts fresh, so a good file still opens
+  /// instantly next time.
+  String? _keptFileOpenedKey;
+
   /// Orders overlapping opens: only the newest goes on after the
   /// proxy has answered.
   int _proxyOpenToken = 0;
@@ -3333,12 +3341,153 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _adapter.publish();
   }
 
+  /// Build 120: re-playing an Instant title whose temp file is already
+  /// on disk opens the local file at the resume position at once — no
+  /// plugin call, no "Getting links", no re-download. The file is
+  /// found by the film's identity (title + episode + the last-played
+  /// source's stable label), not by the stream URL, because signed
+  /// URLs are re-issued on every load and a URL hash never matches the
+  /// kept file (b119's bug, phone-proven 2026-11-22). Returns true
+  /// when the local file opened (the background resolve then keeps the
+  /// fetch going); false when there is no kept file, it does not cover
+  /// the resume point, or the open failed — the caller then resolves
+  /// normally.
+  Future<bool> _tryOpenKeptTempFile() async {
+    if (_disposed) return false;
+    if (widget.item.contentType == MultimediaContentType.livestream) {
+      return false;
+    }
+    // The source this title last played on, remembered by its stable
+    // label (see [streamSourceKey]). Nothing remembered means the film
+    // was never played on a source, so there is no kept file.
+    final lastKey = readLastSourceMap(_read)[widget.item.url];
+    if (lastKey == null || lastKey.isEmpty) return false;
+    // The resume point this device already knows, read locally — no
+    // network, so the decision costs nothing.
+    final resume = resumePointFor(
+      read: _read,
+      item: widget.item,
+      episode: _currentEpisode,
+      videoUrl: _currentVideoUrl,
+    );
+    if (resume == null || resume.position <= Duration.zero) return false;
+    final fileKey = tempFileKeyFor(
+      itemUrl: widget.item.url,
+      episodeKey: _tempFileEpisodeKey,
+      sourceKey: lastKey,
+    );
+    // A retry after this file already failed to open must resolve
+    // normally instead of looping on it (see [_keptFileOpenedKey]).
+    if (fileKey == _keptFileOpenedKey) return false;
+    final Directory dir;
+    try {
+      dir = await appTempDirectory();
+    } catch (_) {
+      return false;
+    }
+    final kept = await TempDownload.findKept(
+      directory: dir,
+      fileKey: fileKey,
+    );
+    if (kept == null || !kept.covers(resume.position)) return false;
+    final localUrl = AppUtils.normalizeUrl(kept.filePath);
+    final localStream = localStreamForSourceKey(
+      lastKey,
+      localUrl: localUrl,
+    );
+    if (localStream == null) return false;
+    // Open the local file under the source's own label, so remembering
+    // it writes back the same key and the panel names the real source.
+    _keptFileOpenedKey = fileKey;
+    _streams = <StreamResult>[localStream];
+    _streamIndex = 0;
+    _lastUsedIndex = 0;
+    _resolveDone = true;
+    _resumePosition = resume.position;
+    _isLive = false;
+    _playingLocalTemp = true;
+    _tempLocalUrl = localUrl;
+    _localFalseEndCount = 0;
+    _publishPanelData();
+    if (mounted) setState(() {});
+    unawaited(_loadSkipSegments(_currentEpisode));
+    await _openStream(
+      0,
+      start: resume.position,
+      skipPrebuffer: true,
+      localFileUrl: localUrl,
+    );
+    if (_disposed) return true;
+    if (_stage == _Stage.failed) {
+      // The kept file would not open (corrupt, torn write): fall back
+      // to the normal resolve instead of stranding the viewer.
+      _playingLocalTemp = false;
+      _tempLocalUrl = null;
+      _streams = <StreamResult>[];
+      _streamIndex = 0;
+      _resolveDone = false;
+      _failedStreams.clear();
+      setState(() {
+        _stage = _Stage.resolving;
+        _error = null;
+      });
+      _publishPanelData();
+      return false;
+    }
+    // The film is playing from the phone. Resolve the network links in
+    // the background so the temp download can keep fetching past the
+    // frontier (see [_resolveInBackgroundAndResumeDownload]).
+    unawaited(_resolveInBackgroundAndResumeDownload());
+    return true;
+  }
+
+  /// Build 120: the film is already playing from its kept temp file, so
+  /// the network links are resolved in the background — only so the
+  /// temp download can keep fetching past the frontier. A failure here
+  /// is silent: playback continues on the local file, and the normal
+  /// failover still applies once the list lands.
+  Future<void> _resolveInBackgroundAndResumeDownload() async {
+    if (_disposed) return;
+    final ResolvedPlayback resolved;
+    try {
+      resolved = await resolvePlayback(
+        read: _read,
+        item: widget.item,
+        videoUrl: _currentVideoUrl,
+        preloadedStreams: widget.preloadedStreams,
+      );
+    } catch (_) {
+      return;
+    }
+    if (_disposed || !_playingLocalTemp) return;
+    // Only the local-only list is replaced: if the viewer already
+    // picked another source, that source owns the screen now.
+    if (_streams.length != 1) return;
+    _streams = resolved.streams;
+    _streamIndex = resolved.index;
+    _lastUsedIndex = resolved.lastUsedIndex;
+    _dataSaver = resolved.dataSaver;
+    _resolveDone = true;
+    _publishPanelData();
+    if (mounted) setState(() {});
+    // The fetch resumes for the resolved source (same stable file key,
+    // so it adopts the kept bytes and appends). The proxy gate is
+    // relaxed for the local-temp case (see [_maybeStartTempDownload]).
+    unawaited(_maybeStartTempDownload());
+  }
+
   Future<void> _resolveAndOpen() async {
     if (_disposed) return;
     // A fresh resolve: no probes yet, no pick, no row "being opened".
     _probes.clear();
     _pickedIndex = null;
     _resolveDone = false;
+    // Build 120: a kept temp file for this film + source opens at once,
+    // with no link resolution at all — the file IS the download, so
+    // re-playing from Instant has no "Getting links" and no black
+    // screen. When it is not there (or does not cover the resume
+    // point), the normal resolve below runs.
+    if (await _tryOpenKeptTempFile()) return;
     try {
       final resolved = await resolvePlayback(
         read: _read,
@@ -5420,6 +5569,23 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   // with `proxy: off(no range)` earns a download, and only once per
   // source. 206 sources, HLS, DASH and local files never start one.
 
+  /// Build 120: the episode's stable identity for the temp file's
+  /// key — the episode page URL, or, for a series opened without an
+  /// episode object, the token that names the episode (the same
+  /// fallback progress uses). Movies have no episode, so null. The
+  /// write path ([_maybeStartTempDownload]) and the read path
+  /// ([_tryOpenKeptTempFile]) both use it, so the same film always
+  /// computes the same key.
+  String? get _tempFileEpisodeKey {
+    final episode = _currentEpisode;
+    if (episode != null) return episode.url;
+    if (widget.item.contentType == MultimediaContentType.series ||
+        widget.item.contentType == MultimediaContentType.anime) {
+      return _currentVideoUrl;
+    }
+    return null;
+  }
+
   /// Starts the temp download for the film on screen, when it earns
   /// one. Called from first play and from the duration event —
   /// whichever lands first — and guarded to run once per source.
@@ -5428,7 +5594,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     if (_duration <= Duration.zero) return;
     if (_streamIndex < 0 || _streamIndex >= _streams.length) return;
     final stream = _streams[_streamIndex];
-    if (_proxyOff != 'no range') return;
+    // Build 120: the proxy verdict gates the download — except when the
+    // film is already playing from its kept temp file (the fast path):
+    // a local open has no proxy verdict, and the fetch must resume so
+    // the file keeps growing past the frontier.
+    if (_proxyOff != 'no range' && !_playingLocalTemp) return;
     if (!isTempDownloadEligible(stream: stream, item: widget.item)) return;
     _tempDownloadTried = true;
     _localFalseEndCount = 0;
@@ -5439,6 +5609,14 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         headers: stream.headers,
         directory: dir,
         duration: _duration,
+        // Build 120: the file is keyed by the film + source, not by the
+        // stream URL — signed URLs are re-issued on every load, so a
+        // URL hash orphans the kept file (b119's bug, phone-proven).
+        fileKey: tempFileKeyFor(
+          itemUrl: widget.item.url,
+          episodeKey: _tempFileEpisodeKey,
+          sourceKey: streamSourceKey(stream),
+        ),
       );
       if (_disposed) {
         // Build 119: dropped mid-start — the player is gone and this
@@ -5468,11 +5646,15 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         _tempDownloadSub = null;
         await temp.dispose();
       } else if (_resumePosition > Duration.zero &&
+          !_playingLocalTemp &&
           temp.isDownloaded(_resumePosition)) {
         // Build 119: the kept file from an earlier open already
         // covers the resume position — open it at once instead of
         // playing the stream while the download re-fetches from byte
         // 0. That re-fetch is what made Continue Watching slow.
+        // (Build 120: not when the film is already playing from the
+        // local file — reopening at the old resume point would jump
+        // playback backwards.)
         unawaited(_openLocalTempFile(_resumePosition));
       }
     } catch (_) {

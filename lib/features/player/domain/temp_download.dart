@@ -18,9 +18,18 @@
 /// lifecycle observer in main.dart sweeps it on detach), when the
 /// viewer cancels the download, and when the host turns out to serve
 /// ranges after all. A new film gets its own file (the name is a
-/// stable hash of the URL); the old file stays until Zeus closes.
+/// stable key for the film + source — see [tempFileKeyFor]); the old
+/// file stays until Zeus closes.
 /// It never lands in Documents/ZoroX. Stale files from a crashed
 /// session are swept at app launch (see [sweepStale]).
+///
+/// Re-opening a film whose temp file is already on disk opens the
+/// local file at the resume position at once, with no link resolution
+/// at all (b120): the player asks [TempDownload.findKept] for the
+/// file by its key before it resolves anything, and the sidecar the
+/// download wrote when it probed says whether the kept bytes cover
+/// the resume point. A file that does not cover it falls back to the
+/// normal resolve + stream.
 ///
 /// Pure Dart (no Flutter): the download, the time↔byte mapping and the
 /// lifecycle are unit-tested against a local HTTP server (see
@@ -157,6 +166,92 @@ TempSeekAction tempSeekAction({
   return TempSeekAction.normalSeek;
 }
 
+/// The temp file's name key for one film on one source (b120).
+///
+/// The stream URL itself is NOT stable: signed links (HubCloud/FSL and
+/// friends) are re-issued on every load, so a hash of the full URL
+/// never matches the kept file and the file is orphaned — b119's bug,
+/// phone-proven 2026-11-22 (re-open showed "Getting links…" then a
+/// black screen, the kept file never found). The title URL, the
+/// episode and the source's stable label (provider + source + quality,
+/// re-scraped identically on every load — the same identity the app
+/// already remembers per title for "Last used") identify the same film
+/// on the same source, so the same film always maps to the same file,
+/// whatever signed URL this load issued. A label that ever changes
+/// just misses and the film re-downloads, as before. A different
+/// source (or episode) gets its own file.
+String tempFileKeyFor({
+  required String itemUrl,
+  String? episodeKey,
+  required String sourceKey,
+}) {
+  return sha256
+      .convert(
+        utf8.encode('$itemUrl\u0001${episodeKey ?? ''}\u0001$sourceKey'),
+      )
+      .toString()
+      .substring(0, 16);
+}
+
+/// The bytes a film of [totalBytes] and [duration] needs at [target],
+/// plus the keyframe run-up (see [kTempDownloadSeekMarginBytes]).
+/// The single mapping the live download and the kept-file lookup both
+/// use, so the two can never disagree about what "covered" means.
+int tempBytesNeededFor({
+  required int totalBytes,
+  required Duration duration,
+  required Duration target,
+}) {
+  if (totalBytes <= 0 || duration <= Duration.zero) return 1 << 62;
+  final atTarget =
+      (totalBytes * target.inMicroseconds / duration.inMicroseconds).round();
+  final tenSeconds =
+      (totalBytes *
+              kTempDownloadSeekMarginTime.inMicroseconds /
+              duration.inMicroseconds)
+          .round();
+  return atTarget + math.max(kTempDownloadSeekMarginBytes, tenSeconds);
+}
+
+/// A kept temp file found on disk, with what a re-open needs to know
+/// without touching the network: the film's total size and duration
+/// (from the sidecar the download wrote when it probed) and how many
+/// bytes are already there.
+class KeptTempFile {
+  const KeptTempFile({
+    required this.filePath,
+    required this.totalBytes,
+    required this.duration,
+    required this.downloadedBytes,
+  });
+
+  /// The video file itself.
+  final String filePath;
+
+  /// The film's full size in bytes.
+  final int totalBytes;
+
+  /// The film's length.
+  final Duration duration;
+
+  /// Bytes already on disk.
+  final int downloadedBytes;
+
+  /// Whether the kept bytes reach [target] (plus the keyframe run-up).
+  /// A complete file covers any target inside the film.
+  bool covers(Duration target) {
+    if (target < Duration.zero) return false;
+    if (downloadedBytes >= totalBytes) return target < duration;
+    if (totalBytes <= 0 || duration <= Duration.zero) return false;
+    return downloadedBytes >=
+        tempBytesNeededFor(
+          totalBytes: totalBytes,
+          duration: duration,
+          target: target,
+        );
+  }
+}
+
 /// One sequential fetch of a film into the app's temp directory.
 ///
 /// A single download only: [start] probes the host first (a ranged GET
@@ -171,23 +266,53 @@ class TempDownload {
     this.headers,
     required this.duration,
     required this.directory,
-  }) : _file = File(
-         p.join(
-           directory.path,
-           '$kTempDownloadFilePrefix'
-           '${_urlHash(url)}'
-           '${_extensionOf(url)}',
-         ),
-       );
+    String? fileKey,
+  })  : fileKey = fileKey ?? _urlHash(url),
+        _file = File(
+          p.join(
+            directory.path,
+            '$kTempDownloadFilePrefix'
+            '${fileKey ?? _urlHash(url)}'
+            '${_extensionOf(url)}',
+          ),
+        ),
+        _sidecar = File(
+          p.join(
+            directory.path,
+            '$kTempDownloadFilePrefix${fileKey ?? _urlHash(url)}.json',
+          ),
+        );
 
   /// A stable hash of the stream URL, so the same film always maps to
   /// the same temp file (b119): the file can be kept while Zeus is
   /// open and reused when the film is opened again. SHA-256, first 16
   /// hex chars. Dart's String.hashCode is NOT stable across runs, so
   /// it must not be used here.
+  ///
+  /// Kept only as the fallback when no [fileKey] is given (old
+  /// callers, tests): b120 keys the file by the film + source (see
+  /// [tempFileKeyFor]), because signed URLs change on every load and
+  /// a URL hash orphans the kept file.
   static String _urlHash(String url) {
     return sha256.convert(utf8.encode(url)).toString().substring(0, 16);
   }
+
+  /// The film's identity key (see [tempFileKeyFor]), or the URL hash
+  /// when no identity was given. The temp file's name — and its
+  /// sidecar's — is built from it, so the same film on the same source
+  /// always maps to the same file, whatever signed URL this load
+  /// issued.
+  final String fileKey;
+
+  /// The temp file itself.
+  final File _file;
+
+  /// The sidecar next to the temp file: the film's total size,
+  /// duration and extension, written when the probe answers, so a
+  /// later open can tell whether the kept file covers its resume
+  /// point without touching the network (see [findKept]). Swept with
+  /// the temp files (same prefix).
+  final File _sidecar;
 
   /// The film's own address (the origin, not a proxy address).
   final String url;
@@ -202,9 +327,6 @@ class TempDownload {
 
   /// The temp directory the file lives in. Never Documents.
   final Directory directory;
-
-  /// The temp file itself.
-  final File _file;
 
   /// The temp file's path, for the player to open.
   String get localFilePath => _file.path;
@@ -315,6 +437,12 @@ class TempDownload {
       probe.close(force: true);
     }
     if (_cancelled) return false;
+    // b120: the sidecar records the film's total size, duration and
+    // extension, so a later open can tell whether the kept file
+    // covers its resume point without touching the network (see
+    // [findKept]). Best effort — a missing sidecar just means the
+    // fast path does not fire and the film resolves normally.
+    _writeSidecar();
     // b119: a file kept from an earlier open of this film is adopted
     // (see [_adoptExistingFile]); a complete one needs no fetch at
     // all — the screen can open the local file at once.
@@ -327,6 +455,26 @@ class TempDownload {
     }
     unawaited(_runDownload());
     return true;
+  }
+
+  /// Writes the sidecar next to the temp file: the film's total size,
+  /// duration and extension, so a later open can find the kept file
+  /// and tell whether it covers its resume point without touching the
+  /// network (see [findKept]). Called when the probe answers, and
+  /// again if the fetch is the first to learn the total. Best effort.
+  void _writeSidecar() {
+    final total = _totalBytes;
+    if (total == null || total <= 0) return;
+    try {
+      _sidecar.writeAsStringSync(
+        jsonEncode(<String, Object>{
+          'v': 1,
+          'totalBytes': total,
+          'durationMicros': duration.inMicroseconds,
+          'ext': p.extension(_file.path),
+        }),
+      );
+    } catch (_) {}
   }
 
   /// b119: if a file for this URL is already on disk (kept from an
@@ -372,6 +520,7 @@ class TempDownload {
       // here; take it when it comes.
       if (_totalBytes == null && response.contentLength >= 0) {
         _totalBytes = response.contentLength;
+        _writeSidecar();
       }
       // b119: append mode — the file may already hold the film's
       // first [_existingBytes] from an earlier open, and the fetch
@@ -456,22 +605,11 @@ class TempDownload {
     if (total == null || total <= 0 || duration <= Duration.zero) {
       return 1 << 62;
     }
-    final atTarget = (total * target.inMicroseconds / duration.inMicroseconds)
-        .round();
-    return atTarget + _seekMarginBytes;
-  }
-
-  int get _seekMarginBytes {
-    final total = _totalBytes;
-    if (total == null || total <= 0 || duration <= Duration.zero) {
-      return kTempDownloadSeekMarginBytes;
-    }
-    final tenSeconds =
-        (total *
-                kTempDownloadSeekMarginTime.inMicroseconds /
-                duration.inMicroseconds)
-            .round();
-    return math.max(kTempDownloadSeekMarginBytes, tenSeconds);
+    return tempBytesNeededFor(
+      totalBytes: total,
+      duration: duration,
+      target: target,
+    );
   }
 
   /// Whether a seek to [target] can open the local file now: the bytes
@@ -544,11 +682,15 @@ class TempDownload {
 
   /// Stops the download and deletes the temp file. Idempotent: the
   /// viewer cancelling the download. A [stop] first does not spare
-  /// the file — the delete still runs.
+  /// the file — the delete still runs. The sidecar goes with it, so
+  /// no later open mistakes the cancelled film for a kept one.
   Future<void> cancel() async {
     await stop();
     try {
       if (await _file.exists()) await _file.delete();
+    } catch (_) {}
+    try {
+      if (await _sidecar.exists()) await _sidecar.delete();
     } catch (_) {}
     if (_status != TempDownloadStatus.cancelled) {
       _setStatus(TempDownloadStatus.cancelled);
@@ -559,11 +701,54 @@ class TempDownload {
   /// deleted only when Zeus closes or the viewer cancels.
   Future<void> dispose() => stop();
 
+  /// Finds the kept temp file for [fileKey] in [directory], or null
+  /// when there is none — no file, an empty file, no sidecar, or a
+  /// file longer than the film (a different encode at the same key:
+  /// stale, the next download starts over, as [_adoptExistingFile]
+  /// would). The sidecar is what says the film's total size, duration
+  /// and extension, and without it a re-open cannot tell whether the
+  /// kept bytes cover its resume point. Reads only the disk, so a
+  /// re-open can decide before any link resolution (b120).
+  static Future<KeptTempFile?> findKept({
+    required Directory directory,
+    required String fileKey,
+  }) async {
+    try {
+      final sidecar = File(
+        p.join(directory.path, '$kTempDownloadFilePrefix$fileKey.json'),
+      );
+      if (!await sidecar.exists()) return null;
+      final data = jsonDecode(await sidecar.readAsString());
+      if (data is! Map) return null;
+      final total = data['totalBytes'];
+      final durationMicros = data['durationMicros'];
+      final ext = data['ext'];
+      if (total is! int || total <= 0) return null;
+      if (durationMicros is! int || durationMicros <= 0) return null;
+      if (ext is! String || ext.isEmpty) return null;
+      final file = File(
+        p.join(directory.path, '$kTempDownloadFilePrefix$fileKey$ext'),
+      );
+      if (!await file.exists()) return null;
+      final length = await file.length();
+      if (length <= 0 || length > total) return null;
+      return KeptTempFile(
+        filePath: file.path,
+        totalBytes: total,
+        duration: Duration(microseconds: durationMicros),
+        downloadedBytes: length,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Deletes temp files a crash or a kill left behind. Called once at
   /// app start, before any film can be open — and on app close
   /// (detached, b119), when Zeus is shut and the kept files are due
   /// to go. Either way, nothing can be playing yet (start) or any
-  /// longer (detach), so clearing them is safe.
+  /// longer (detach), so clearing them is safe. The sidecars go with
+  /// them (same prefix).
   static Future<void> sweepStale(Directory directory) async {
     try {
       await for (final entity in directory.list()) {

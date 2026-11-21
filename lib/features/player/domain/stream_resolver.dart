@@ -610,6 +610,28 @@ bool streamStatesLanguage(StreamResult stream, SourceLanguage language) =>
 String streamSourceKey(StreamResult stream) =>
     '${stream.providerName}\u0001${stream.source}\u0001${stream.quality ?? 0}';
 
+/// The [StreamResult] identity a [streamSourceKey] names, pointed at a
+/// local file: the kept temp file that source downloaded, opened under
+/// the source's own label. Remembering it writes back the same key, so
+/// the next open finds the same file again, and the Sources panel names
+/// the real source instead of a generic "Local" row. Null when [key]
+/// is not a key this function wrote — the caller then falls back to the
+/// normal resolve.
+StreamResult? localStreamForSourceKey(String key, {required String localUrl}) {
+  final parts = key.split('\u0001');
+  if (parts.length != 3) return null;
+  final provider = parts[0];
+  final source = parts[1];
+  final quality = int.tryParse(parts[2]);
+  if (provider.isEmpty || source.isEmpty) return null;
+  return StreamResult(
+    url: localUrl,
+    source: source,
+    providerName: provider,
+    quality: quality == null || quality <= 0 ? null : quality,
+  );
+}
+
 /// Hive settings-box key for the per-title last-source map: title URL
 /// (the same identity Continue Watching uses) -> [streamSourceKey].
 const String kLastSourceByTitleKey = 'player_last_source_by_title';

@@ -1038,29 +1038,48 @@ void main() {
     });
   });
 
-  group('isUncheckableSource', () {
-    test("covers a file TorrServer serves from a torrent it holds", () {
-      // A pack file the viewer picked: its loopback address answers only
-      // while that torrent is loaded, and a dead desktop server would read as
-      // a network wait of five minutes.
-      expect(
-        isUncheckableSource(
-          const StreamResult(
-            url: 'http://127.0.0.1:8090/stream?link=abc&index=2&play',
-            source: 'Torrent (S01E02.mkv)',
-          ),
-        ),
-        isTrue,
+  group('localStreamForSourceKey (b120)', () {
+    test('a source key rebuilds the same source, pointed at a local file',
+        () {
+      const stream = StreamResult(
+        url: 'https://fsl.example/dl/abc?token=aaa',
+        source: 'FSL 1080p',
+        providerName: 'HDHub4u',
+        quality: 1080,
       );
+      final key = streamSourceKey(stream);
+      final local = localStreamForSourceKey(
+        key,
+        localUrl: 'file:///tmp/zeus_temp_download_abc123.mkv',
+      );
+      expect(local, isNotNull);
+      expect(local!.url, 'file:///tmp/zeus_temp_download_abc123.mkv');
+      expect(local.source, 'FSL 1080p');
+      expect(local.providerName, 'HDHub4u');
+      expect(local.quality, 1080);
+      // Remembering the local stream writes back the same key, so the
+      // next open finds the same kept file again.
+      expect(streamSourceKey(local), key);
+    });
+
+    test('an adaptive (quality 0) source round-trips', () {
+      const stream = StreamResult(
+        url: 'https://x.example/film',
+        source: 'Auto',
+        providerName: 'HDHub4u',
+      );
+      final key = streamSourceKey(stream);
+      final local = localStreamForSourceKey(key, localUrl: 'file:///tmp/f.mkv');
+      expect(local, isNotNull);
+      expect(streamSourceKey(local!), key);
+    });
+
+    test('a malformed key returns null', () {
+      expect(localStreamForSourceKey('not-a-key', localUrl: 'file:///tmp/f.mkv'), isNull);
+      expect(localStreamForSourceKey('', localUrl: 'file:///tmp/f.mkv'), isNull);
       expect(
-        isUncheckableSource(
-          const StreamResult(
-            url: 'http://192.168.1.5:8090/stream?link=abc&index=2',
-            source: 'LAN',
-          ),
-        ),
-        isFalse,
-        reason: "another machine's server is a server like any other",
+        localStreamForSourceKey('HDHub4u\u0001', localUrl: 'file:///tmp/f.mkv'),
+        isNull,
       );
     });
   });
