@@ -7,6 +7,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/services/notification_service.dart';
 
 import '../../../core/domain/entity/multimedia_item.dart';
+import '../../../core/models/tmdb_details.dart';
 import '../../../shared/widgets/thumbnail_error_placeholder.dart';
 import '../../../core/utils/image_fallbacks.dart';
 import '../../../core/utils/image_utils.dart';
@@ -17,11 +18,13 @@ import 'package:zorox/core/utils/responsive_breakpoints.dart';
 import '../../library/presentation/library_provider.dart';
 import '../../library/presentation/library_state.dart';
 
+import '../data/tmdb_details_provider.dart';
 import 'details_controller.dart';
 import "widgets/details_layout_widgets.dart";
 import "widgets/details_desktop_hero.dart";
 import "widgets/hero_details_widgets.dart";
 import "widgets/premium_details_widgets.dart";
+import 'widgets/movie_cast_list.dart';
 import "../../../shared/widgets/loading_indicator.dart";
 import "../../../shared/widgets/check_line.dart";
 import "../../../core/extensions/extension_manager.dart";
@@ -138,6 +141,21 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
       detailsControllerProvider(widget.item.url).select((s) => s.isMovie),
     );
     final item = details ?? widget.item;
+    // TMDB cast for the Cast row (photos + character roles, like Browse).
+    // The tmdbId is resolved in the background by DetailsController; until
+    // it lands — or when TMDB has no credits — the plugin's own cast is the
+    // fallback (CastCarousel's text line). The TMDB credits belong to the
+    // resolved title by construction, so no name-matching is needed.
+    final tmdbCast = item.tmdbId != null
+        ? ref
+              .watch(
+                tmdbDetailsProvider(
+                  MovieDetailsParams(item.tmdbId!, isMovie ? 'movie' : 'tv'),
+                ),
+              )
+              .value
+              ?.tmdbCast
+        : null;
     final selectedEpisodeCount = ref.watch(
       detailsControllerProvider(widget.item.url)
           .select((state) => state.selectedEpisodeKeys.length),
@@ -157,6 +175,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
         libraryNotifier,
         l10n,
         selectedEpisodeCount,
+        tmdbCast,
       );
     }
 
@@ -180,6 +199,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                 detailsAsync,
                 isMovie,
                 l10n,
+                tmdbCast,
               ),
             ),
           ),
@@ -413,6 +433,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
     dynamic libraryNotifier,
     AppLocalizations l10n,
     int selectedEpisodeCount,
+    List<TmdbCast>? tmdbCast,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = Theme.of(context).colorScheme.onSurface;
@@ -474,6 +495,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           detailsState,
           isMovie,
           l10n,
+          tmdbCast,
         ),
       ),
     );
@@ -488,6 +510,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
     AsyncValue<MultimediaItem?> detailsState,
     bool isMovie,
     AppLocalizations l10n,
+    List<TmdbCast>? tmdbCast,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -520,8 +543,11 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
 
         const SizedBox(height: 32),
 
-        // Cast
-        if (item.cast != null && item.cast!.isNotEmpty) ...[
+        // Cast — TMDB credits (photos + roles) win; the plugin's own cast
+        // is the fallback text line when TMDB cannot resolve.
+        if (tmdbCast != null && tmdbCast.isNotEmpty) ...[
+          MovieCastList(cast: tmdbCast),
+        ] else if (item.cast != null && item.cast!.isNotEmpty) ...[
           CastCarousel(cast: item.cast!),
         ],
 
@@ -556,6 +582,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
     AsyncValue<MultimediaItem?> detailsState,
     bool isMovie,
     AppLocalizations l10n,
+    List<TmdbCast>? tmdbCast,
   ) {
     final theme = Theme.of(context);
     final isLoading = detailsState is AsyncLoading;
@@ -678,7 +705,12 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (item.cast != null && item.cast!.isNotEmpty) ...[
+              // Cast — TMDB credits (photos + roles) win; the plugin's own
+              // cast is the fallback text line when TMDB cannot resolve.
+              if (tmdbCast != null && tmdbCast.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                MovieCastList(cast: tmdbCast),
+              ] else if (item.cast != null && item.cast!.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 CastCarousel(cast: item.cast!),
               ],
