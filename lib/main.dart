@@ -74,6 +74,7 @@ import 'features/settings/presentation/full_screen_mode_provider.dart';
 import 'shared/focus/android_text_editing.dart';
 import 'features/player/presentation/player_platform_service.dart'
     show immersiveRouteActive;
+import 'features/player/domain/temp_download_lifecycle.dart';
 
 void main() async {
   // First statement in the process: a framework or async error raised while
@@ -83,6 +84,15 @@ void main() async {
   installGlobalErrorHandlers();
 
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Build 119: the Instant temp-download files are deleted when Zeus
+  // closes (see [TempDownloadLifecycleObserver]) — they live as long
+  // as Zeus is open, and the close is when they are due to go. The
+  // launch sweep below is the safety net for a kill where detach
+  // never fires.
+  WidgetsBinding.instance.addObserver(
+    TempDownloadLifecycleObserver(directoryProvider: appTempDirectory),
+  );
 
   // v20+20 diagnostic: persistent boot trace for the +18/+19 loading
   // freeze. Never throws; if it fails we just get stderr-only logging.

@@ -11,10 +11,16 @@
 /// local file supports ranges. A seek past the downloaded frontier waits
 /// with honest progress and resumes when the bytes arrive.
 ///
-/// The temp file is exactly that: it is deleted when the player closes,
-/// when the episode ends, when a new temp download starts, and when the
-/// viewer cancels it. It never lands in Documents/ZoroX. Stale files
-/// from a crashed session are swept at app launch (see [sweepStale]).
+/// The temp file lives as long as Zeus is open (b119): it is NOT
+/// deleted when the player closes, so Continue Watching reopens the
+/// film from the bytes already fetched instead of downloading it
+/// again from byte 0. It is deleted when Zeus closes (the app
+/// lifecycle observer in main.dart sweeps it on detach), when the
+/// viewer cancels the download, and when the host turns out to serve
+/// ranges after all. A new film gets its own file (the name is a
+/// stable hash of the URL); the old file stays until Zeus closes.
+/// It never lands in Documents/ZoroX. Stale files from a crashed
+/// session are swept at app launch (see [sweepStale]).
 ///
 /// Pure Dart (no Flutter): the download, the time↔byte mapping and the
 /// lifecycle are unit-tested against a local HTTP server (see
@@ -22,9 +28,11 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 /// The temp file's name prefix in the app's temp directory. [sweepStale]
@@ -67,8 +75,15 @@ enum TempDownloadStatus {
   /// The host serves ranges after all — no temp download needed.
   notNeeded,
 
-  /// The viewer cancelled, or the player closed. The file is deleted.
+  /// The viewer cancelled. The file is deleted.
   cancelled,
+
+  /// The download was stopped (player closed, episode ended, a new
+  /// film started) but the file is KEPT: seeks inside what arrived
+  /// still work, and reopening the film resumes the download from
+  /// the kept bytes. Deleted only when Zeus closes or the viewer
+  /// cancels.
+  stopped,
 }
 
 /// One progress reading. Immutable; the screen reads [snapshot].
@@ -160,10 +175,19 @@ class TempDownload {
          p.join(
            directory.path,
            '$kTempDownloadFilePrefix'
-           '${DateTime.now().millisecondsSinceEpoch}'
+           '${_urlHash(url)}'
            '${_extensionOf(url)}',
          ),
        );
+
+  /// A stable hash of the stream URL, so the same film always maps to
+  /// the same temp file (b119): the file can be kept while Zeus is
+  /// open and reused when the film is opened again. SHA-256, first 16
+  /// hex chars. Dart's String.hashCode is NOT stable across runs, so
+  /// it must not be used here.
+  static String _urlHash(String url) {
+    return sha256.convert(utf8.encode(url)).toString().substring(0, 16);
+  }
 
   /// The film's own address (the origin, not a proxy address).
   final String url;
@@ -202,12 +226,14 @@ class TempDownload {
 
   /// Whether there is a temp file with bytes in it that a seek can use.
   /// A failed download keeps its partial file, so it counts; a
-  /// cancelled one deletes it, so it does not.
+  /// stopped one keeps it too (b119), so it counts; a cancelled one
+  /// deletes it, so it does not.
   bool get hasUsableFile =>
       _downloadedBytes > 0 &&
       (_status == TempDownloadStatus.downloading ||
           _status == TempDownloadStatus.complete ||
-          _status == TempDownloadStatus.failed);
+          _status == TempDownloadStatus.failed ||
+          _status == TempDownloadStatus.stopped);
 
   final _progress = StreamController<TempDownloadProgress>.broadcast();
 
@@ -228,6 +254,12 @@ class TempDownload {
   Timer? _noDataTimer;
   bool _started = false;
   bool _cancelled = false;
+  bool _halted = false;
+
+  /// b119: bytes already on disk from an earlier open, adopted by
+  /// [_adoptExistingFile]. [_runDownload] discards this many bytes
+  /// from the front of the fetch, then appends the rest.
+  int _existingBytes = 0;
   DateTime? _lastEmitAt;
   int _rateCapBytesPerSecond = 2 * 1024 * 1024;
   double _throttleDebtSeconds = 0;
@@ -240,9 +272,10 @@ class TempDownload {
   }
 
   /// Probes the host, then fetches the film in the background. True
-  /// when the fetch started (the host does not serve ranges); false
-  /// when no download is needed or the probe failed — the stream plays
-  /// on alone either way.
+  /// when the temp file is usable (the fetch started, or the whole
+  /// film is already on disk from an earlier open); false when no
+  /// download is needed or the probe failed — the stream plays on
+  /// alone either way.
   Future<bool> start() async {
     if (_started) return _status == TempDownloadStatus.downloading;
     _started = true;
@@ -282,8 +315,43 @@ class TempDownload {
       probe.close(force: true);
     }
     if (_cancelled) return false;
+    // b119: a file kept from an earlier open of this film is adopted
+    // (see [_adoptExistingFile]); a complete one needs no fetch at
+    // all — the screen can open the local file at once.
+    _adoptExistingFile();
+    if (_totalBytes != null &&
+        _totalBytes! > 0 &&
+        _existingBytes >= _totalBytes!) {
+      _setStatus(TempDownloadStatus.complete);
+      return true;
+    }
     unawaited(_runDownload());
     return true;
+  }
+
+  /// b119: if a file for this URL is already on disk (kept from an
+  /// earlier open while Zeus stayed open), adopt its length as already
+  /// downloaded. [_runDownload] fetches from byte 0 but discards the
+  /// first [_existingBytes] and appends the rest, so the file stays
+  /// continuous. A file longer than the film is stale (a different
+  /// encode at the same URL, or a torn write): drop it and start over.
+  void _adoptExistingFile() {
+    try {
+      if (_file.existsSync()) {
+        final length = _file.lengthSync();
+        if (_totalBytes != null && length > _totalBytes!) {
+          _file.deleteSync();
+          _existingBytes = 0;
+          _downloadedBytes = 0;
+        } else {
+          _existingBytes = length;
+          _downloadedBytes = length;
+        }
+      }
+    } catch (_) {
+      _existingBytes = 0;
+      _downloadedBytes = 0;
+    }
   }
 
   Future<void> _runDownload() async {
@@ -305,9 +373,18 @@ class TempDownload {
       if (_totalBytes == null && response.contentLength >= 0) {
         _totalBytes = response.contentLength;
       }
-      final sink = _file.openWrite();
+      // b119: append mode — the file may already hold the film's
+      // first [_existingBytes] from an earlier open, and the fetch
+      // below discards that prefix before appending the rest.
+      final sink = _file.openWrite(mode: FileMode.append);
       _sink = sink;
       _armNoDataTimer();
+      // b119: bytes to skip from the front of the fetch — the prefix
+      // already on disk. The discard is NOT throttled: playback is on
+      // the local file by then (or the stream), and the catch-up must
+      // not take the whole film to run. Only written bytes are
+      // throttled and counted (see [_downloadedBytes]).
+      var toDiscard = _existingBytes;
       await for (final chunk in response) {
         if (_cancelled) break;
         // A burst the socket already holds can be megabytes on a fast
@@ -316,6 +393,12 @@ class TempDownload {
         // flush after each network chunk, so the file on disk keeps up
         // with [_downloadedBytes] (mpv reads the file while it grows).
         var offset = 0;
+        if (toDiscard > 0) {
+          final skip = math.min(toDiscard, chunk.length);
+          offset = skip;
+          toDiscard -= skip;
+          _armNoDataTimer();
+        }
         var failed = false;
         while (offset < chunk.length) {
           if (_cancelled) break;
@@ -433,10 +516,16 @@ class TempDownload {
     return Duration(milliseconds: (remaining / _bytesPerSecond * 1000).round());
   }
 
-  /// Stops the download and deletes the temp file. Idempotent: safe
-  /// to call on close, on episode end, and when a new download starts.
-  Future<void> cancel() async {
-    if (_status == TempDownloadStatus.cancelled) return;
+  /// Stops the download but KEEPS the temp file (b119). The file lives
+  /// as long as Zeus is open, so reopening the film resumes from the
+  /// bytes already fetched instead of starting over. Idempotent: safe
+  /// to call on player close, on episode end, and when a new film
+  /// starts. The file is deleted only by [cancel] (the viewer
+  /// cancelling) or by [sweepStale] (Zeus closing, or a stale file at
+  /// launch).
+  Future<void> stop() async {
+    if (_halted) return;
+    _halted = true;
     _cancelled = true;
     _noDataTimer?.cancel();
     _noDataTimer = null;
@@ -446,18 +535,35 @@ class TempDownload {
       await _sink?.close();
     } catch (_) {}
     _sink = null;
-    try {
-      if (await _file.exists()) await _file.delete();
-    } catch (_) {}
-    _setStatus(TempDownloadStatus.cancelled);
+    if (_status == TempDownloadStatus.probing ||
+        _status == TempDownloadStatus.downloading) {
+      _setStatus(TempDownloadStatus.stopped);
+    }
     await _progress.close();
   }
 
-  /// Same as [cancel]: the file never outlives its download.
-  Future<void> dispose() => cancel();
+  /// Stops the download and deletes the temp file. Idempotent: the
+  /// viewer cancelling the download. A [stop] first does not spare
+  /// the file — the delete still runs.
+  Future<void> cancel() async {
+    await stop();
+    try {
+      if (await _file.exists()) await _file.delete();
+    } catch (_) {}
+    if (_status != TempDownloadStatus.cancelled) {
+      _setStatus(TempDownloadStatus.cancelled);
+    }
+  }
+
+  /// Same as [stop]: the file outlives the player now (b119) — it is
+  /// deleted only when Zeus closes or the viewer cancels.
+  Future<void> dispose() => stop();
 
   /// Deletes temp files a crash or a kill left behind. Called once at
-  /// app start, before any film can be open.
+  /// app start, before any film can be open — and on app close
+  /// (detached, b119), when Zeus is shut and the kept files are due
+  /// to go. Either way, nothing can be playing yet (start) or any
+  /// longer (detach), so clearing them is safe.
   static Future<void> sweepStale(Directory directory) async {
     try {
       await for (final entity in directory.list()) {
@@ -582,6 +688,9 @@ String tempDownloadOverlayLine(TempDownloadProgress p, Duration duration) {
       return 'temp: done ${mb(p.downloadedBytes)} MB · up to $upToText';
     case TempDownloadStatus.failed:
       return 'temp: failed at ${mb(p.downloadedBytes)} MB (kept) · '
+          'up to $upToText';
+    case TempDownloadStatus.stopped:
+      return 'temp: stopped at ${mb(p.downloadedBytes)} MB (kept) · '
           'up to $upToText';
     case TempDownloadStatus.notNeeded:
       return 'temp: not needed (host seeks)';

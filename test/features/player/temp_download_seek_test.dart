@@ -133,6 +133,28 @@ void main() {
     await temp.dispose();
   });
 
+  test('a kept file that covers the resume target opens the local '
+      'file at once', () async {
+    final first = download();
+    first.setRateCap(2 * 1024 * 1024);
+    expect(await first.start(), isTrue);
+    await waitFor(
+      () => first.downloadedBytes >= 8 * 1024 * 1024,
+      what: '8 MiB downloaded',
+    );
+    await first.stop();
+    // Reopen: the kept 8 MiB are adopted at once, so 1:00 (~7 MiB
+    // needed) earns an immediate local-file open — no waiting for
+    // the re-fetch to catch up.
+    final second = download();
+    expect(await second.start(), isTrue);
+    expect(
+      decide(second, const Duration(minutes: 1)),
+      TempSeekAction.openLocalFile,
+    );
+    await second.cancel();
+  });
+
   test('an unknown duration seeks the stream', () async {
     final temp = download();
     temp.setRateCap(2 * 1024 * 1024);

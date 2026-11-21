@@ -979,10 +979,12 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   @override
   void dispose() {
     _disposed = true;
-    // Build 107: the temp download ends with the player — its file is
-    // deleted here (see [TempDownload.cancel]), so nothing downloaded
-    // for seeking ever outlives the film.
-    unawaited(_tempDownload?.cancel());
+    // Build 119: the temp download STOPS with the player but its file
+    // is KEPT (see [TempDownload.stop]) — it lives as long as Zeus is
+    // open, so Continue Watching reopens the film from the bytes
+    // already fetched. The file is deleted only when Zeus closes or
+    // the viewer cancels the download.
+    unawaited(_tempDownload?.stop());
     _tempDownload = null;
     unawaited(_tempDownloadSub?.cancel());
     _tempDownloadSub = null;
@@ -3476,13 +3478,14 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     _audioAutoSelectSetFor = -1;
     _adapter.clearError();
     final stream = _streams[index];
-    // Build 107: a different film's temp download is cancelled and its
-    // file deleted when a new film opens — one temp file at a time.
-    // A reopen on the local temp file keeps the same origin URL, so it
-    // never cancels its own download.
+    // Build 119: a different film's temp download is STOPPED when a
+    // new film opens, but its file is KEPT (see [_stopTempDownload]) —
+    // the file lives as long as Zeus is open, so going back to the old
+    // film resumes from it. The new film gets its own file (the name
+    // is a hash of the URL). A reopen on the local temp file keeps the
+    // same origin URL, so it never stops its own download.
     if (_tempDownload != null && _tempDownload!.url != stream.url) {
-      unawaited(_cancelTempDownload());
-      _tempDownloadTried = false;
+      unawaited(_stopTempDownload());
     }
     // A high-bitrate (4K) open waits for a bigger cushion (see the
     // pre-buffer consts); an ordinary open keeps the 5s target.
@@ -4656,8 +4659,9 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
           duration: _duration,
         ),
       );
-      // Build 107: the temp download's line — how much of the film
-      // is on the phone, and that it goes away when the player does.
+      // Build 119: the temp download's line — how much of the film
+      // is on the phone, and that it stays while Zeus is open (it is
+      // deleted only when Zeus closes or the viewer cancels it).
       final temp = _tempDownload;
       if (temp != null) {
         buffer.writeln(tempDownloadOverlayLine(temp.snapshot, _duration));
@@ -5353,10 +5357,11 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
   /// failover); here the film or episode really finished.
   void _onEnded() {
     if (_disposed || !mounted) return;
-    // Build 107: the episode ended — the temp file is deleted with it
-    // (see [TempDownload.cancel]); the viewer never keeps a film they
-    // only watched through.
-    unawaited(_cancelTempDownload());
+    // Build 119: the episode ended — the temp download stops but its
+    // file is KEPT (see [_stopTempDownload]), so rewatching the
+    // episode resumes from the bytes already fetched. The file is
+    // deleted only when Zeus closes or the viewer cancels it.
+    unawaited(_stopTempDownload());
     // Sleep timer (v7): "End of episode", or a timed sleep that already
     // fired, stops here — the next episode is neither offered nor
     // auto-played. The ended card keeps its Next button when an episode
@@ -5436,14 +5441,19 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         duration: _duration,
       );
       if (_disposed) {
-        await temp.dispose();
+        // Build 119: dropped mid-start — the player is gone and this
+        // download never started, so its file goes with it (see
+        // [TempDownload.cancel]). A kept file from an earlier open is
+        // only at risk in this narrow race; the normal player-close
+        // path keeps it (see [TempDownload.stop]).
+        await temp.cancel();
         return;
       }
       // A different film opened while the directory resolved: it
       // reset [_tempDownloadTried], so this download belongs to the
       // old one — drop it.
       if (_tempDownload != null || !_tempDownloadTried) {
-        await temp.dispose();
+        await temp.cancel();
         return;
       }
       _tempDownload = temp;
@@ -5457,6 +5467,13 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
         unawaited(_tempDownloadSub?.cancel());
         _tempDownloadSub = null;
         await temp.dispose();
+      } else if (_resumePosition > Duration.zero &&
+          temp.isDownloaded(_resumePosition)) {
+        // Build 119: the kept file from an earlier open already
+        // covers the resume position — open it at once instead of
+        // playing the stream while the download re-fetches from byte
+        // 0. That re-fetch is what made Continue Watching slow.
+        unawaited(_openLocalTempFile(_resumePosition));
       }
     } catch (_) {
       // A temp download that cannot start must never break playback.
@@ -5476,10 +5493,12 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
       if (temp.isDownloaded(pending)) {
         _pendingTempSeek = null;
         unawaited(_openLocalTempFile(pending));
-      } else if (temp.status == TempDownloadStatus.failed) {
-        // The bytes are never coming: give the seek back to the
-        // engine (the stream), rather than opening a local file
-        // that does not hold the target.
+      } else if (temp.status == TempDownloadStatus.failed ||
+          temp.status == TempDownloadStatus.stopped) {
+        // The bytes are never coming (the fetch died, or the download
+        // was stopped and the file kept): give the seek back to the
+        // engine (the stream), rather than opening a local file that
+        // does not hold the target.
         _pendingTempSeek = null;
         if (!_disposed) unawaited(_player.seek(pending));
       }
@@ -5545,9 +5564,33 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
     if (mounted) setState(() {});
   }
 
-  /// Cancels the temp download and deletes its file (the promise that
-  /// makes the download acceptable): player close, episode end, a new
-  /// film, or the viewer tapping the indicator.
+  /// Stops the temp download but KEEPS its file (b119): player close,
+  /// episode end, or a new film. The file lives as long as Zeus is
+  /// open, so reopening the film resumes from it; it is deleted only
+  /// when Zeus closes or the viewer cancels the download. The next
+  /// film may start its own download ([_tempDownloadTried] resets —
+  /// b107 left it set after an episode ended, so episode 2 never got
+  /// a temp download).
+  Future<void> _stopTempDownload() async {
+    final temp = _tempDownload;
+    _tempDownload = null;
+    _tempDownloadTried = false;
+    _pendingTempSeek = null;
+    _playingLocalTemp = false;
+    _tempLocalUrl = null;
+    _localFalseEndCount = 0;
+    await _tempDownloadSub?.cancel();
+    _tempDownloadSub = null;
+    if (temp != null) await temp.stop();
+    _downloadedFraction.value = 0;
+    if (!_disposed && mounted) setState(() {});
+  }
+
+  /// Cancels the temp download and deletes its file: ONLY the viewer
+  /// tapping "Cancel download" on the indicator. Everything else
+  /// (player close, episode end, a new film) keeps the file — see
+  /// [_stopTempDownload]. The viewer cancelled, so the download is
+  /// not retried for this film ([_tempDownloadTried] stays set).
   Future<void> _cancelTempDownload() async {
     final temp = _tempDownload;
     _tempDownload = null;

@@ -148,13 +148,57 @@ void main() {
     expect(await File(path).exists(), isFalse);
   });
 
-  test('dispose deletes the file', () async {
+  test('dispose keeps the file (b119: stop, not delete)', () async {
     final temp = download();
     expect(await temp.start(), isTrue);
     await waitFor(() => temp.downloadedBytes > 0, what: 'first bytes');
     final path = temp.localFilePath;
     await temp.dispose();
+    // The player closing no longer deletes the file: it lives as long
+    // as Zeus is open, so Continue Watching resumes from it.
+    expect(temp.status, TempDownloadStatus.stopped);
+    expect(await File(path).exists(), isTrue);
+    await TempDownload.sweepStale(dir);
     expect(await File(path).exists(), isFalse);
+  });
+
+  test('stop keeps the file and marks it stopped', () async {
+    final temp = download();
+    expect(await temp.start(), isTrue);
+    await waitFor(() => temp.downloadedBytes > 0, what: 'first bytes');
+    final path = temp.localFilePath;
+    await temp.stop();
+    expect(temp.status, TempDownloadStatus.stopped);
+    expect(await File(path).exists(), isTrue);
+    await temp.cancel();
+    expect(await File(path).exists(), isFalse);
+  });
+
+  test('cancel after stop still deletes the file', () async {
+    final temp = download();
+    expect(await temp.start(), isTrue);
+    await waitFor(() => temp.downloadedBytes > 0, what: 'first bytes');
+    final path = temp.localFilePath;
+    await temp.stop();
+    expect(await File(path).exists(), isTrue);
+    await temp.cancel();
+    expect(temp.status, TempDownloadStatus.cancelled);
+    expect(await File(path).exists(), isFalse);
+  });
+
+  test('the same URL always maps to the same file; a different URL '
+      'maps to another', () {
+    final first = download();
+    final second = download();
+    expect(second.localFilePath, first.localFilePath);
+    final other = TempDownload(
+      url: '${host.base}/other-film.mkv',
+      directory: dir,
+      duration: kFilmDuration,
+    );
+    expect(other.localFilePath, isNot(first.localFilePath));
+    expect(first.localFilePath, contains(kTempDownloadFilePrefix));
+    expect(other.localFilePath, contains(kTempDownloadFilePrefix));
   });
 
   test('a cut connection fails but keeps the partial file', () async {
@@ -188,6 +232,79 @@ void main() {
     expect(temp.status, isNot(TempDownloadStatus.complete));
     expect(temp.downloadedBytes, lessThan(512 * 1024));
     await temp.cancel();
+  });
+
+  test('a kept file is adopted on reopen and the download resumes '
+      'from it', () async {
+    // A 20 MiB film, so the 5 MiB seek margin leaves room to tell a
+    // downloaded position from one past the frontier.
+    await host.stop();
+    host = FakeHost(length: 20 * 1024 * 1024)
+      ..ignoreRange = true
+      ..pace = const Duration(milliseconds: 5);
+    await host.start();
+    final first = download();
+    first.setRateCap(2 * 1024 * 1024);
+    expect(await first.start(), isTrue);
+    // Download ~8 MiB, then go back from the player (stop, keep file).
+    await waitFor(
+      () => first.downloadedBytes >= 8 * 1024 * 1024,
+      what: '8 MiB downloaded',
+    );
+    final path = first.localFilePath;
+    await first.stop();
+    expect(await File(path).exists(), isTrue);
+    final keptBytes = await File(path).length();
+    expect(keptBytes, greaterThanOrEqualTo(8 * 1024 * 1024));
+
+    // Reopen the same film: the new download adopts the kept bytes.
+    final second = download();
+    expect(second.localFilePath, path);
+    second.setRateCap(0); // unlimited, so the resume is quick
+    expect(await second.start(), isTrue);
+    // The adopted bytes count at once: 1:00 needs ~7 MiB and 8 MiB
+    // are already here, so the resume position is covered immediately.
+    expect(second.downloadedBytes, greaterThanOrEqualTo(keptBytes));
+    expect(second.isDownloaded(const Duration(minutes: 1)), isTrue);
+    await waitFor(
+      () => second.status == TempDownloadStatus.complete,
+      what: 'complete',
+    );
+    // The file is continuous and correct across the resume boundary:
+    // the first-N-bytes discard plus the append did not duplicate or
+    // drop anything.
+    final bytes = await File(path).readAsBytes();
+    expect(bytes.length, 20 * 1024 * 1024);
+    expect(bytes.sublist(100, 200), film(100, 100));
+    expect(
+      bytes.sublist(keptBytes - 50, keptBytes + 50),
+      film(keptBytes - 50, 100),
+    );
+    expect(bytes.sublist(bytes.length - 100), film(bytes.length - 100, 100));
+    await second.cancel();
+  });
+
+  test('an already-complete file needs no new fetch', () async {
+    final first = download();
+    expect(await first.start(), isTrue);
+    await waitFor(
+      () => first.status == TempDownloadStatus.complete,
+      what: 'complete',
+    );
+    final path = first.localFilePath;
+    final requestsBefore = host.filmRequests;
+    await first.stop();
+    expect(await File(path).exists(), isTrue);
+
+    // Reopen: the probe runs (one request), but no fetch follows —
+    // the file is already whole.
+    final second = download();
+    expect(second.localFilePath, path);
+    expect(await second.start(), isTrue);
+    expect(second.status, TempDownloadStatus.complete);
+    expect(second.downloadedBytes, 3 * 1024 * 1024);
+    expect(host.filmRequests, requestsBefore + 1);
+    await second.cancel();
   });
 
   test('sweepStale deletes only stale temp files', () async {
