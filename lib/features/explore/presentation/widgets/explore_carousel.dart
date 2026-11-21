@@ -742,11 +742,16 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
             ),
           ),
 
-          // 2.4. Home: a soft scrim behind the header (logo, buttons,
-          // provider line), which sits on top of the art. In the light
-          // themes it is a wash of the page colour, because the header's
-          // text there is dark.
-          if (homeHero)
+          // 2.4. Home: a soft black scrim behind the header (logo,
+          // buttons, provider line), which sits on top of the art —
+          // DARK themes only (build 118). On light themes there is NO
+          // top scrim at all (SkyStream): the poster stays fully vivid
+          // top to bottom, full-bleed behind the status bar, with the
+          // dark header text sitting straight on it. The old light
+          // wash (scaffold colour 0.92 -> 0.7 -> 0) fogged the poster
+          // top to white; a black scrim in its place hid the top
+          // instead ("pura upar ka chupgaya"). Do not re-add either.
+          if (homeHero && !lightPage)
             Positioned(
               top: 0,
               left: 0,
@@ -759,17 +764,11 @@ class _ExploreCarouselState extends ConsumerState<ExploreCarousel>
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: lightPage
-                          ? [
-                              scaffoldColor.withValues(alpha: 0.92),
-                              scaffoldColor.withValues(alpha: 0.7),
-                              scaffoldColor.withValues(alpha: 0.0),
-                            ]
-                          : [
-                              Colors.black.withValues(alpha: 0.6),
-                              Colors.black.withValues(alpha: 0.35),
-                              Colors.black.withValues(alpha: 0.0),
-                            ],
+                      colors: [
+                        Colors.black.withValues(alpha: 0.6),
+                        Colors.black.withValues(alpha: 0.35),
+                        Colors.black.withValues(alpha: 0.0),
+                      ],
                       stops: const [0.0, 0.6, 1.0],
                     ),
                   ),

@@ -14,12 +14,16 @@ import 'profile_pin_screen.dart';
 import 'zeus_profile_avatar.dart';
 
 /// Opens the profile switcher as a SMALL Liquid Glass dropdown
-/// anchored top-right just below the Home header avatar (build 117):
-/// the same 4 rows the user approved — profile rows, Add account,
-/// Manage accounts, Settings — in a compact card, no title, with the
-/// blurred Home showing through the glass. This replaces the build-116
-/// centered dialog (whose 0.78-alpha card was a solid dark slab, not
-/// glass, and whose text/icons were too big).
+/// anchored top-right just below the Home header avatar (build 117,
+/// shrunk further in build 118): the same 4 rows the user approved —
+/// profile rows, Add account, Manage accounts, Settings — in a compact
+/// card, no title, with the blurred Home showing through the glass.
+/// This replaces the build-116 centered dialog (whose 0.78-alpha card
+/// was a solid dark slab, not glass, and whose text/icons were too
+/// big). Build 118 shrinks the card to ~175pt wide (the build-117
+/// card was ~300pt — the user: "aur chota karo") and uses white
+/// foreground text/icons, because the card is a dark glass: the
+/// theme's dark onSurface text on light themes washed out on it.
 ///
 /// Used by the Home avatar tile and the Settings → Accounts "Switch
 /// profile" row. The barrier is transparent, so the Home stays sharp
@@ -148,29 +152,36 @@ class _ZeusProfileSwitchDialogState
     final canAddMore = state.profiles.length < kZeusProfileMaxCount;
 
     // Small dropdown, top-right just below the header avatar — the
-    // user drew it there (build 117). The card is the app's real
-    // glass (MatteGlassCard: composed blur-18 filter + 0.22-alpha
-    // surface), so the blurred poster shows THROUGH it; the barrier
-    // is transparent, so the rest of the Home stays sharp. The
-    // build-116 card (scaffold colour at 0.78 alpha) was effectively
-    // solid — never use that shell for glass again.
+    // user drew it there (build 117) and asked for it smaller again
+    // (build 118). The card is the app's real glass (MatteGlassCard:
+    // composed blur-18 filter + 0.22-alpha surface), so the blurred
+    // poster shows THROUGH it; the barrier is transparent, so the
+    // rest of the Home stays sharp. The build-116 card (scaffold
+    // colour at 0.78 alpha) was effectively solid — never use that
+    // shell for glass again.
+    //
+    // Build 118 size (~185pt wide, ~149pt tall for 1 profile + 3
+    // actions): the approved mockup is ~173pt wide with ~13pt text,
+    // 17pt icon circles and a ~19pt avatar. bodySmall (12pt) keeps
+    // the longest label ("Manage accounts", 121pt in the test font,
+    // a little wider in San Francisco) inside the card with room to
+    // spare; bodyMedium (14pt) needed ~214pt and forced the
+    // build-117 card out to 300pt. 185pt (not 175pt) because the
+    // label measures 121pt — at 175pt the row fits with zero margin
+    // and would ellipsize on iOS if the font runs wider.
     final topOffset = MediaQuery.of(context).padding.top + 54;
     return Align(
       alignment: Alignment.topRight,
       child: Padding(
         padding: EdgeInsets.only(top: topOffset, right: 12),
         child: SizedBox(
-          // 300pt: the longest label ("Manage accounts" at bodyMedium)
-          // needs ~214pt, so a narrower card overflows the row — the
-          // build-117 mockup's ~183pt assumed a narrower font. Still a
-          // small corner dropdown, not a centered card.
-          width: 300,
+          width: 185,
           child: MatteGlassCard(
-            borderRadius: 20,
+            borderRadius: 16,
             child: Material(
               color: Colors.transparent,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
                 child: Column(
                   key: const ValueKey('profile-switch-card'),
                   mainAxisSize: MainAxisSize.min,
@@ -199,7 +210,10 @@ class _ZeusProfileSwitchDialogState
                           unawaited(_openPin(profile));
                         },
                       ),
-                    const Divider(height: 1),
+                    const Divider(
+                      height: 1,
+                      color: _kGlassDivider,
+                    ),
                     if (canAddMore)
                       _ActionRow(
                         key: const ValueKey('profile-switch-add'),
@@ -207,14 +221,21 @@ class _ZeusProfileSwitchDialogState
                         label: 'Add account',
                         onTap: () => unawaited(_openCreate()),
                       ),
-                    if (canAddMore) const Divider(height: 1),
+                    if (canAddMore)
+                      const Divider(
+                        height: 1,
+                        color: _kGlassDivider,
+                      ),
                     _ActionRow(
                       key: const ValueKey('profile-switch-manage'),
                       icon: Icons.close_rounded,
                       label: 'Manage accounts',
                       onTap: () => unawaited(_openManage()),
                     ),
-                    const Divider(height: 1),
+                    const Divider(
+                      height: 1,
+                      color: _kGlassDivider,
+                    ),
                     _ActionRow(
                       key: const ValueKey('profile-switch-settings'),
                       icon: Icons.settings_outlined,
@@ -231,6 +252,19 @@ class _ZeusProfileSwitchDialogState
     );
   }
 }
+
+/// The dropdown's foreground on its dark glass: white text, icons and
+/// dividers. The theme's onSurface is dark on light themes, and dark
+/// text on the dark glass card washed out ("Add account" was barely
+/// readable on the white theme). White reads on the dark glass in
+/// both themes, matching the other dark-glass surfaces in the app
+/// (profile avatars, create/manage screens).
+const _kGlassForeground = Colors.white;
+
+/// Thin light divider between the dropdown's rows, for the same
+/// reason: the theme divider is dark on light themes and disappears
+/// on the dark glass.
+const _kGlassDivider = Color(0x40FFFFFF);
 
 /// One profile as a list row: circular avatar, name, and a gold check
 /// for the active profile (the picker's check badge colour — the theme
@@ -252,19 +286,20 @@ class _ProfileRow extends StatelessWidget {
     final theme = Theme.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(10),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(
           children: [
-            ZeusProfileAvatar(profile: profile, size: 32, circular: true),
-            const SizedBox(width: 12),
+            ZeusProfileAvatar(profile: profile, size: 20, circular: true),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
                 profile.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: _kGlassForeground,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -273,7 +308,7 @@ class _ProfileRow extends StatelessWidget {
               Icon(
                 Icons.check_rounded,
                 color: theme.colorScheme.primary,
-                size: 16,
+                size: 14,
               ),
           ],
         ),
@@ -301,35 +336,36 @@ class _ActionRow extends StatelessWidget {
     final theme = Theme.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(10),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(
           children: [
             Container(
-              width: 28,
-              height: 28,
+              width: 22,
+              height: 22,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color: _kGlassForeground.withValues(alpha: 0.7),
                   width: 1.25,
                 ),
               ),
               alignment: Alignment.center,
               child: Icon(
                 icon,
-                size: 16,
-                color: theme.colorScheme.onSurface,
+                size: 13,
+                color: _kGlassForeground,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: _kGlassForeground,
                   fontWeight: FontWeight.w600,
                 ),
               ),

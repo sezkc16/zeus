@@ -1,7 +1,9 @@
-// Build 117: the profile switcher is a SMALL Liquid Glass dropdown
+// Build 118: the profile switcher is a SMALL Liquid Glass dropdown
 // anchored top-right just below the header avatar — the 4 rows
 // (profiles, Add account, Manage accounts, Settings), no title,
-// compact text/icons — not the build-116 centered dialog.
+// compact text/icons — not the build-116 centered dialog. Build 118
+// shrank the card to ~175pt wide with white foreground text/icons
+// (the dark glass washed out the theme's dark text on light themes).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -94,15 +96,17 @@ void main() {
     // Small dropdown, top-right just below the header (not centered,
     // not full-screen): the test viewport is 800x600 with no status
     // bar, so the card sits ~54pt from the top, hugs the right edge,
-    // and is narrow and short.
+    // and is narrow and short. Build 118 shrank it further (~185pt
+    // wide, ~181pt tall here with 2 profiles + 3 actions) from the
+    // build-117 ~300pt card.
     final cardRect = tester.getRect(
       find.byKey(const ValueKey('profile-switch-card')),
     );
     expect(cardRect.top, greaterThan(40));
     expect(cardRect.top, lessThan(90));
     expect(cardRect.right, greaterThan(750));
-    expect(cardRect.width, lessThanOrEqualTo(300));
-    expect(cardRect.height, lessThan(260));
+    expect(cardRect.width, lessThanOrEqualTo(190));
+    expect(cardRect.height, lessThan(200));
   });
 
   testWidgets('tapping the active profile closes the dialog', (
