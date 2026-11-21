@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/widgets/matte_glass_pill.dart';
 import '../../account/data/zorox_account_notifier.dart';
 import '../../../core/router/app_router.dart';
 import '../data/zeus_profile.dart';
@@ -13,22 +13,42 @@ import 'profile_create_screen.dart';
 import 'profile_pin_screen.dart';
 import 'zeus_profile_avatar.dart';
 
-/// Opens the profile switcher as a centered Liquid Glass dialog (build
-/// 116): the same "Switch account" list the user's reference sheet has —
-/// profile rows, Add account, Manage accounts, Settings — floating over
-/// the blurred Home, instead of the full-screen "Who's watching?" grid
-/// the switcher used to push.
+/// Opens the profile switcher as a SMALL Liquid Glass dropdown
+/// anchored top-right just below the Home header avatar (build 117):
+/// the same 4 rows the user approved — profile rows, Add account,
+/// Manage accounts, Settings — in a compact card, no title, with the
+/// blurred Home showing through the glass. This replaces the build-116
+/// centered dialog (whose 0.78-alpha card was a solid dark slab, not
+/// glass, and whose text/icons were too big).
 ///
 /// Used by the Home avatar tile and the Settings → Accounts "Switch
-/// profile" row. Tap outside (or the active profile) to dismiss. The
-/// PIN / create / manage steps still open as full-screen pages above
-/// the dialog, so Back returns to the list; Settings replaces the
-/// stack (go_router), so the dialog is popped first.
+/// profile" row. The barrier is transparent, so the Home stays sharp
+/// outside the card; tap outside (or the active profile) to dismiss.
+/// The PIN / create / manage steps still open as full-screen pages
+/// above the dropdown, so Back returns to the list; Settings replaces
+/// the stack (go_router), so the dropdown is popped first.
 Future<void> showZeusProfileSwitcher(BuildContext context) {
-  return showDialog<void>(
+  return showGeneralDialog<void>(
     context: context,
     barrierDismissible: true,
-    builder: (_) => const ZeusProfileSwitchDialog(),
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    barrierColor: Colors.transparent,
+    transitionDuration: const Duration(milliseconds: 180),
+    pageBuilder: (_, _, _) => const ZeusProfileSwitchDialog(),
+    transitionBuilder: (_, animation, _, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.92, end: 1).animate(curved),
+          alignment: Alignment.topRight,
+          child: child,
+        ),
+      );
+    },
   );
 }
 
@@ -127,95 +147,82 @@ class _ZeusProfileSwitchDialogState
     final state = ref.watch(zeusProfilesProvider);
     final canAddMore = state.profiles.length < kZeusProfileMaxCount;
 
-    // The app's glass-dialog shell (UnifiedFilterDialog): the Home
-    // blurs behind the card, and the card is the scaffold colour at
-    // 0.78 alpha — translucent enough for the poster to read through,
-    // solid enough for the rows to stay legible in every theme.
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-      child: Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Container(
-          key: const ValueKey('profile-switch-card'),
-          constraints: const BoxConstraints(maxWidth: 500),
-          decoration: BoxDecoration(
-            color: theme.scaffoldBackgroundColor.withValues(alpha: 0.78),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: theme.dividerColor.withValues(alpha: 0.5),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: 28,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Switch account',
-                    key: const ValueKey('profile-switch-title'),
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (state.error != null) ...[
-                    Text(
-                      state.error!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
+    // Small dropdown, top-right just below the header avatar — the
+    // user drew it there (build 117). The card is the app's real
+    // glass (MatteGlassCard: composed blur-18 filter + 0.22-alpha
+    // surface), so the blurred poster shows THROUGH it; the barrier
+    // is transparent, so the rest of the Home stays sharp. The
+    // build-116 card (scaffold colour at 0.78 alpha) was effectively
+    // solid — never use that shell for glass again.
+    final topOffset = MediaQuery.of(context).padding.top + 54;
+    return Align(
+      alignment: Alignment.topRight,
+      child: Padding(
+        padding: EdgeInsets.only(top: topOffset, right: 12),
+        child: SizedBox(
+          // 300pt: the longest label ("Manage accounts" at bodyMedium)
+          // needs ~214pt, so a narrower card overflows the row — the
+          // build-117 mockup's ~183pt assumed a narrower font. Still a
+          // small corner dropdown, not a centered card.
+          width: 300,
+          child: MatteGlassCard(
+            borderRadius: 20,
+            child: Material(
+              color: Colors.transparent,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Column(
+                  key: const ValueKey('profile-switch-card'),
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (state.error != null) ...[
+                      Text(
+                        state.error!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  for (final profile in state.profiles)
-                    _ProfileRow(
-                      key: ValueKey('profile-switch-row-${profile.id}'),
-                      profile: profile,
-                      active: profile.id == state.activeProfileId,
-                      onTap: () {
-                        if (profile.id == state.activeProfileId) {
-                          // Already on this profile — nothing to switch to.
-                          _close();
-                          return;
-                        }
-                        unawaited(_openPin(profile));
-                      },
-                    ),
-                  const Divider(height: 1),
-                  if (canAddMore)
+                      const SizedBox(height: 8),
+                    ],
+                    for (final profile in state.profiles)
+                      _ProfileRow(
+                        key: ValueKey('profile-switch-row-${profile.id}'),
+                        profile: profile,
+                        active: profile.id == state.activeProfileId,
+                        onTap: () {
+                          if (profile.id == state.activeProfileId) {
+                            // Already on this profile — nothing to switch to.
+                            _close();
+                            return;
+                          }
+                          unawaited(_openPin(profile));
+                        },
+                      ),
+                    const Divider(height: 1),
+                    if (canAddMore)
+                      _ActionRow(
+                        key: const ValueKey('profile-switch-add'),
+                        icon: Icons.add_rounded,
+                        label: 'Add account',
+                        onTap: () => unawaited(_openCreate()),
+                      ),
+                    if (canAddMore) const Divider(height: 1),
                     _ActionRow(
-                      key: const ValueKey('profile-switch-add'),
-                      icon: Icons.add_rounded,
-                      label: 'Add account',
-                      onTap: () => unawaited(_openCreate()),
+                      key: const ValueKey('profile-switch-manage'),
+                      icon: Icons.close_rounded,
+                      label: 'Manage accounts',
+                      onTap: () => unawaited(_openManage()),
                     ),
-                  if (canAddMore) const Divider(height: 1),
-                  _ActionRow(
-                    key: const ValueKey('profile-switch-manage'),
-                    icon: Icons.close_rounded,
-                    label: 'Manage accounts',
-                    onTap: () => unawaited(_openManage()),
-                  ),
-                  const Divider(height: 1),
-                  _ActionRow(
-                    key: const ValueKey('profile-switch-settings'),
-                    icon: Icons.settings_outlined,
-                    label: 'Settings',
-                    onTap: _openSettings,
-                  ),
-                ],
+                    const Divider(height: 1),
+                    _ActionRow(
+                      key: const ValueKey('profile-switch-settings'),
+                      icon: Icons.settings_outlined,
+                      label: 'Settings',
+                      onTap: _openSettings,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -245,19 +252,19 @@ class _ProfileRow extends StatelessWidget {
     final theme = Theme.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
           children: [
-            ZeusProfileAvatar(profile: profile, size: 48, circular: true),
-            const SizedBox(width: 14),
+            ZeusProfileAvatar(profile: profile, size: 32, circular: true),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 profile.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyLarge?.copyWith(
+                style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -266,7 +273,7 @@ class _ProfileRow extends StatelessWidget {
               Icon(
                 Icons.check_rounded,
                 color: theme.colorScheme.primary,
-                size: 22,
+                size: 16,
               ),
           ],
         ),
@@ -294,33 +301,37 @@ class _ActionRow extends StatelessWidget {
     final theme = Theme.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 28,
+              height: 28,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: theme.colorScheme.onSurfaceVariant,
-                  width: 1.5,
+                  width: 1.25,
                 ),
               ),
               alignment: Alignment.center,
               child: Icon(
                 icon,
-                size: 22,
+                size: 16,
                 color: theme.colorScheme.onSurface,
               ),
             ),
-            const SizedBox(width: 14),
-            Text(
-              label,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w600,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],

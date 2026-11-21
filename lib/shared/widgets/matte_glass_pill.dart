@@ -69,6 +69,50 @@ class MatteGlassPill extends StatelessWidget {
   }
 }
 
+/// Frosted-glass card: the same material as [MatteGlassPill] — the
+/// composed colour-matrix + blur-18 filter over the scene, the
+/// 0.22-alpha dark surface, fine matte grain — with a rectangular
+/// shape and a thin light border, for small floating panels such as
+/// the profile dropdown. Unlike the 0.78–0.9-alpha "glass-dialog
+/// shell" ([UnifiedFilterDialog] and the build-116 switcher), this is
+/// genuinely translucent: the blurred scene shows through it.
+class MatteGlassCard extends StatelessWidget {
+  const MatteGlassCard({
+    super.key,
+    required this.child,
+    this.borderRadius = 20,
+    this.surfaceColor = MatteGlassPill.surface,
+  });
+
+  final Widget child;
+  final double borderRadius;
+  final Color surfaceColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: BackdropFilter(
+        filter: MatteGlassPill._filter,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: surfaceColor,
+            borderRadius: BorderRadius.circular(borderRadius),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.22),
+              width: 1,
+            ),
+          ),
+          child: CustomPaint(
+            painter: const _MatteGrain(),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Fixed fine grain: two batched draws, no animation or additional filter.
 class _MatteGrain extends CustomPainter {
   const _MatteGrain();

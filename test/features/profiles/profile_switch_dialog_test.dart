@@ -1,6 +1,7 @@
-// Build 116: the profile switcher is a centered Liquid Glass dialog —
-// "Switch account" with profile rows, Add account, Manage accounts and
-// Settings — not the full-screen "Who's watching?" grid.
+// Build 117: the profile switcher is a SMALL Liquid Glass dropdown
+// anchored top-right just below the header avatar — the 4 rows
+// (profiles, Add account, Manage accounts, Settings), no title,
+// compact text/icons — not the build-116 centered dialog.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,13 +70,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('dialog shows the 4 rows: profiles, Add, Manage, Settings', (
+  testWidgets('dropdown shows the 4 rows: profiles, Add, Manage, Settings', (
     tester,
   ) async {
     await pumpDialog(tester);
 
-    expect(find.byKey(const ValueKey('profile-switch-title')), findsOneWidget);
-    expect(find.text('Switch account'), findsOneWidget);
+    // No title in the dropdown (build 117): the 4 rows are the content.
+    expect(find.text('Switch account'), findsNothing);
     expect(find.text('Suresh'), findsOneWidget);
     expect(find.text('MM'), findsOneWidget);
     // Only the active profile has the gold check.
@@ -90,18 +91,18 @@ void main() {
     );
     expect(find.text('Settings'), findsOneWidget);
 
-    // Centered, not full-screen: the glass card floats mid-screen with
-    // room above and below it (the test viewport is 800x600). The
-    // Dialog widget itself spans the screen (its AnimatedPadding), so
-    // the card is what is measured.
-    final cardTop = tester
-        .getTopLeft(find.byKey(const ValueKey('profile-switch-card')))
-        .dy;
-    final cardHeight = tester
-        .getSize(find.byKey(const ValueKey('profile-switch-card')))
-        .height;
-    expect(cardTop, greaterThan(80));
-    expect(cardHeight, lessThan(500));
+    // Small dropdown, top-right just below the header (not centered,
+    // not full-screen): the test viewport is 800x600 with no status
+    // bar, so the card sits ~54pt from the top, hugs the right edge,
+    // and is narrow and short.
+    final cardRect = tester.getRect(
+      find.byKey(const ValueKey('profile-switch-card')),
+    );
+    expect(cardRect.top, greaterThan(40));
+    expect(cardRect.top, lessThan(90));
+    expect(cardRect.right, greaterThan(750));
+    expect(cardRect.width, lessThanOrEqualTo(300));
+    expect(cardRect.height, lessThan(260));
   });
 
   testWidgets('tapping the active profile closes the dialog', (
@@ -112,7 +113,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('profile-switch-row-p1')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('profile-switch-title')), findsNothing);
+    expect(find.byKey(const ValueKey('profile-switch-card')), findsNothing);
   });
 
   testWidgets('no Add account row at the 5-profile cap', (tester) async {
