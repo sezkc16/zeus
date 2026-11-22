@@ -154,7 +154,7 @@ class _SeasonPill extends StatelessWidget {
               'Season $season',
               style: TextStyle(
                 color: season == selected
-                    ? GoldenPlayerColors.goldHighlight
+                    ? GoldenPlayerColors.accentHighlight(context)
                     : GoldenPlayerColors.textPrimary,
                 fontWeight: season == selected
                     ? FontWeight.w700
@@ -169,7 +169,7 @@ class _SeasonPill extends StatelessWidget {
           color: Colors.black.withValues(alpha: 0.45),
           borderRadius: BorderRadius.circular(GoldenPlayerRadii.pill),
           border: Border.all(
-            color: GoldenPlayerColors.gold.withValues(alpha: 0.6),
+            color: GoldenPlayerColors.accent(context).withValues(alpha: 0.6),
           ),
         ),
         child: Row(
@@ -177,17 +177,17 @@ class _SeasonPill extends StatelessWidget {
           children: <Widget>[
             Text(
               'Season $selected',
-              style: const TextStyle(
-                color: GoldenPlayerColors.goldHighlight,
+              style: TextStyle(
+                color: GoldenPlayerColors.accentHighlight(context),
                 fontWeight: FontWeight.w700,
                 fontSize: 13,
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(
+            Icon(
               Icons.keyboard_arrow_down_rounded,
               size: 18,
-              color: GoldenPlayerColors.goldHighlight,
+              color: GoldenPlayerColors.accentHighlight(context),
             ),
           ],
         ),
@@ -231,12 +231,12 @@ class _EpisodeRow extends StatelessWidget {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: isCurrent
-                  ? GoldenPlayerColors.gold.withValues(alpha: 0.12)
+                  ? GoldenPlayerColors.accent(context).withValues(alpha: 0.12)
                   : GoldenPlayerColors.surface.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(GoldenPlayerRadii.card),
               border: Border.all(
                 color: isCurrent
-                    ? GoldenPlayerColors.gold
+                    ? GoldenPlayerColors.accent(context)
                     : Colors.transparent,
                 width: 1.5,
               ),
@@ -262,7 +262,7 @@ class _EpisodeRow extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: isCurrent
-                              ? GoldenPlayerColors.goldHighlight
+                              ? GoldenPlayerColors.accentHighlight(context)
                               : GoldenPlayerColors.textPrimary,
                           fontWeight: isCurrent
                               ? FontWeight.w700
@@ -289,12 +289,12 @@ class _EpisodeRow extends StatelessWidget {
                     child: _EqualizerBars(),
                   )
                 else if (progress.watched)
-                  const Padding(
-                    padding: EdgeInsets.only(left: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
                     child: Icon(
                       Icons.check_circle_outline_rounded,
                       size: 20,
-                      color: GoldenPlayerColors.gold,
+                      color: GoldenPlayerColors.accent(context),
                     ),
                   ),
               ],
@@ -346,7 +346,7 @@ class _Bar extends StatelessWidget {
       width: 3,
       height: height,
       decoration: BoxDecoration(
-        color: GoldenPlayerColors.gold,
+        color: GoldenPlayerColors.accent(context),
         borderRadius: BorderRadius.circular(1.5),
       ),
     );
@@ -408,8 +408,8 @@ class _EpisodeThumb extends StatelessWidget {
                   value: progress,
                   minHeight: 3,
                   backgroundColor: Colors.white24,
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                    GoldenPlayerColors.gold,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    GoldenPlayerColors.accent(context),
                   ),
                 ),
               ),

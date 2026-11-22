@@ -6467,7 +6467,7 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
                           color: Colors.black.withValues(alpha: 0.78),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: GoldenPlayerColors.gold.withValues(
+                            color: GoldenPlayerColors.accent(context).withValues(
                               alpha: 0.6,
                             ),
                           ),
@@ -6491,8 +6491,8 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
                               child: LinearProgressIndicator(
                                 value: fraction.clamp(0.0, 1.0),
                                 backgroundColor: Colors.white24,
-                                valueColor: const AlwaysStoppedAnimation<Color>(
-                                  GoldenPlayerColors.gold,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  GoldenPlayerColors.accent(context),
                                 ),
                               ),
                             ),
@@ -6501,10 +6501,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
                               onPressed: () {
                                 unawaited(_cancelTempDownload());
                               },
-                              child: const Text(
+                              child: Text(
                                 'Cancel download',
                                 style: TextStyle(
-                                  color: GoldenPlayerColors.gold,
+                                  color: GoldenPlayerColors.accent(context),
                                 ),
                               ),
                             ),

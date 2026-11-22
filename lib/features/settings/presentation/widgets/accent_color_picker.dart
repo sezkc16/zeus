@@ -6,7 +6,7 @@ import '../../../../core/theme/olympus.dart';
 import '../../../../shared/widgets/olympus_section_header.dart';
 
 /// Accent color picker — the design preview's swatch row in Settings:
-/// the 8 presets in one row of 38px circles. Tapping a swatch sets the
+/// the 9 presets in one row of 38px circles. Tapping a swatch sets the
 /// accent immediately across the whole app (the theme is seeded from the
 /// accent, so the MaterialApp rebuilds — no restart, no re-login).
 /// Green is the default (see [ZoroxAccent.fromName]).

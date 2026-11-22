@@ -1,35 +1,45 @@
-/// Design tokens for the Premium Golden MPV player.
+/// Design tokens for the Premium MPV player.
 ///
-/// Black + champagne-gold, Netflix-inspired. The mockup the user sent
+/// Black surfaces, Netflix-inspired. The mockup the user sent
 /// ("CineStream — Premium Movie & Series Player") is the layout/style
-/// reference; the ZoroX name and branding stay, only the look is gold.
+/// reference; the ZoroX name and branding stay.
+///
+/// The player's accent is NOT a hardcoded gold: it follows the accent
+/// the user picked in Settings → Appearance, read live from the theme
+/// ([GoldenPlayerColors.accent]). Picking White in Settings makes the
+/// player white; picking Gold makes it gold again.
 ///
 /// Tokens (from the spec):
 ///   * primary background #080808, secondary #141210, surface #1C1915
-///   * primary gold #D4AF37, highlight gold #F5D78E,
-///     gold gradient #B8862B → #F5D78E
 ///   * primary text #FFFFFF, secondary text #AAAAAA, divider #403424
 library;
 
 import 'package:flutter/material.dart';
 
-/// The golden player's palette.
+/// The player's palette. The surfaces stay black; the accent follows
+/// the user's Settings choice — see [accent] below.
 abstract final class GoldenPlayerColors {
   static const Color background = Color(0xFF080808);
   static const Color backgroundSecondary = Color(0xFF141210);
   static const Color surface = Color(0xFF1C1915);
-  static const Color gold = Color(0xFFD4AF37);
-  static const Color goldHighlight = Color(0xFFF5D78E);
-  static const Color goldDeep = Color(0xFFB8862B);
   static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textSecondary = Color(0xFFAAAAAA);
   static const Color divider = Color(0xFF403424);
 
-  /// The gold gradient, deep → highlight, for the seekbar and the play
-  /// button.
-  static const LinearGradient goldGradient = LinearGradient(
-    colors: <Color>[goldDeep, goldHighlight],
-  );
+  /// The player's accent: the accent the user picked in Settings →
+  /// Appearance, read live from the theme (`colorScheme.primary`, seeded
+  /// from the saved accent in `AppTheme`). Never a hardcoded gold — the
+  /// player wears whatever accent is selected, White included.
+  static Color accent(BuildContext context) =>
+      Theme.of(context).colorScheme.primary;
+
+  /// A lighter tint of the accent, for highlights (selected radios,
+  /// slider thumbs, highlighted text). White stays white; Gold reads as
+  /// the old pale-gold highlight.
+  static Color accentHighlight(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return Color.lerp(primary, Colors.white, 0.35) ?? primary;
+  }
 
   /// The top gradient over the video: black fading out downward.
   static const LinearGradient topScrim = LinearGradient(
@@ -45,7 +55,7 @@ abstract final class GoldenPlayerColors {
     colors: <Color>[Color(0xCC000000), Color(0x00000000)],
   );
 
-  /// The drawer's edge: a hairline of gold on a dark surface.
+  /// The drawer's edge: a hairline on a dark surface.
   static const BorderSide drawerBorder = BorderSide(
     color: Color(0xFF403424),
   );
@@ -79,10 +89,10 @@ String goldenFormatTime(Duration duration) {
   return '$mm:$ss';
 }
 
-/// A round, translucent-dark icon button with a gold icon when active.
+/// A round, translucent-dark icon button with an accent icon when active.
 ///
 /// Used for every control in the top and bottom bars: the dark disc keeps
-/// the icon legible over any frame, and the gold is the active state.
+/// the icon legible over any frame, and the accent is the active state.
 class GoldenIconButton extends StatelessWidget {
   const GoldenIconButton({
     required this.icon,
@@ -117,7 +127,7 @@ class GoldenIconButton extends StatelessWidget {
               icon,
               size: iconSize,
               color: active
-                  ? GoldenPlayerColors.goldHighlight
+                  ? GoldenPlayerColors.accentHighlight(context)
                   : GoldenPlayerColors.textPrimary,
             ),
           ),
@@ -130,7 +140,7 @@ class GoldenIconButton extends StatelessWidget {
   }
 }
 
-/// A small gold pill, for the speed chip and the "Playing" badge.
+/// A small accent pill, for the speed chip and the "Playing" badge.
 class GoldenPill extends StatelessWidget {
   const GoldenPill({
     required this.child,
@@ -149,20 +159,20 @@ class GoldenPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: filled
-            ? GoldenPlayerColors.gold
+            ? GoldenPlayerColors.accent(context)
             : Colors.black.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(GoldenPlayerRadii.pill),
         border: Border.all(
           color: filled
               ? Colors.transparent
-              : GoldenPlayerColors.gold.withValues(alpha: 0.6),
+              : GoldenPlayerColors.accent(context).withValues(alpha: 0.6),
         ),
       ),
       child: DefaultTextStyle(
         style: TextStyle(
           color: filled
               ? Colors.black
-              : GoldenPlayerColors.goldHighlight,
+              : GoldenPlayerColors.accentHighlight(context),
           fontWeight: FontWeight.w700,
           fontSize: 12,
         ),
@@ -179,7 +189,7 @@ class GoldenPill extends StatelessWidget {
   }
 }
 
-/// A section label inside a drawer: small, gold, uppercase.
+/// A section label inside a drawer: small, accent-coloured, uppercase.
 class GoldenSectionLabel extends StatelessWidget {
   const GoldenSectionLabel(this.text, {super.key});
 
@@ -191,8 +201,8 @@ class GoldenSectionLabel extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
       child: Text(
         text.toUpperCase(),
-        style: const TextStyle(
-          color: GoldenPlayerColors.gold,
+        style: TextStyle(
+          color: GoldenPlayerColors.accent(context),
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,

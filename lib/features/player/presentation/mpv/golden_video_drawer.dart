@@ -155,10 +155,10 @@ class _GoldenVideoDrawerState extends ConsumerState<GoldenVideoDrawer> {
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      child: const Text(
+                      child: Text(
                         'Reset',
                         style: TextStyle(
-                          color: GoldenPlayerColors.gold,
+                          color: GoldenPlayerColors.accent(context),
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                         ),
@@ -257,8 +257,8 @@ class _PictureSlider extends StatelessWidget {
               ),
               Text(
                 pictureValueLabel(value),
-                style: const TextStyle(
-                  color: GoldenPlayerColors.goldHighlight,
+                style: TextStyle(
+                  color: GoldenPlayerColors.accentHighlight(context),
                   fontWeight: FontWeight.w700,
                   fontSize: 14,
                 ),
@@ -268,10 +268,10 @@ class _PictureSlider extends StatelessWidget {
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
               trackHeight: 4,
-              activeTrackColor: GoldenPlayerColors.gold,
+              activeTrackColor: GoldenPlayerColors.accent(context),
               inactiveTrackColor: Colors.white.withValues(alpha: 0.18),
-              thumbColor: GoldenPlayerColors.goldHighlight,
-              overlayColor: GoldenPlayerColors.gold.withValues(alpha: 0.2),
+              thumbColor: GoldenPlayerColors.accentHighlight(context),
+              overlayColor: GoldenPlayerColors.accent(context).withValues(alpha: 0.2),
             ),
             child: Slider(
               min: kPictureMin.toDouble(),
@@ -380,11 +380,11 @@ class _VideoPresetTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
             decoration: BoxDecoration(
               color: selected
-                  ? GoldenPlayerColors.gold.withValues(alpha: 0.12)
+                  ? GoldenPlayerColors.accent(context).withValues(alpha: 0.12)
                   : GoldenPlayerColors.surface.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(GoldenPlayerRadii.card),
               border: Border.all(
-                color: selected ? GoldenPlayerColors.gold : Colors.transparent,
+                color: selected ? GoldenPlayerColors.accent(context) : Colors.transparent,
                 width: 1.5,
               ),
             ),
@@ -396,7 +396,7 @@ class _VideoPresetTile extends StatelessWidget {
                       : Icons.radio_button_unchecked_rounded,
                   size: 20,
                   color: selected
-                      ? GoldenPlayerColors.gold
+                      ? GoldenPlayerColors.accent(context)
                       : GoldenPlayerColors.textSecondary,
                 ),
                 const SizedBox(width: 12),
@@ -410,7 +410,7 @@ class _VideoPresetTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: selected
-                              ? GoldenPlayerColors.goldHighlight
+                              ? GoldenPlayerColors.accentHighlight(context)
                               : GoldenPlayerColors.textPrimary,
                           fontWeight: selected
                               ? FontWeight.w700

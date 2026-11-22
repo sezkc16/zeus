@@ -302,12 +302,12 @@ class _SourceTile extends StatelessWidget {
             ),
             decoration: BoxDecoration(
               color: selected
-                  ? GoldenPlayerColors.gold.withValues(alpha: 0.12)
+                  ? GoldenPlayerColors.accent(context).withValues(alpha: 0.12)
                   : GoldenPlayerColors.surface.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(GoldenPlayerRadii.card),
               border: Border.all(
                 color: selected
-                    ? GoldenPlayerColors.gold
+                    ? GoldenPlayerColors.accent(context)
                     : Colors.transparent,
                 width: 1.5,
               ),
@@ -320,7 +320,7 @@ class _SourceTile extends StatelessWidget {
                       : Icons.radio_button_unchecked_rounded,
                   size: 20,
                   color: selected
-                      ? GoldenPlayerColors.gold
+                      ? GoldenPlayerColors.accent(context)
                       : GoldenPlayerColors.textSecondary,
                 ),
                 const SizedBox(width: 12),
@@ -334,7 +334,7 @@ class _SourceTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: selected
-                              ? GoldenPlayerColors.goldHighlight
+                              ? GoldenPlayerColors.accentHighlight(context)
                               : GoldenPlayerColors.textPrimary,
                           fontWeight: selected
                               ? FontWeight.w700
@@ -381,9 +381,9 @@ class _SourceTile extends StatelessWidget {
                   const SizedBox(width: 6),
                   _Chip(label: size, gold: false),
                 ],
-                if (_statusIcon() != null) ...<Widget>[
+                if (_statusIcon(context) != null) ...<Widget>[
                   const SizedBox(width: 8),
-                  _statusIcon()!,
+                  _statusIcon(context)!,
                 ],
               ],
             ),
@@ -396,23 +396,23 @@ class _SourceTile extends StatelessWidget {
   /// The probe status: a spinner on the row being opened (or still being
   /// checked), a green checkmark on a probed-healthy row, a red mark on
   /// a failed one — nothing on a row nobody has asked about yet.
-  Widget? _statusIcon() {
+  Widget? _statusIcon(BuildContext context) {
     if (playState == SourcePlayState.opening) {
-      return const SizedBox(
+      return SizedBox(
         width: 18,
         height: 18,
         child: CircularProgressIndicator(
-          color: GoldenPlayerColors.gold,
+          color: GoldenPlayerColors.accent(context),
           strokeWidth: 2,
         ),
       );
     }
     if (reachability == SourceReachability.checking) {
-      return const SizedBox(
+      return SizedBox(
         width: 18,
         height: 18,
         child: CircularProgressIndicator(
-          color: GoldenPlayerColors.gold,
+          color: GoldenPlayerColors.accent(context),
           strokeWidth: 2,
         ),
       );
@@ -451,12 +451,12 @@ class _Chip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
           color: gold
-              ? GoldenPlayerColors.gold.withValues(alpha: 0.14)
+              ? GoldenPlayerColors.accent(context).withValues(alpha: 0.14)
               : GoldenPlayerColors.surface,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
             color: gold
-                ? GoldenPlayerColors.gold.withValues(alpha: 0.45)
+                ? GoldenPlayerColors.accent(context).withValues(alpha: 0.45)
                 : GoldenPlayerColors.divider,
           ),
         ),
@@ -467,7 +467,7 @@ class _Chip extends StatelessWidget {
           textAlign: TextAlign.center,
           style: TextStyle(
             color: gold
-                ? GoldenPlayerColors.goldHighlight
+                ? GoldenPlayerColors.accentHighlight(context)
                 : GoldenPlayerColors.textPrimary,
             fontSize: 11,
             fontWeight: FontWeight.w700,
@@ -507,12 +507,12 @@ class _OptionTile extends StatelessWidget {
             ),
             decoration: BoxDecoration(
               color: selected
-                  ? GoldenPlayerColors.gold.withValues(alpha: 0.12)
+                  ? GoldenPlayerColors.accent(context).withValues(alpha: 0.12)
                   : GoldenPlayerColors.surface.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(GoldenPlayerRadii.card),
               border: Border.all(
                 color: selected
-                    ? GoldenPlayerColors.gold
+                    ? GoldenPlayerColors.accent(context)
                     : Colors.transparent,
                 width: 1.5,
               ),
@@ -525,7 +525,7 @@ class _OptionTile extends StatelessWidget {
                       : Icons.radio_button_unchecked_rounded,
                   size: 20,
                   color: selected
-                      ? GoldenPlayerColors.gold
+                      ? GoldenPlayerColors.accent(context)
                       : GoldenPlayerColors.textSecondary,
                 ),
                 const SizedBox(width: 12),
@@ -539,7 +539,7 @@ class _OptionTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: selected
-                              ? GoldenPlayerColors.goldHighlight
+                              ? GoldenPlayerColors.accentHighlight(context)
                               : GoldenPlayerColors.textPrimary,
                           fontWeight: selected
                               ? FontWeight.w700

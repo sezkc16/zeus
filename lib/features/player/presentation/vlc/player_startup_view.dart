@@ -29,7 +29,7 @@ import 'panel/player_panel_labels.dart'
 /// as a chip: the label truncates it away (it sits at the end of a long
 /// plugin label), and the viewer picks by server. Null where the source
 /// names no server, which leaves the row exactly as it was. The quality
-/// ("4K", "1080p") is a fourth fact, shown as a gold chip beside the
+/// ("4K", "1080p") is a fourth fact, shown as an accent chip beside the
 /// server's: the label truncates it away too, and the viewer picks by
 /// quality as well. Null where the source names no quality. The file size
 /// ("16.74 GB", "850 MB") is a fifth fact, shown as a chip beside the
@@ -710,8 +710,8 @@ class _SourceRow extends StatelessWidget {
                     ),
                   ),
                 ),
-                // The quality, as a gold chip, then the server: the label
-                // truncates both away, and the viewer picks by both.
+                // The quality, as an accent chip, then the server: the
+                // label truncates both away, and the viewer picks by both.
                 // Absent where the source names no quality.
                 if (row.quality != null && row.quality!.isNotEmpty) ...[
                   const SizedBox(width: 8),
@@ -721,12 +721,16 @@ class _SourceRow extends StatelessWidget {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFD4AF37).withValues(alpha: 0.14),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(
-                        color: const Color(
-                          0xFFD4AF37,
-                        ).withValues(alpha: 0.45),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withValues(alpha: 0.45),
                       ),
                     ),
                     child: Text(
@@ -734,8 +738,9 @@ class _SourceRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Color(0xFFF5D78E),
+                      style: TextStyle(
+                        color:
+                            Theme.of(context).colorScheme.primary,
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                       ),

@@ -116,10 +116,10 @@ class GoldenSleepTimerBadge extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const Icon(
+              Icon(
                 Icons.bedtime_rounded,
                 size: 14,
-                color: GoldenPlayerColors.goldHighlight,
+                color: GoldenPlayerColors.accentHighlight(context),
               ),
               const SizedBox(width: 4),
               Text(

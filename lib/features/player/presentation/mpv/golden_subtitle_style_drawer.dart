@@ -520,12 +520,12 @@ class _SubtitleTrackTile extends StatelessWidget {
             ),
             decoration: BoxDecoration(
               color: selected
-                  ? GoldenPlayerColors.gold.withValues(alpha: 0.12)
+                  ? GoldenPlayerColors.accent(context).withValues(alpha: 0.12)
                   : GoldenPlayerColors.surface.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(GoldenPlayerRadii.card),
               border: Border.all(
                 color: selected
-                    ? GoldenPlayerColors.gold
+                    ? GoldenPlayerColors.accent(context)
                     : Colors.transparent,
                 width: 1.5,
               ),
@@ -538,7 +538,7 @@ class _SubtitleTrackTile extends StatelessWidget {
                       : Icons.radio_button_unchecked_rounded,
                   size: 20,
                   color: selected
-                      ? GoldenPlayerColors.gold
+                      ? GoldenPlayerColors.accent(context)
                       : GoldenPlayerColors.textSecondary,
                 ),
                 const SizedBox(width: 12),
@@ -549,7 +549,7 @@ class _SubtitleTrackTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: selected
-                          ? GoldenPlayerColors.goldHighlight
+                          ? GoldenPlayerColors.accentHighlight(context)
                           : GoldenPlayerColors.textPrimary,
                       fontWeight: selected
                           ? FontWeight.w700
@@ -601,7 +601,7 @@ class _ActionRow extends StatelessWidget {
             ),
             child: Row(
               children: <Widget>[
-                Icon(icon, size: 20, color: GoldenPlayerColors.gold),
+                Icon(icon, size: 20, color: GoldenPlayerColors.accent(context)),
                 const SizedBox(width: 12),
                 Text(
                   label,
@@ -642,7 +642,7 @@ class _StepperRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
         children: <Widget>[
-          Icon(icon, size: 20, color: GoldenPlayerColors.gold),
+          Icon(icon, size: 20, color: GoldenPlayerColors.accent(context)),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -696,7 +696,7 @@ class _StepButton extends StatelessWidget {
             size: 18,
             color: onPressed == null
                 ? GoldenPlayerColors.textSecondary.withValues(alpha: 0.4)
-                : GoldenPlayerColors.goldHighlight,
+                : GoldenPlayerColors.accentHighlight(context),
           ),
         ),
       ),
@@ -732,7 +732,7 @@ class _DropdownRow<T> extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
         children: <Widget>[
-          Icon(icon, size: 20, color: GoldenPlayerColors.gold),
+          Icon(icon, size: 20, color: GoldenPlayerColors.accent(context)),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -759,7 +759,7 @@ class _DropdownRow<T> extends StatelessWidget {
                     optionLabel(option),
                     style: TextStyle(
                       color: isSelected(option)
-                          ? GoldenPlayerColors.goldHighlight
+                          ? GoldenPlayerColors.accentHighlight(context)
                           : GoldenPlayerColors.textPrimary,
                       fontWeight: isSelected(option)
                           ? FontWeight.w700
@@ -842,7 +842,7 @@ class _ToggleRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
         children: <Widget>[
-          Icon(icon, size: 20, color: GoldenPlayerColors.gold),
+          Icon(icon, size: 20, color: GoldenPlayerColors.accent(context)),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -857,8 +857,8 @@ class _ToggleRow extends StatelessWidget {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: GoldenPlayerColors.goldHighlight,
-            activeTrackColor: GoldenPlayerColors.gold.withValues(
+            activeThumbColor: GoldenPlayerColors.accentHighlight(context),
+            activeTrackColor: GoldenPlayerColors.accent(context).withValues(
               alpha: 0.5,
             ),
             inactiveThumbColor: GoldenPlayerColors.textSecondary,
@@ -920,10 +920,10 @@ class _PositionRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
         children: <Widget>[
-          const Icon(
+          Icon(
             Icons.vertical_align_bottom_rounded,
             size: 20,
-            color: GoldenPlayerColors.gold,
+            color: GoldenPlayerColors.accent(context),
           ),
           const SizedBox(width: 12),
           const Expanded(
@@ -955,7 +955,7 @@ class _PositionRow extends StatelessWidget {
                     name,
                     style: TextStyle(
                       color: value == _base
-                          ? GoldenPlayerColors.goldHighlight
+                          ? GoldenPlayerColors.accentHighlight(context)
                           : GoldenPlayerColors.textPrimary,
                       fontWeight: value == _base
                           ? FontWeight.w700
@@ -1078,10 +1078,10 @@ class _SliderRow extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              const Icon(
+              Icon(
                 Icons.height_rounded,
                 size: 20,
-                color: GoldenPlayerColors.gold,
+                color: GoldenPlayerColors.accent(context),
               ),
               const SizedBox(width: 12),
               const Text(
@@ -1096,10 +1096,10 @@ class _SliderRow extends StatelessWidget {
               Expanded(
                 child: SliderTheme(
                   data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: GoldenPlayerColors.goldHighlight,
+                    activeTrackColor: GoldenPlayerColors.accentHighlight(context),
                     inactiveTrackColor: GoldenPlayerColors.divider,
-                    thumbColor: GoldenPlayerColors.goldHighlight,
-                    overlayColor: GoldenPlayerColors.gold.withValues(
+                    thumbColor: GoldenPlayerColors.accentHighlight(context),
+                    overlayColor: GoldenPlayerColors.accent(context).withValues(
                       alpha: 0.2,
                     ),
                     thumbShape: const RoundSliderThumbShape(
@@ -1201,15 +1201,15 @@ class _ResetButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextButton.icon(
       onPressed: onPressed,
-      icon: const Icon(
+      icon: Icon(
         Icons.restart_alt_rounded,
         size: 20,
-        color: GoldenPlayerColors.gold,
+        color: GoldenPlayerColors.accent(context),
       ),
-      label: const Text(
+      label: Text(
         'Reset subtitle style',
         style: TextStyle(
-          color: GoldenPlayerColors.goldHighlight,
+          color: GoldenPlayerColors.accentHighlight(context),
           fontWeight: FontWeight.w700,
           fontSize: 14,
         ),

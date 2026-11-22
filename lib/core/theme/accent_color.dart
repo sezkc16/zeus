@@ -4,7 +4,7 @@ import '../storage/settings_repository.dart';
 
 part 'accent_color.g.dart';
 
-/// The 8 accent presets — the design preview's swatch row (v3, 2.9.19+59).
+/// The 9 accent presets — the design preview's swatch row (v3, 2.9.19+59).
 /// Green is the default (user 2026-11-17: fresh installs open green) —
 /// Gold stays a preset. The shades are picked to stay readable on the
 /// obsidian background (#0A0A0B): saturated enough to read as an accent,
@@ -12,11 +12,13 @@ part 'accent_color.g.dart';
 /// stay legible. Only the accent changes; the background stays black and
 /// the layout is untouched.
 ///
-/// White / Black / Cyan were presets in earlier releases (White for the
-/// dark theme, Black for the light theme, M M 2026-11-14). The approved
-/// design preview shows exactly these 8 swatches, so the three are gone:
-/// a saved White / Black / Cyan falls back to Green through [fromName],
-/// which is the same landing as an absent value.
+/// White is a preset again (user 2026-11-23: the player must follow the
+/// Settings accent, and White must be pickable so the player can be
+/// white). Black / Cyan were presets in earlier releases (Black for the
+/// light theme, M M 2026-11-14); the approved design preview shows the
+/// 8 others, so those two stay gone: a saved Black / Cyan falls back to
+/// Green through [fromName], which is the same landing as an absent
+/// value.
 enum ZoroxAccent {
   gold('Gold', Color(0xFFD4AF37)),
   red('Red', Color(0xFFE53935)),
@@ -25,7 +27,8 @@ enum ZoroxAccent {
   blue('Blue', Color(0xFF42A5F5)),
   violet('Violet', Color(0xFFAB47BC)),
   pink('Pink', Color(0xFFEC407A)),
-  silver('Silver', Color(0xFFE8E8EC));
+  silver('Silver', Color(0xFFE8E8EC)),
+  white('White', Color(0xFFFFFFFF));
 
   const ZoroxAccent(this.label, this.color);
 

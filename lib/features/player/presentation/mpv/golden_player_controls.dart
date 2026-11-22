@@ -1414,12 +1414,12 @@ class _GoldenPlayerControlsState extends ConsumerState<GoldenPlayerControls>
           valueListenable: widget.controller,
           builder: (context, value, _) {
             if (!value.isStalled) return const SizedBox.shrink();
-            return const Center(
+            return Center(
               child: SizedBox(
                 width: 44,
                 height: 44,
                 child: CircularProgressIndicator(
-                  color: GoldenPlayerColors.gold,
+                  color: GoldenPlayerColors.accent(context),
                   strokeWidth: 3,
                 ),
               ),
@@ -1911,14 +1911,15 @@ class _GoldenRail extends StatelessWidget {
                       right: 0,
                       bottom: 0,
                       height: _trackHeight * filled,
-                      child: const ColoredBox(color: GoldenPlayerColors.gold),
+                      child: ColoredBox(
+                          color: GoldenPlayerColors.accent(context)),
                     ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 10),
-            Icon(data.icon, color: GoldenPlayerColors.goldHighlight, size: 20),
+            Icon(data.icon, color: GoldenPlayerColors.accentHighlight(context), size: 20),
           ],
         ),
       ),
@@ -2480,7 +2481,7 @@ class _GoldenSeekBar extends StatelessWidget {
                             width: width,
                             height: 6,
                             decoration: BoxDecoration(
-                              color: GoldenPlayerColors.gold.withValues(
+                              color: GoldenPlayerColors.accent(context).withValues(
                                 alpha: 0.45,
                               ),
                               borderRadius: BorderRadius.circular(3),
@@ -2535,11 +2536,11 @@ class _GoldenSeekBar extends StatelessWidget {
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
               trackHeight: 4,
-              activeTrackColor: GoldenPlayerColors.gold,
+              activeTrackColor: GoldenPlayerColors.accent(context),
               inactiveTrackColor: Colors.white.withValues(alpha: 0.18),
-              thumbColor: GoldenPlayerColors.goldHighlight,
+              thumbColor: GoldenPlayerColors.accentHighlight(context),
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-              overlayColor: GoldenPlayerColors.gold.withValues(alpha: 0.2),
+              overlayColor: GoldenPlayerColors.accent(context).withValues(alpha: 0.2),
               overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
             ),
             child: Slider(
@@ -2670,8 +2671,8 @@ class _VolumeSheetState extends State<_VolumeSheet> {
                   const Spacer(),
                   Text(
                     '${_volume.round()}%',
-                    style: const TextStyle(
-                      color: GoldenPlayerColors.goldHighlight,
+                    style: TextStyle(
+                      color: GoldenPlayerColors.accentHighlight(context),
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
                     ),
@@ -2681,10 +2682,10 @@ class _VolumeSheetState extends State<_VolumeSheet> {
               const SizedBox(height: 8),
               SliderTheme(
                 data: SliderTheme.of(context).copyWith(
-                  activeTrackColor: GoldenPlayerColors.gold,
+                  activeTrackColor: GoldenPlayerColors.accent(context),
                   inactiveTrackColor: Colors.white.withValues(alpha: 0.18),
-                  thumbColor: GoldenPlayerColors.goldHighlight,
-                  overlayColor: GoldenPlayerColors.gold.withValues(alpha: 0.2),
+                  thumbColor: GoldenPlayerColors.accentHighlight(context),
+                  overlayColor: GoldenPlayerColors.accent(context).withValues(alpha: 0.2),
                 ),
                 child: Slider(
                   value: _volume,
@@ -2698,10 +2699,10 @@ class _VolumeSheetState extends State<_VolumeSheet> {
               const SizedBox(height: 4),
               TextButton(
                 onPressed: () => Navigator.of(context).pop(0),
-                child: const Text(
+                child: Text(
                   'Mute',
                   style: TextStyle(
-                    color: GoldenPlayerColors.goldHighlight,
+                    color: GoldenPlayerColors.accentHighlight(context),
                     fontWeight: FontWeight.w700,
                   ),
                 ),

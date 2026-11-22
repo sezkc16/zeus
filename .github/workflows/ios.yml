@@ -100,6 +100,10 @@ jobs:
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
+        continue-on-error: true # Artifact quota can be full (account-wide
+        # 500 MB free tier); the IPA also ships as a GitHub Release asset,
+        # which does not count against the quota — a failed upload must
+        # not fail the build.
         with:
           name: ZoroX-iOS-unsigned
           path: ZoroX-*-unsigned.ipa
