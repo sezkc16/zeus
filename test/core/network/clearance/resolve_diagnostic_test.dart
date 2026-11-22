@@ -51,13 +51,13 @@ void main() {
         probe: {
           'ts': true,
           'widget': false,
-          'iframe': false,
-          'vlc': true,
+          'iframeSrc': false,
+          'vlcHref': true,
         },
       );
       expect(
         d.summary,
-        'timed-out | turnstile: yes | widget: no | iframe: no | vlc: yes | 42s',
+        'timed-out | turnstile: yes | widget: no | iframeSrc: no | vlcHref: yes | 42s',
       );
     });
 

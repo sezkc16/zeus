@@ -405,7 +405,12 @@ class SettingsScreen extends ConsumerWidget {
         ),
         // The preview shows Developer Options as a gold toggle (OFF by
         // default) — it turns the QoE stats overlay and debug logging on.
-        // The Developer Options screen still holds the rest of the tools.
+        // The Developer Options screen still holds the rest of the tools
+        // (Turnstile test, logs): tapping the row opens it, while the
+        // trailing Switch alone flips the flag — the Switch absorbs its
+        // own taps, so the row's onTap only fires outside it. (b124
+        // shipped the screen with no way to reach it: the row only
+        // toggled, and nothing navigated to DeveloperOptionsRoute.)
         SettingsTile(
           reicon: Reicon.terminalSquare,
           title: l10n.developerOptions,
@@ -416,9 +421,7 @@ class SettingsScreen extends ConsumerWidget {
             onChanged: (val) =>
                 ref.read(developerOptionsProvider.notifier).setEnabled(val),
           ),
-          onTap: () => ref
-              .read(developerOptionsProvider.notifier)
-              .setEnabled(!developerOptionsEnabled),
+          onTap: () => const DeveloperOptionsRoute().go(context),
         ),
       ],
     );

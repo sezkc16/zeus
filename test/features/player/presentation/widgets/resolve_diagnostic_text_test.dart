@@ -34,12 +34,17 @@ void main() {
     tester,
   ) async {
     ResolveDiagnostic.last = diagnostic(
-      probe: {'ts': false, 'widget': false, 'iframe': false, 'vlc': false},
+      probe: {
+        'ts': false,
+        'widget': false,
+        'iframeSrc': false,
+        'vlcHref': false,
+      },
     );
     await pumpText(tester);
     expect(
       find.text(
-        'timed-out | turnstile: no | widget: no | iframe: no | vlc: no | 42s',
+        'timed-out | turnstile: no | widget: no | iframeSrc: no | vlcHref: no | 42s',
       ),
       findsOneWidget,
     );

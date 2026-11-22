@@ -65,9 +65,14 @@ class ResolveDiagnostic {
       now.difference(endedAt) < within;
 
   /// One line for the "No streams found" screen, e.g.
-  /// `timed-out | turnstile: no | widget: no | iframe: no | 42s`, or
-  /// `probe: FAILED | waiting | 42s` when the probe itself could not
-  /// run. Short values only: it is read off a screenshot.
+  /// `timed-out | turnstile: yes | widget: no | iframeSrc: no |
+  /// vlcHref: no | 42s`, or `probe: FAILED | waiting | 42s` when the
+  /// probe itself could not run. Short values only: it is read off a
+  /// screenshot. The fields are the ones that decide anything:
+  /// `iframeSrc` / `vlcHref` say whether play() actually set a link
+  /// (the bare `iframe` / `vlc` existence flags do not — #cfVlc is in
+  /// the iOS page template from load, with href="#" until play() runs,
+  /// so `vlc: yes` on its own meant nothing, b124).
   String get summary {
     final seconds = elapsed.inSeconds;
     if (probeFailed) return 'probe: FAILED | $stage | ${seconds}s';
@@ -75,7 +80,7 @@ class ResolveDiagnostic {
     if (p == null) return 'probe: none | $stage | ${seconds}s';
     String yes(String key) => p[key] == true ? 'yes' : 'no';
     return '$stage | turnstile: ${yes('ts')} | widget: ${yes('widget')} '
-        '| iframe: ${yes('iframe')} | vlc: ${yes('vlc')} | ${seconds}s';
+        '| iframeSrc: ${yes('iframeSrc')} | vlcHref: ${yes('vlcHref')} | ${seconds}s';
   }
 
   /// Parses a probe evaluation's result into its booleans, or null when

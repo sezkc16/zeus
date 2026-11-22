@@ -215,6 +215,39 @@ void main() {
     expect(diagnostic.probe?['vlc'], isTrue);
   });
 
+  test('NEEDS_WIDGET opens the sheet at once, like SHOW_SHEET', () async {
+    // Turnstile's script loaded but its widget never rendered in the
+    // hidden page (CineFreak v8): the script says so on the first poll,
+    // and the sheet opens at once — the hidden page cannot render the
+    // widget, so waiting the default needsPersonAfter (20 s) first
+    // would only leave the person staring at "Getting links" for the
+    // whole timeout, as b123/b124 proved on the phone.
+    final page = FakePage(const [
+      Step('Player'),
+    ], onEvaluate: (script) {
+      if (script.contains('cfTsBox')) return _probeAnswer(script);
+      return Future.value('"NEEDS_WIDGET"');
+    });
+    var shown = 0;
+    final solver = _solver(
+      PageFactory([page]),
+    )..presenter = ({required page, required site, required cleared}) async {
+      shown++;
+      return ChallengeSheetResult.closed;
+    };
+    final resolving = resolvePage(
+      solver,
+      url: Uri.parse('https://host.example/'),
+      script: 'document.title',
+      timeout: const Duration(seconds: 5),
+      onRequest: (_) async => false,
+      onScript: (_) async {},
+    );
+    await resolving;
+    expect(shown, 1);
+    expect(page.disposed, isTrue);
+  });
+
   test('the probe runs during a resolve and its diagnostic records the page', () async {
     // No extension script at all: the probe still runs, and a resolve
     // that burns its whole timeout says so, with the page's reading.

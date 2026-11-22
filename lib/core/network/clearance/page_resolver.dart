@@ -26,6 +26,15 @@ const showSheetMarker = 'SHOW_SHEET';
 /// Only CineFreak's Turnstile script returns it.
 const pageFailedMarker = 'PAGE_FAILED';
 
+/// The script result an extension returns when its check's script loaded
+/// but its widget never rendered in the hidden page (CineFreak v8):
+/// Turnstile's widget can only render once the page is visible, so the
+/// hidden page waiting for it is a deadlock — the app shows the page in
+/// the check sheet, exactly as for [showSheetMarker]. The extension
+/// gives a silent auto-solve a few seconds first (it needs no widget),
+/// so this only fires when a person is actually needed.
+const needsWidgetMarker = 'NEEDS_WIDGET';
+
 /// What the resolver's own look at the page reports, for the diagnostic
 /// the "No streams found" screen shows (b124): whether Turnstile's
 /// script loaded, whether its widget rendered, whether the player
@@ -206,7 +215,7 @@ Future<void> resolvePage(
 
   void noteScriptResult(String result) {
     final decoded = decodeScriptResult(result);
-    if (decoded == showSheetMarker) {
+    if (decoded == showSheetMarker || decoded == needsWidgetMarker) {
       askForSheet();
     } else if (decoded == pageFailedMarker) {
       // The page failed by itself: nothing more will come from it.
