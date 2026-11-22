@@ -116,10 +116,14 @@ void main() {
     expect(page.evaluated, hasLength(3));
   });
 
-  test('a request dropped while a run is in flight is re-run, and SHOW_SHEET on the re-run opens the sheet', () async {
+  test('a request dropped while a run is in flight is re-run, and SHOW_SHEET on the re-run opens the sheet at once', () async {
     // The first run is slow; the second request arrives while it is in
     // flight. The script answers '' first, then SHOW_SHEET — as a
-    // Turnstile widget's iframe arriving mid-run would.
+    // Turnstile widget's iframe arriving mid-run would. The sheet opens
+    // at once on the marker: the default needsPersonAfter (20 s) is
+    // NOT waited first, so this 5 s resolve still sees the sheet.
+    // (With the old wait, the resolve would end before the sheet
+    // ever showed, and `shown` below would be 0.)
     final firstRun = Completer<String>();
     var runs = 0;
     final page = FakePage(const [
@@ -131,7 +135,6 @@ void main() {
     var shown = 0;
     final solver = _solver(
       PageFactory([page]),
-      needsPersonAfter: Duration.zero,
     )..presenter = ({required page, required site, required cleared}) async {
       shown++;
       return ChallengeSheetResult.closed;
@@ -155,6 +158,28 @@ void main() {
     // The re-run read the marker, and the sheet was requested.
     expect(shown, 1);
     await resolving;
+    expect(page.disposed, isTrue);
+  });
+
+  test('PAGE_FAILED ends the resolve at once, without burning the timeout', () async {
+    // The page failed by itself (its player showed an error): the
+    // script says so on the first poll, and the resolve ends then —
+    // it does not sit on "Getting links" until the 5 s timeout.
+    final page = FakePage(const [
+      Step('Player'),
+    ], onEvaluate: (_) => Future.value('"PAGE_FAILED"'));
+    final stopwatch = Stopwatch()..start();
+    final resolving = resolvePage(
+      _solver(PageFactory([page])),
+      url: Uri.parse('https://host.example/'),
+      script: 'document.title',
+      timeout: const Duration(seconds: 5),
+      onRequest: (_) async => false,
+      onScript: (_) async {},
+    );
+    await resolving;
+    stopwatch.stop();
+    expect(stopwatch.elapsed, lessThan(const Duration(seconds: 4)));
     expect(page.disposed, isTrue);
   });
 

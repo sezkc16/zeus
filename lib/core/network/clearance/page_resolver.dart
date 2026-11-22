@@ -19,6 +19,12 @@ const _ownedByTheBrowser = {'user-agent', 'cookie', 'host', 'content-length'};
 /// waiting.)
 const showSheetMarker = 'SHOW_SHEET';
 
+/// The script result an extension returns when its page has failed by
+/// itself (its player showed an error, or it left for another document):
+/// the resolve ends at once instead of burning its whole timeout.
+/// Only CineFreak's Turnstile script returns it.
+const pageFailedMarker = 'PAGE_FAILED';
+
 /// Loads [url] in a hidden page and hands each request the page makes to
 /// [onRequest], in order, until it answers true. The page comes from
 /// [solver]'s page budget. It also ends when [timeout] passes (counted from
@@ -31,12 +37,18 @@ const showSheetMarker = 'SHOW_SHEET';
 /// whose single request is missed is still seen.
 ///
 /// When the script returns [showSheetMarker] — its page shows a check that
-/// needs a person — the page is shown in the check sheet once the hidden
-/// page has had [ClearanceSolver.needsPersonAfter] to solve it by itself.
-/// While the sheet shows, the resolve waits on the person (the timeout
-/// does not cut it off) and the script is polled, so a tick is seen
-/// promptly; the sheet may show "Verified" once a token or a link is
-/// observed, and the page is not closed until the sheet is.
+/// needs a person — the page is shown in the check sheet at once. The
+/// marker is the extension's own determination that a person is needed,
+/// so the hidden page gets no [ClearanceSolver.needsPersonAfter] wait
+/// first: it cannot finish the check by itself (a Turnstile checkbox
+/// only appears when a person must tick it), and waiting would only
+/// leave the person staring at a spinner. While the sheet shows, the
+/// resolve waits on the person (the timeout does not cut it off) and the
+/// script is polled, so a tick is seen promptly; the sheet may show
+/// "Verified" once a token or a link is observed, and the page is not
+/// closed until the sheet is. When the script returns [pageFailedMarker]
+/// — its page failed by itself — the resolve ends at once instead of
+/// burning its whole timeout.
 ///
 /// Never throws, and the page always closes. Whoever asked going away (an
 /// [onRequest] that throws) ends it too. This is how CloudStream's
@@ -87,7 +99,6 @@ Future<void> resolvePage(
   var sheetShown = false;
   var sheetOpen = false;
   Future<ChallengeSheetResult?>? sheetDone;
-  Timer? sheetTimer;
 
   // One script run at a time, shared by the events below and the poll.
   var scripting = false;
@@ -131,28 +142,22 @@ Future<void> resolvePage(
   void askForSheet() {
     if (sheetRequested || sheetShown || done.isCompleted) return;
     sheetRequested = true;
-    // The hidden page gets its chance first (needsPersonAfter); only
-    // then is the page shown to the person.
-    final wait = solver.needsPersonAfter - DateTime.now().difference(startedAt);
-    if (wait <= Duration.zero) {
-      unawaited(showSheet());
-    } else {
-      sheetTimer = Timer(wait, () {
-        sheetTimer = null;
-        if (sheetRequested &&
-            !sheetShown &&
-            !done.isCompleted &&
-            !cleared.isCompleted) {
-          unawaited(showSheet());
-        }
-      });
-    }
+    // At once: the marker is the extension's own determination that a
+    // person is needed, and the hidden page cannot finish the check by
+    // itself. (CineFreak's Turnstile only renders its checkbox when a
+    // person must tick it, so waiting the old needsPersonAfter first
+    // left the person staring at "Getting links" for 20 s, then a
+    // sheet on a page they had already given up on.)
+    unawaited(showSheet());
   }
 
   void noteScriptResult(String result) {
     final decoded = decodeScriptResult(result);
     if (decoded == showSheetMarker) {
       askForSheet();
+    } else if (decoded == pageFailedMarker) {
+      // The page failed by itself: nothing more will come from it.
+      finish();
     } else if (decoded != null && decoded.isNotEmpty) {
       markCleared();
     }
@@ -247,7 +252,6 @@ Future<void> resolvePage(
     talker.debug('[Clearance] resolving $url failed: $e');
   } finally {
     finish();
-    sheetTimer?.cancel();
     await events.cancel();
     await page.dispose();
   }
