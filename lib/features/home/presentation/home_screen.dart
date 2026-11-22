@@ -10,11 +10,9 @@ import 'provider_pins.dart';
 import '../../../core/utils/motion.dart';
 import 'home_row_prefs.dart';
 import 'home_row_prefs_provider.dart';
-import '../../profiles/data/zeus_profiles_notifier.dart';
-import '../../profiles/presentation/profile_switcher_screen.dart';
-import '../../profiles/presentation/zeus_profile_avatar.dart';
 import 'home_state.dart';
 import 'widgets/home_check_card.dart';
+import 'widgets/home_header_actions.dart';
 
 import 'package:zorox/features/home/presentation/widgets/continue_watching_section.dart';
 import 'package:zorox/features/search/presentation/search_provider.dart';
@@ -39,7 +37,6 @@ import 'package:zorox/core/extensions/extension_manager.dart';
 import 'package:zorox/core/extensions/base_provider.dart';
 import 'package:zorox/core/router/app_router.dart';
 
-import 'delegates/home_search_delegate.dart';
 import '../../../shared/widgets/cards_wrapper.dart';
 import '../../../shared/widgets/custom_widgets.dart';
 import '../../../shared/widgets/shimmer_placeholder.dart';
@@ -259,52 +256,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ],
         ),
         actions: [
-          // 1. Search Action Button
-          Padding(
-            padding: const EdgeInsets.only(right: LayoutConstants.spacingSm),
-            child: CardsWrapper(
-              focusNode: _firstActionFocusNode,
-              onTap: () => unawaited(showHomeSearch(context)),
-              borderRadius: BorderRadius.circular(50),
-              child: CircleAvatar(
-                backgroundColor: Theme.of(context).colorScheme.onSurface
-                    .withValues(alpha: 0.1),
-                radius: 18,
-                child: Icon(
-                  Icons.search,
-                  color: Theme.of(context).colorScheme.onSurface,
-                  size: 18,
-                ),
-              ),
-            ),
-          ),
-
-          // 2. Active profile's avatar (Build 2) — Netflix-style: tap to
-          // switch profiles. Only when a profile is open (logged in or
-          // local-only); the gate owns the picker before that.
-          // Build 110 (user 2026-11-21 01:55–01:56): exactly the
-          // search/settings buttons' size — CircleAvatar radius 18 =
-          // 36 pt, and this tile is 36 pt too (measured on his shot:
-          // all three render 108x108 px). It LOOKED bigger because a
-          // filled rounded square reads larger than a circle of the
-          // same box, so the top-bar tile is circular like the buttons;
-          // the rounded square stays everywhere else.
-          // Build 115: the Settings gear that sat here is gone — Settings
-          // lives in the profile switcher sheet now (bottom row).
-          if (ref.watch(zeusProfilesProvider).activeProfile
-              case final activeProfile?)
-            Padding(
-              padding: const EdgeInsets.only(right: LayoutConstants.spacingMd),
-              child: CardsWrapper(
-                onTap: () => showZeusProfileSwitcher(context),
-                borderRadius: BorderRadius.circular(50),
-                child: ZeusProfileAvatar(
-                  profile: activeProfile,
-                  size: 36,
-                  circular: true,
-                ),
-              ),
-            ),
+          // Search + settings gear + profile avatar (build 122:
+          // the gear moved back here from the profile dropdown).
+          HomeHeaderActions(searchFocusNode: _firstActionFocusNode),
         ],
       ),
       body: _buildBody(

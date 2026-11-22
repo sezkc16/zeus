@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/widgets/matte_glass_pill.dart';
 import '../../account/data/zorox_account_notifier.dart';
-import '../../../core/router/app_router.dart';
 import '../data/zeus_profile.dart';
 import '../data/zeus_profiles_notifier.dart';
 import 'manage_profiles_screen.dart';
@@ -15,22 +14,24 @@ import 'zeus_profile_avatar.dart';
 
 /// Opens the profile switcher as a SMALL Liquid Glass dropdown
 /// anchored top-right just below the Home header avatar (build 117,
-/// shrunk further in build 118): the same 4 rows the user approved —
-/// profile rows, Add account, Manage accounts, Settings — in a compact
-/// card, no title, with the blurred Home showing through the glass.
+/// shrunk further in build 118): the same 3 rows the user approved —
+/// profile rows, Add account, Manage accounts — in a compact card,
+/// no title, with the blurred Home showing through the glass.
 /// This replaces the build-116 centered dialog (whose 0.78-alpha card
 /// was a solid dark slab, not glass, and whose text/icons were too
 /// big). Build 118 shrinks the card to ~175pt wide (the build-117
 /// card was ~300pt — the user: "aur chota karo") and uses white
 /// foreground text/icons, because the card is a dark glass: the
 /// theme's dark onSurface text on light themes washed out on it.
+/// Build 122 removed the Settings row (user: "profile click se setting
+/// hatao") — Settings moved back to the gear beside the search icon
+/// in the Home header (HomeHeaderActions).
 ///
 /// Used by the Home avatar tile and the Settings → Accounts "Switch
 /// profile" row. The barrier is transparent, so the Home stays sharp
 /// outside the card; tap outside (or the active profile) to dismiss.
 /// The PIN / create / manage steps still open as full-screen pages
-/// above the dropdown, so Back returns to the list; Settings replaces
-/// the stack (go_router), so the dropdown is popped first.
+/// above the dropdown, so Back returns to the list.
 Future<void> showZeusProfileSwitcher(BuildContext context) {
   return showGeneralDialog<void>(
     context: context,
@@ -138,13 +139,6 @@ class _ZeusProfileSwitchDialogState
     if (mounted) setState(() {});
   }
 
-  /// "Settings": go_router replaces the stack, so the dialog is popped
-  /// first — going from inside it would leave the dialog route behind.
-  void _openSettings() {
-    Navigator.of(context).pop();
-    const SettingsRoute().go(context);
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -160,7 +154,7 @@ class _ZeusProfileSwitchDialogState
     // colour at 0.78 alpha) was effectively solid — never use that
     // shell for glass again.
     //
-    // Build 118 size (~185pt wide, ~149pt tall for 1 profile + 3
+    // Build 118 size (~185pt wide, ~114pt tall for 1 profile + 2
     // actions): the approved mockup is ~173pt wide with ~13pt text,
     // 17pt icon circles and a ~19pt avatar. bodySmall (12pt) keeps
     // the longest label ("Manage accounts", 121pt in the test font,
@@ -231,16 +225,6 @@ class _ZeusProfileSwitchDialogState
                       icon: Icons.close_rounded,
                       label: 'Manage accounts',
                       onTap: () => unawaited(_openManage()),
-                    ),
-                    const Divider(
-                      height: 1,
-                      color: _kGlassDivider,
-                    ),
-                    _ActionRow(
-                      key: const ValueKey('profile-switch-settings'),
-                      icon: Icons.settings_outlined,
-                      label: 'Settings',
-                      onTap: _openSettings,
                     ),
                   ],
                 ),
