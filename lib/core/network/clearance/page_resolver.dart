@@ -5,6 +5,7 @@ import 'package:challenge_browser/challenge_browser.dart';
 
 import '../../logger/app_logger.dart';
 import 'clearance_solver.dart';
+import 'resolve_diagnostic.dart';
 
 /// Headers a page load doesn't take from the caller: the browser sends its
 /// own agent and cookies.
@@ -24,6 +25,33 @@ const showSheetMarker = 'SHOW_SHEET';
 /// the resolve ends at once instead of burning its whole timeout.
 /// Only CineFreak's Turnstile script returns it.
 const pageFailedMarker = 'PAGE_FAILED';
+
+/// What the resolver's own look at the page reports, for the diagnostic
+/// the "No streams found" screen shows (b124): whether Turnstile's
+/// script loaded, whether its widget rendered, whether the player
+/// elements exist. Read-only booleans — never a token, a cookie, or a
+/// signed media URL. The v7 script's SHOW_SHEET condition is
+/// `tsBoxIframe`: an iframe inside #cfTsBox.
+const _probeScript = '''
+(() => {
+  const box = document.getElementById('cfTsBox');
+  const iframe = document.getElementById('cfPlayer');
+  const vlc = document.getElementById('cfVlc');
+  return JSON.stringify({
+    page: location.pathname,
+    ready: document.readyState,
+    ts: typeof window.turnstile !== 'undefined',
+    widget: !!document.querySelector('.cf-turnstile'),
+    tsBox: !!box,
+    tsBoxIframe: !!(box && box.querySelector('iframe')),
+    csrf: !!document.querySelector('meta[name="csrf-token"]'),
+    iframe: !!iframe,
+    iframeSrc: !!(iframe && (iframe.getAttribute('src') || '').indexOf('http') === 0),
+    vlc: !!vlc,
+    vlcHref: !!(vlc && (vlc.getAttribute('href') || '').indexOf('http') === 0),
+    cfMsg: !!document.getElementById('cfMsg')
+  });
+})()''';
 
 /// Loads [url] in a hidden page and hands each request the page makes to
 /// [onRequest], in order, until it answers true. The page comes from
@@ -64,11 +92,34 @@ Future<void> resolvePage(
 }) async {
   final startedAt = DateTime.now();
   final deadline = startedAt.add(timeout);
+
+  // Where the resolve got to, for the diagnostic the "No streams found"
+  // screen shows (b124): the last resolve wins, and it is written when
+  // the page closes, whatever ended it.
+  var stage = 'loading';
+  Map<String, bool>? lastProbe;
+  var probeFailed = false;
+  var timedOut = false;
+  void recordDiagnostic() {
+    ResolveDiagnostic.last = ResolveDiagnostic(
+      url: url.toString(),
+      startedAt: startedAt,
+      endedAt: DateTime.now(),
+      stage: timedOut && (stage == 'loading' || stage == 'waiting')
+          ? 'timed-out'
+          : stage,
+      probe: lastProbe,
+      probeFailed: probeFailed,
+    );
+  }
+
   final CheckPage page;
   try {
     page = await solver.borrowPage();
   } catch (e) {
     talker.debug('[Clearance] no page to resolve $url: $e');
+    stage = 'no-page';
+    recordDiagnostic();
     return;
   }
   final done = Completer<void>();
@@ -112,6 +163,7 @@ Future<void> resolvePage(
     if (sheetShown || done.isCompleted || cleared.isCompleted) return;
     sheetShown = true;
     sheetOpen = true;
+    stage = 'sheet-shown';
     final site = solver.siteKeys.siteOf(url.host);
     final shown = solver.showSheet(
       page: page,
@@ -126,6 +178,7 @@ Future<void> resolvePage(
       // hidden, and its own timeout ends it.
       return;
     }
+    stage = 'sheet-closed';
     // The person closed the sheet (or said done): a final read, in case
     // the tick landed after the last poll, then the resolve ends.
     if (script != null && onScript != null && !done.isCompleted) {
@@ -157,9 +210,41 @@ Future<void> resolvePage(
       askForSheet();
     } else if (decoded == pageFailedMarker) {
       // The page failed by itself: nothing more will come from it.
+      stage = 'page-failed';
       finish();
     } else if (decoded != null && decoded.isNotEmpty) {
+      stage = 'cleared';
       markCleared();
+    }
+  }
+
+  // One look at the page for the diagnostic (b124): what Turnstile and
+  // the player elements are doing. Independent of the extension's
+  // script — it runs whether or not the extension gave one — and never
+  // disturbs it: a failed probe is recorded, not thrown.
+  Future<void> runProbe() async {
+    if (done.isCompleted) return;
+    try {
+      final parsed = ResolveDiagnostic.parseProbe(
+        await page.evaluate(_probeScript),
+      );
+      if (parsed != null) {
+        lastProbe = parsed;
+      } else {
+        probeFailed = true;
+      }
+    } catch (_) {
+      probeFailed = true;
+    }
+  }
+
+  // The probe, every 5 s while the resolve runs: the last reading is
+  // what the diagnostic shows.
+  Future<void> pollProbe() async {
+    while (!done.isCompleted) {
+      await Future<void>.delayed(const Duration(seconds: 5));
+      if (done.isCompleted) return;
+      await runProbe();
     }
   }
 
@@ -213,6 +298,7 @@ Future<void> resolvePage(
   var reported = Future<void>.value();
   final events = page.events.listen((event) {
     if (event is RendererGone) {
+      stage = 'renderer-gone';
       finish();
       return;
     }
@@ -239,11 +325,17 @@ Future<void> resolvePage(
       },
     );
     // From here on, the script is polled too (see above): a check whose
-    // single request the events above missed is still seen.
+    // single request the events above missed is still seen. The
+    // diagnostic probe runs too, from the first reading on.
+    stage = 'waiting';
+    await runProbe();
     unawaited(pollScript());
+    unawaited(pollProbe());
     await done.future.timeout(
       deadline.difference(DateTime.now()),
-      onTimeout: () {},
+      onTimeout: () {
+        timedOut = true;
+      },
     );
     // A sheet still showing: wait for the person to close it before the
     // page goes (the page is what they are looking at).
@@ -252,6 +344,7 @@ Future<void> resolvePage(
     talker.debug('[Clearance] resolving $url failed: $e');
   } finally {
     finish();
+    recordDiagnostic();
     await events.cancel();
     await page.dispose();
   }

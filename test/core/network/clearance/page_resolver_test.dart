@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zorox/core/network/clearance/clearance_solver.dart';
 import 'package:zorox/core/network/clearance/clearance_store.dart';
 import 'package:zorox/core/network/clearance/page_resolver.dart';
+import 'package:zorox/core/network/clearance/resolve_diagnostic.dart';
 import 'package:zorox/core/network/clearance/site_keys.dart';
 
 import 'fakes.dart';
@@ -31,7 +32,23 @@ ClearanceSolver _solver(
 CapturedRequest _request(String url) =>
     CapturedRequest(Uri.parse(url), method: 'GET');
 
+/// The probe script's answer, as a page would give it: Turnstile's
+/// script loaded, no widget yet, the player elements as a CineCloud
+/// watch page shows them before play() succeeds.
+Future<String> _probeAnswer(String script) => Future.value(
+  '{"ts":true,"widget":false,"tsBox":true,"tsBoxIframe":false,'
+  '"csrf":true,"iframe":false,"iframeSrc":false,"vlc":true,'
+  '"vlcHref":false,"cfMsg":false}',
+);
+
+/// Only the extension script's runs: the diagnostic probe evaluates
+/// too, and it is not one of them.
+List<String> _extensionRuns(FakePage page) =>
+    page.evaluated.where((s) => s == 'document.title').toList();
+
 void main() {
+  setUp(() => ResolveDiagnostic.last = null);
+
   test('loads the page with its headers, and hands its requests over in order until one is the answer', () async {
     final page = FakePage(const [Step('Player')]);
     final pages = PageFactory([page]);
@@ -87,7 +104,9 @@ void main() {
     var runs = 0;
     final page = FakePage(const [
       Step('Player'),
-    ], onEvaluate: (_) {
+    ], onEvaluate: (script) {
+      // The diagnostic probe answers for itself and is not a run.
+      if (script.contains('cfTsBox')) return _probeAnswer(script);
       runs++;
       return runs == 1 ? run.future : Future.value('"Second"');
     });
@@ -104,16 +123,18 @@ void main() {
     page.emit(_request('https://host.example/a.js'));
     page.emit(_request('https://host.example/b.js'));
     await pumpEventQueue();
-    expect(page.evaluated, ['document.title']);
+    expect(_extensionRuns(page), ['document.title']);
+    // The probe ran once after the load, beside the script.
+    expect(page.evaluated.any((s) => s.contains('cfTsBox')), isTrue);
     run.complete('"Player"');
     await pumpEventQueue();
     // The second request was not lost: it re-ran once the first run
     // finished, and its result was handed over too.
     expect(results, ['"Player"', '"Second"']);
-    expect(page.evaluated, hasLength(2));
+    expect(_extensionRuns(page), hasLength(2));
     page.emit(_request('https://host.example/done'));
     await resolving;
-    expect(page.evaluated, hasLength(3));
+    expect(_extensionRuns(page), hasLength(3));
   });
 
   test('a request dropped while a run is in flight is re-run, and SHOW_SHEET on the re-run opens the sheet at once', () async {
@@ -128,7 +149,9 @@ void main() {
     var runs = 0;
     final page = FakePage(const [
       Step('Player'),
-    ], onEvaluate: (_) {
+    ], onEvaluate: (script) {
+      // The diagnostic probe answers for itself and is not a run.
+      if (script.contains('cfTsBox')) return _probeAnswer(script);
       runs++;
       return runs == 1 ? firstRun.future : Future.value('"SHOW_SHEET"');
     });
@@ -152,7 +175,7 @@ void main() {
     page.emit(_request('https://host.example/b.js'));
     await pumpEventQueue();
     // Only the first run started; the second request was queued, not lost.
-    expect(page.evaluated, ['document.title']);
+    expect(_extensionRuns(page), ['document.title']);
     firstRun.complete('""');
     await pumpEventQueue();
     // The re-run read the marker, and the sheet was requested.
@@ -167,7 +190,10 @@ void main() {
     // it does not sit on "Getting links" until the 5 s timeout.
     final page = FakePage(const [
       Step('Player'),
-    ], onEvaluate: (_) => Future.value('"PAGE_FAILED"'));
+    ], onEvaluate: (script) {
+      if (script.contains('cfTsBox')) return _probeAnswer(script);
+      return Future.value('"PAGE_FAILED"');
+    });
     final stopwatch = Stopwatch()..start();
     final resolving = resolvePage(
       _solver(PageFactory([page])),
@@ -181,6 +207,62 @@ void main() {
     stopwatch.stop();
     expect(stopwatch.elapsed, lessThan(const Duration(seconds: 4)));
     expect(page.disposed, isTrue);
+    // And the diagnostic says the page failed, with the probe's reading.
+    final diagnostic = ResolveDiagnostic.last;
+    expect(diagnostic, isNotNull);
+    expect(diagnostic!.stage, 'page-failed');
+    expect(diagnostic.probe?['ts'], isTrue);
+    expect(diagnostic.probe?['vlc'], isTrue);
+  });
+
+  test('the probe runs during a resolve and its diagnostic records the page', () async {
+    // No extension script at all: the probe still runs, and a resolve
+    // that burns its whole timeout says so, with the page's reading.
+    final page = FakePage(const [
+      Step('Player'),
+    ], onEvaluate: (script) {
+      if (script.contains('cfTsBox')) return _probeAnswer(script);
+      return Future.value('""');
+    });
+    await resolvePage(
+      _solver(PageFactory([page])),
+      url: Uri.parse('https://host.example/f/abc'),
+      timeout: const Duration(milliseconds: 150),
+      onRequest: (_) async => false,
+    );
+    final diagnostic = ResolveDiagnostic.last;
+    expect(diagnostic, isNotNull);
+    expect(diagnostic!.stage, 'timed-out');
+    expect(diagnostic.probe?['ts'], isTrue);
+    expect(diagnostic.probe?['widget'], isFalse);
+    expect(diagnostic.probe?['tsBoxIframe'], isFalse);
+    expect(diagnostic.probe?['vlc'], isTrue);
+    expect(diagnostic.probe?['vlcHref'], isFalse);
+    expect(diagnostic.probeFailed, isFalse);
+    expect(diagnostic.summary, contains('timed-out'));
+    expect(diagnostic.summary, contains('turnstile: yes'));
+    expect(diagnostic.summary, contains('widget: no'));
+  });
+
+  test('a probe that cannot run records a failure', () async {
+    final page = FakePage(const [
+      Step('Player'),
+    ], onEvaluate: (script) {
+      if (script.contains('cfTsBox')) {
+        throw StateError('the engine stopped');
+      }
+      return Future.value('""');
+    });
+    await resolvePage(
+      _solver(PageFactory([page])),
+      url: Uri.parse('https://host.example/f/abc'),
+      timeout: const Duration(milliseconds: 150),
+      onRequest: (_) async => false,
+    );
+    final diagnostic = ResolveDiagnostic.last;
+    expect(diagnostic, isNotNull);
+    expect(diagnostic!.probeFailed, isTrue);
+    expect(diagnostic.summary, contains('probe: FAILED'));
   });
 
   test('a renderer that ends ends it', () async {

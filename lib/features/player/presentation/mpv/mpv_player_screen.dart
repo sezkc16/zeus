@@ -111,6 +111,7 @@ import '../vlc/next_episode_countdown.dart';
 import '../vlc/panel/player_panel_data.dart';
 import '../vlc/panel/player_panel_labels.dart';
 import '../vlc/player_startup_view.dart';
+import '../widgets/resolve_diagnostic_text.dart';
 import 'golden_player_controls.dart';
 import 'golden_player_theme.dart';
 import 'mpv_android_options.dart';
@@ -6252,6 +6253,10 @@ class _MpvPlayerScreenState extends ConsumerState<MpvPlayerScreen>
                           textAlign: TextAlign.center,
                           style: const TextStyle(color: Colors.white),
                         ),
+                        // The last WebView resolve's diagnostic (b124):
+                        // one small line to screenshot when a resolve
+                        // ends with nothing, so it says where it stopped.
+                        const ResolveDiagnosticText(),
                         const SizedBox(height: 20),
                         Row(
                           mainAxisSize: MainAxisSize.min,

@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'dart:async';
 
 import '../../../shared/widgets/text_input_dialog.dart';
+import '../../../core/network/clearance/clearance.dart';
 import '../../../core/utils/layout_constants.dart';
 import '../../extensions/providers/extensions_controller.dart';
 import '../../../core/storage/settings_repository.dart';
@@ -123,6 +124,13 @@ class _DeveloperOptionsScreenState
                     },
                   ),
                   SettingsTile(
+                    icon: Icons.verified_user_rounded,
+                    title: 'Turnstile test',
+                    subtitle:
+                        'Opens Cloudflare\u2019s Turnstile demo in the app browser — tick its checkbox to check this browser can pass Turnstile at all',
+                    onTap: () => _openTurnstileTest(context),
+                  ),
+                  SettingsTile(
                     icon: Icons.timeline_rounded,
                     title: l10n.devQoeLog,
                     subtitle: l10n.devQoeLogSubtitle,
@@ -196,6 +204,31 @@ class _DeveloperOptionsScreenState
     QoeLog.writeToAppLog = enabled;
     setState(() => _qoeLog = enabled);
     await ref.read(settingsRepositoryProvider).setDevQoeLog(enabled);
+  }
+
+  /// Opens Cloudflare's official Turnstile demo page in the check sheet
+  /// (b124): the same browser the resolver uses, so ticking its
+  /// checkbox answers whether this browser can pass Turnstile at all —
+  /// a CineCloud-only failure looks different from a browser that
+  /// cannot complete any Turnstile challenge. The sheet stays until
+  /// the person closes it; the demo page itself says pass or fail.
+  Future<void> _openTurnstileTest(BuildContext context) async {
+    final clearance = Clearance.instance;
+    if (!clearance.isReady) return;
+    final solver = clearance.solver;
+    final page = await solver.borrowPage();
+    try {
+      await page.load('https://demo.turnstile.workers.dev/');
+      await solver.showSheet(
+        page: page,
+        site: 'demo.turnstile.workers.dev',
+        cleared: Completer<void>().future,
+      );
+    } catch (_) {
+      // The page failed to load: nothing to show.
+    } finally {
+      await page.dispose();
+    }
   }
 
   Future<void> _pickLocalVideo(BuildContext context) async {
